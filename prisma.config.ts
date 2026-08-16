@@ -3,6 +3,15 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
+// Falls back across the env var names common Postgres integrations (Vercel
+// Postgres, the Supabase Vercel integration, etc.) inject automatically, so
+// deployment doesn't depend on the var being named exactly "DATABASE_URL".
+const databaseUrl =
+  process.env["DATABASE_URL"] ||
+  process.env["POSTGRES_PRISMA_URL"] ||
+  process.env["POSTGRES_URL"] ||
+  process.env["POSTGRES_URL_NON_POOLING"];
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
@@ -10,6 +19,6 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: databaseUrl,
   },
 });

@@ -6,7 +6,12 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { seedDatabase, DEMO_PASSWORD } from "../src/lib/seed-data";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const connectionString =
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_PRISMA_URL ||
+  process.env.POSTGRES_URL ||
+  process.env.POSTGRES_URL_NON_POOLING;
+const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
 seedDatabase(prisma)
