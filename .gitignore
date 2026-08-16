@@ -48,3 +48,11 @@ next-env.d.ts
 /prisma/dev.db
 /prisma/dev.db-journal
 
+# agent-tool-installed skill references (not part of the app)
+/.agents
+/.claude
+/.windsurf
+/AGENTS.md
+/CLAUDE.md
+/skills-lock.json
+
