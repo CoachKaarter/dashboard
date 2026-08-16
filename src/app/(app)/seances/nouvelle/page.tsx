@@ -1,0 +1,71 @@
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { createSession } from "../actions";
+
+const inputClass =
+  "h-9 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none w-full focus:border-blue focus:ring-[3px] focus:ring-blue-bg";
+
+export default async function NouvelleSeancePage() {
+  const teams = await prisma.team.findMany({ orderBy: { code: "asc" } });
+
+  return (
+    <div className="max-w-[560px] mx-auto animate-fadein">
+      <Link href="/seances" className="text-muted text-xs hover:text-ink inline-block pb-2.5">
+        ← Toutes les séances
+      </Link>
+      <div className="bg-surface border border-line rounded-lg p-5">
+        <div className="text-lg font-bold tracking-[-0.01em] mb-4">Nouvelle séance</div>
+        <form action={createSession} className="flex flex-col gap-3.5">
+          <Field label="Catégorie">
+            <select name="category" defaultValue="U13" className={inputClass}>
+              <option value="U13">U13</option>
+              <option value="U12">U12</option>
+            </select>
+          </Field>
+          <Field label="Équipe spécifique (optionnel)">
+            <select name="scopeTeamId" defaultValue="" className={inputClass}>
+              <option value="">Toute la catégorie</option>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.code}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Intitulé">
+            <input name="label" defaultValue="Séance commune" required className={inputClass} />
+          </Field>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Date">
+              <input type="date" name="date" required className={inputClass} />
+            </Field>
+            <Field label="Début">
+              <input type="time" name="startTime" defaultValue="18:15" required className={inputClass} />
+            </Field>
+            <Field label="Fin">
+              <input type="time" name="endTime" defaultValue="19:45" required className={inputClass} />
+            </Field>
+          </div>
+          <Field label="Terrain">
+            <input name="location" defaultValue="Gripots 1" required className={inputClass} />
+          </Field>
+          <button
+            type="submit"
+            className="h-10 border-none rounded-md bg-ink text-white text-[13px] font-semibold cursor-pointer mt-1 hover:bg-[#2A2E36]"
+          >
+            Créer la séance
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-muted">{label}</span>
+      {children}
+    </label>
+  );
+}
