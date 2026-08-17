@@ -71,6 +71,22 @@ export default async function ParametresPage() {
           ))}
         </section>
       </form>
+
+      <section className="bg-surface border border-line rounded-lg overflow-hidden">
+        <div className="px-3.5 py-[11px] border-b border-line-soft text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Sauvegarde</div>
+        <div className="px-3.5 py-3 flex items-center gap-3.5">
+          <div className="flex-1 text-[12.5px] text-muted">
+            Exporte toutes les données du club (joueurs, équipes, séances, matchs, évaluations…) dans un fichier JSON.
+            Un complément manuel — Supabase effectue déjà des sauvegardes automatiques de la base au niveau infrastructure.
+          </div>
+          <a
+            href="/api/export/backup"
+            className="h-9 px-3.5 border border-line rounded-md bg-[#FCFCFB] text-xs font-semibold text-ink-soft hover:border-ink hover:text-ink whitespace-nowrap"
+          >
+            Exporter une sauvegarde JSON
+          </a>
+        </div>
+      </section>
     </div>
   );
 }

@@ -323,6 +323,16 @@ export default async function MatchDetailPage({
 
       {tab === "feuille" && (
         <div className="flex flex-col gap-3.5">
+          {(match.stats.length > 0 || match.convocations.length > 0) && (
+            <div className="flex justify-end">
+              <Link
+                href={`/matchs/${match.id}/imprimer`}
+                className="h-8 px-3 border border-line rounded-md text-xs font-semibold text-ink-soft hover:border-ink hover:text-ink"
+              >
+                Imprimer / Exporter PDF
+              </Link>
+            </div>
+          )}
           <section className="bg-surface border border-line rounded-lg overflow-auto">
             {!played ? (
               <div className="px-4 py-10 text-center text-muted text-[13px]">Le match n&apos;a pas encore été joué.</div>

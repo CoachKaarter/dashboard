@@ -30,7 +30,7 @@ export function Header({ todayLabel }: { todayLabel: string }) {
   const title = TITLES.find(([re]) => re.test(pathname))?.[1] ?? "";
 
   return (
-    <header className="h-[52px] shrink-0 bg-surface border-b border-line flex items-center gap-3.5 px-5">
+    <header className="no-print h-[52px] shrink-0 bg-surface border-b border-line flex items-center gap-3.5 px-5">
       <div className="font-semibold text-sm tracking-[-0.01em] min-w-[150px]">{title}</div>
       <form
         className="flex-1 max-w-[420px] relative"

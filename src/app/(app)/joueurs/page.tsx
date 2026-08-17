@@ -49,6 +49,18 @@ export default async function JoueursPage({
         <QuerySelect paramKey="pos" options={[{ value: "Tous", label: "Tous les postes" }, ...POSITIONS.map((p) => ({ value: p, label: p }))]} />
         <QuerySelect paramKey="statut" options={[{ value: "Tous", label: "Tous les statuts" }, ...PLAYER_STATUSES.map((s) => ({ value: s, label: s }))]} />
         <div className="font-mono text-[11.5px] text-muted">{players.length} joueurs</div>
+        <a
+          href="/api/export/joueurs"
+          className="h-8 px-3 border border-line rounded-md bg-[#FCFCFB] text-xs font-semibold text-ink-soft flex items-center hover:border-ink hover:text-ink"
+        >
+          Exporter CSV
+        </a>
+        <Link
+          href="/joueurs/importer"
+          className="h-8 px-3 border border-line rounded-md bg-[#FCFCFB] text-xs font-semibold text-ink-soft flex items-center hover:border-ink hover:text-ink"
+        >
+          Importer CSV
+        </Link>
         <Link
           href="/joueurs/nouveau"
           className="h-8 px-3 border border-line rounded-md bg-[#FCFCFB] text-xs font-semibold text-ink-soft flex items-center hover:border-ink hover:text-ink"

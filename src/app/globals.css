@@ -72,3 +72,19 @@ body {
 .animate-fadein {
   animation: fadein 0.18s ease;
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #ffffff;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  * {
+    overflow: visible !important;
+    height: auto !important;
+  }
+}

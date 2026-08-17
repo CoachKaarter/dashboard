@@ -38,7 +38,7 @@ export async function Sidebar() {
     .toUpperCase();
 
   return (
-    <nav className="w-[214px] shrink-0 bg-sidebar text-sidebar-text flex flex-col p-2.5 overflow-y-auto">
+    <nav className="no-print w-[214px] shrink-0 bg-sidebar text-sidebar-text flex flex-col p-2.5 overflow-y-auto">
       <div className="flex items-center gap-2.5 px-2 pb-4 pt-1.5">
         <div className="w-[22px] h-[22px] rounded-[5px] bg-green shrink-0" />
         <div>
