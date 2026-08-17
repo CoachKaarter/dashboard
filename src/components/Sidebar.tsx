@@ -16,6 +16,7 @@ export async function Sidebar() {
 
   const nav = [
     { href: "/", label: "Cockpit" },
+    { href: "/synthese", label: "Synthèse" },
     { href: "/planning", label: "Planning" },
     { href: "/joueurs", label: "Joueurs", badge: String(playerCount) },
     { href: "/equipes", label: "Équipes" },
