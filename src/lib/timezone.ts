@@ -55,9 +55,25 @@ export function parisDateAtTime(dateForDay: Date, hour: number, minute = 0): Dat
   return new Date(rough.getTime() - offset * 60000);
 }
 
-/** Midnight (00:00) in Paris of the calendar day this instant falls on, as a UTC instant. */
+/**
+ * The canonical "day identity" value for the Paris calendar day this instant
+ * falls on — UTC midnight of that Y/M/D, e.g. 22 August in Paris becomes
+ * 2026-08-22T00:00:00.000Z regardless of the +1h/+2h Paris offset.
+ *
+ * Deliberately NOT the precise instant Paris clocks actually hit 00:00 (that
+ * would be `parisDateAtTime(date, 0, 0)`, a UTC instant 1-2h *earlier* than
+ * this). This function exists for values whose job is to identify *which
+ * day* something belongs to — weekStartDate, eventDate, weekendDate — so
+ * they line up with how Match.date/TrainingSession.date/CalendarEvent.date
+ * are already stored elsewhere in the app (`new Date("YYYY-MM-DD")`, which
+ * is also UTC midnight of that date). Using the precise-instant form here
+ * would make exact-equality Prisma queries between the two systems silently
+ * never match, and would display one calendar day early through any
+ * UTC-based formatter (d.getDate()/getMonth() on a UTC server).
+ */
 export function parisStartOfDay(date: Date): Date {
-  return parisDateAtTime(date, 0, 0);
+  const { year, month, day } = parisCalendarDate(date);
+  return new Date(Date.UTC(year, month - 1, day));
 }
 
 /** Monday 00:00 Paris of the week containing this instant. */
