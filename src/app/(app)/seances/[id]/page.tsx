@@ -173,7 +173,7 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
                       <button
                         type="submit"
                         title={codeLabel}
-                        className="flex-1 h-7 rounded-[5px] font-mono text-[11px] font-bold border cursor-pointer w-[52px]"
+                        className="flex-1 h-10 sm:h-7 rounded-[5px] font-mono text-[11px] font-bold border cursor-pointer w-[52px] min-w-[44px] sm:min-w-0"
                         style={{
                           borderColor: on ? CODE_TONE[code] : "#E3E3DE",
                           background: on ? CODE_TONE[code] : "#FFFFFF",
