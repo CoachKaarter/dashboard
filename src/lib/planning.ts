@@ -63,7 +63,7 @@ export async function getPlanEvents(
     if (!visible(eTeam, team) || !authorized(eTeam)) continue;
     events.push({
       id: `c-${e.id}`, kind: e.kind as PlanEvent["kind"], date: e.date, start: e.startTime, end: e.endTime,
-      title: e.title, lieu: e.location ?? "lieu à définir", team: eTeam, href: "/planning",
+      title: e.title, lieu: e.location ?? "lieu à définir", team: eTeam, href: `/planning/${e.id}`,
     });
   }
   return events.sort((a, b) => a.date.getTime() - b.date.getTime() || a.start.localeCompare(b.start));

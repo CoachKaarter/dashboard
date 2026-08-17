@@ -31,6 +31,7 @@ export default async function MatchsPage() {
         </div>
         {matches.map((m) => {
           const played = m.status === "Joué";
+          const cancelled = m.status === "Annulé";
           return (
             <Link
               key={m.id}
@@ -53,7 +54,9 @@ export default async function MatchsPage() {
                 {played ? `${m.scoreFor} – ${m.scoreAgainst}` : "—"}
               </div>
               <div>
-                {played ? (
+                {cancelled ? (
+                  <Badge tone="red">Annulé</Badge>
+                ) : played ? (
                   <Badge tone={m._count.stats > 0 ? "green" : "neutral"}>{m._count.stats > 0 ? "Feuille saisie" : "Feuille à saisir"}</Badge>
                 ) : m.convocations.length >= m.needed ? (
                   <Badge tone="green">Complète</Badge>

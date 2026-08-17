@@ -53,6 +53,13 @@ export default async function PlanningPage({
             {t}
           </FilterChip>
         ))}
+        <span className="flex-1" />
+        <Link
+          href="/planning/nouveau"
+          className="h-8 px-3 border border-line rounded-md bg-[#FCFCFB] text-xs font-semibold text-ink-soft flex items-center hover:border-ink hover:text-ink"
+        >
+          + Nouvel événement
+        </Link>
       </div>
 
       {view === "semaine" && <WeekView team={team} weekOffset={weekOffset} today={today} baseHref={baseHref} allowed={allowed} />}

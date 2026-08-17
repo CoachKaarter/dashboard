@@ -111,6 +111,45 @@ export async function updateStatRow(matchId: string, playerId: string, formData:
   revalidatePath(`/matchs/${matchId}`);
 }
 
+export async function updateMatch(matchId: string, formData: FormData) {
+  await assertMatchAccess(matchId);
+  const opponent = String(formData.get("opponent") || "") || null;
+  const competition = String(formData.get("competition"));
+  const date = new Date(String(formData.get("date")));
+  const time = String(formData.get("time") || "") || null;
+  const isHome = formData.get("isHome") === "on";
+  const location = String(formData.get("location") || "") || null;
+  const needed = Number(formData.get("needed")) || 12;
+  if (!competition || Number.isNaN(date.getTime())) return;
+
+  await prisma.match.update({
+    where: { id: matchId },
+    data: { opponent, competition, date, time, isHome, location, needed },
+  });
+  revalidatePath(`/matchs/${matchId}`);
+  revalidatePath("/matchs");
+  revalidatePath("/planning");
+  revalidatePath("/");
+}
+
+export async function cancelMatch(matchId: string) {
+  await assertMatchAccess(matchId);
+  await prisma.match.update({ where: { id: matchId }, data: { status: "Annulé" } });
+  revalidatePath(`/matchs/${matchId}`);
+  revalidatePath("/matchs");
+  revalidatePath("/planning");
+  revalidatePath("/");
+}
+
+export async function deleteMatch(matchId: string) {
+  await assertMatchAccess(matchId);
+  await prisma.match.delete({ where: { id: matchId } });
+  revalidatePath("/matchs");
+  revalidatePath("/planning");
+  revalidatePath("/");
+  redirect("/matchs");
+}
+
 export async function createMatch(formData: FormData) {
   const user = await requireUser();
   const teamId = String(formData.get("teamId"));

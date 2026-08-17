@@ -9,7 +9,8 @@ import { CompositionBoard } from "@/components/CompositionBoard";
 import { NumField } from "@/components/ui/NumField";
 import { formatDateFull } from "@/lib/format";
 import { requireUser, canAccessTeam } from "@/lib/authz";
-import { toggleConvocation, recordScore, generateFeuille, updateStatRow } from "../actions";
+import { Badge } from "@/components/ui/Badge";
+import { toggleConvocation, recordScore, generateFeuille, updateStatRow, updateMatch, cancelMatch, deleteMatch } from "../actions";
 
 const TABS = [
   { key: "convocation", label: "Convocation" },
@@ -51,6 +52,7 @@ export default async function MatchDetailPage({
   const steps = ["Créé", "Convocation", "Composition", "Joué", "Statistiques", "Évaluation"];
 
   const atRisk = squad.filter((p) => p.status === "Actif" && p.matchsJoues > 0 && p.ecart < -settings.ecartTdj);
+  const cancelled = match.status === "Annulé";
 
   return (
     <div className="max-w-[1500px] mx-auto animate-fadein">
@@ -62,6 +64,7 @@ export default async function MatchDetailPage({
         <div className="flex items-center gap-3 flex-wrap">
           <TeamChip code={match.team.code} />
           <div className="text-xl font-bold tracking-[-0.02em]">{match.opponent ?? "Adversaire à définir"}</div>
+          {cancelled && <Badge tone="red">Annulé</Badge>}
           <span className="flex-1" />
           {!played ? (
             <div className="font-mono text-xs text-muted">
@@ -102,7 +105,7 @@ export default async function MatchDetailPage({
           })}
         </div>
 
-        {!played && (
+        {!played && !cancelled && (
           <form action={recordScore.bind(null, match.id)} className="flex items-center gap-2 mt-3.5 pt-3 border-t border-line-soft">
             <span className="text-xs text-muted mr-1">Enregistrer le score :</span>
             <input name="scoreFor" type="number" min={0} required className="w-14 h-8 border border-line rounded-md text-center text-[13px]" />
@@ -114,6 +117,49 @@ export default async function MatchDetailPage({
           </form>
         )}
       </div>
+
+      <details className="bg-surface border border-line rounded-lg mt-3.5">
+        <summary className="cursor-pointer px-3.5 py-2.5 text-[12.5px] font-semibold text-muted hover:text-ink select-none">
+          Modifier / annuler le match
+        </summary>
+        <div className="px-3.5 pb-3.5 flex flex-col gap-2.5">
+          <form action={updateMatch.bind(null, match.id)} className="grid grid-cols-2 gap-2.5">
+            <input name="opponent" defaultValue={match.opponent ?? ""} placeholder="Adversaire" className={matchInputClass} />
+            <select name="competition" defaultValue={match.competition} className={matchInputClass}>
+              <option value="Championnat">Championnat</option>
+              <option value="Plateau">Plateau</option>
+              <option value="Amical">Amical</option>
+              <option value="Coupe">Coupe</option>
+              <option value="Tournoi">Tournoi</option>
+            </select>
+            <input type="date" name="date" defaultValue={match.date.toISOString().slice(0, 10)} className={matchInputClass} />
+            <input type="time" name="time" defaultValue={match.time ?? ""} className={matchInputClass} />
+            <input name="location" defaultValue={match.location ?? ""} placeholder="Lieu" className={matchInputClass} />
+            <input type="number" name="needed" defaultValue={match.needed} min={7} max={16} className={matchInputClass} />
+            <label className="flex items-center gap-2 text-[12.5px] text-ink-soft col-span-2">
+              <input type="checkbox" name="isHome" defaultChecked={match.isHome} className="w-4 h-4" />
+              Match à domicile
+            </label>
+            <button type="submit" className="col-span-2 h-9 border-none rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36]">
+              Enregistrer les modifications
+            </button>
+          </form>
+          <div className="flex gap-2.5 pt-2 border-t border-line-soft">
+            {!cancelled && (
+              <form action={cancelMatch.bind(null, match.id)}>
+                <button type="submit" className="h-9 px-3 border border-line rounded-md text-xs font-semibold text-orange hover:border-orange">
+                  Annuler le match
+                </button>
+              </form>
+            )}
+            <form action={deleteMatch.bind(null, match.id)}>
+              <button type="submit" className="h-9 px-3 border border-line rounded-md text-xs font-semibold text-red hover:border-red">
+                Supprimer définitivement
+              </button>
+            </form>
+          </div>
+        </div>
+      </details>
 
       <div className="flex gap-1 my-3.5 border-b border-line">
         {TABS.map((t) => (
@@ -278,3 +324,6 @@ export default async function MatchDetailPage({
     </div>
   );
 }
+
+const matchInputClass =
+  "h-9 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none w-full focus:border-blue focus:ring-[3px] focus:ring-blue-bg";
