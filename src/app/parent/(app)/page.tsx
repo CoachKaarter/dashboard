@@ -1,7 +1,12 @@
 import { requireParentReady } from "@/lib/parent-guard";
 import { prisma } from "@/lib/prisma";
 import { getWeekStart, getWeekendDate, getWindowForWeek, getPlayerWeekSessions } from "@/lib/availability";
+import { isPreOpen, isPostOpen } from "@/lib/session-feedback";
 import { setSessionAvailability, setSessionAbsenceReason, setWeekendAvailability, setWeekendAbsenceReason } from "./actions";
+import { submitPreFeedback, submitPostFeedback } from "./questionnaire/actions";
+import type { TrainingSession, SessionFeedback } from "@/generated/prisma/client";
+
+const FEELINGS = ["😩", "😕", "😐", "🙂", "😄"];
 
 const DAY_NAMES = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
@@ -25,6 +30,10 @@ export default async function ParentAccueilPage() {
     getPlayerWeekSessions(parent.playerId, weekStart),
     prisma.playerAvailability.findMany({ where: { playerId: parent.playerId, weekStartDate: weekStart } }),
   ]);
+  const feedbacks = sessions.length
+    ? await prisma.sessionFeedback.findMany({ where: { playerId: parent.playerId, sessionId: { in: sessions.map((s) => s.id) } } })
+    : [];
+  const feedbackBySession = new Map(feedbacks.map((f) => [f.sessionId, f]));
 
   const answerBySession = new Map(answers.filter((a) => a.sessionId).map((a) => [a.sessionId, a]));
   const weekendAnswer = answers.find((a) => a.type === "WEEKEND");
@@ -125,6 +134,8 @@ export default async function ParentAccueilPage() {
             ) : (
               <AnswerReadout status={answer?.status} />
             )}
+
+            <SessionQuestionnaireBlock session={s} feedback={feedbackBySession.get(s.id)} />
           </div>
         );
       })}
@@ -202,6 +213,117 @@ function AnswerReadout({ status }: { status?: string }) {
   return (
     <div className={`mt-3 text-[14px] font-bold ${status === "AVAILABLE" ? "text-[#3F8F5B]" : "text-[#C4362C]"}`}>
       {status === "AVAILABLE" ? "✓ Présent / Disponible" : "✕ Absent / Indisponible"}
+    </div>
+  );
+}
+
+function SessionQuestionnaireBlock({ session, feedback }: { session: TrainingSession; feedback?: SessionFeedback }) {
+  const preOpen = isPreOpen(session);
+  const postOpen = isPostOpen(session);
+  const preDone = !!feedback?.preAnsweredAt;
+  const postDone = !!feedback?.postAnsweredAt;
+
+  if (!preOpen && !postOpen && !preDone && !postDone) return null;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-[#EFEFEC]">
+      <div className="text-[10.5px] font-bold tracking-[0.06em] uppercase text-[#B08A3E] mb-2">À remplir par le joueur</div>
+
+      {postOpen && !postDone ? (
+        <form action={submitPostFeedback.bind(null, session.id)} className="flex flex-col gap-3">
+          <div>
+            <div className="text-[12.5px] font-semibold mb-1.5">Comment tu t&apos;es senti pendant la séance ?</div>
+            <div className="flex gap-1.5">
+              {FEELINGS.map((e, i) => (
+                <label key={e} className="flex-1">
+                  <input type="radio" name="postFeeling" value={i + 1} required className="peer sr-only" />
+                  <div className="h-11 rounded-xl border border-[#E7E7E2] bg-white text-[20px] flex items-center justify-center peer-checked:bg-[#EDF2F8] peer-checked:border-blue">
+                    {e}
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="text-[12.5px] font-semibold mb-1.5">Difficulté de la séance (1 = très facile, 10 = très difficile)</div>
+            <div className="grid grid-cols-5 gap-1.5">
+              {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                <label key={n}>
+                  <input type="radio" name="rpe" value={n} required className="peer sr-only" />
+                  <div className="h-9 rounded-lg border border-[#E7E7E2] bg-white text-[13px] font-bold flex items-center justify-center peer-checked:bg-[#EDF2F8] peer-checked:border-blue">
+                    {n}
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="text-[12.5px] font-semibold mb-1.5">As-tu aimé la séance ?</div>
+            <div className="flex gap-1.5">
+              {[["1", "😕 Pas trop"], ["2", "🙂 Bien"], ["3", "😍 Beaucoup"]].map(([v, label]) => (
+                <label key={v} className="flex-1">
+                  <input type="radio" name="enjoyment" value={v} required className="peer sr-only" />
+                  <div className="h-10 rounded-xl border border-[#E7E7E2] bg-white text-[12.5px] font-semibold flex items-center justify-center text-center px-1 peer-checked:bg-[#EDF2F8] peer-checked:border-blue">
+                    {label}
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+          <textarea name="comment" placeholder="Quelque chose à ajouter ? (facultatif)" rows={2} className="border border-[#E7E7E2] rounded-xl px-3 py-2 text-[13px] bg-white outline-none resize-y" />
+          <button type="submit" className="h-11 rounded-xl bg-ink text-white text-[14px] font-bold">Valider</button>
+        </form>
+      ) : preOpen && !preDone ? (
+        <form action={submitPreFeedback.bind(null, session.id)} className="flex flex-col gap-3">
+          <div>
+            <div className="text-[12.5px] font-semibold mb-1.5">Comment tu te sens aujourd&apos;hui ?</div>
+            <div className="flex gap-1.5">
+              {FEELINGS.map((e, i) => (
+                <label key={e} className="flex-1">
+                  <input type="radio" name="preFeeling" value={i + 1} required className="peer sr-only" />
+                  <div className="h-11 rounded-xl border border-[#E7E7E2] bg-white text-[20px] flex items-center justify-center peer-checked:bg-[#EDF2F8] peer-checked:border-blue">
+                    {e}
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="text-[12.5px] font-semibold mb-1.5">Tu te sens fatigué ?</div>
+            <div className="flex gap-1.5">
+              {["Pas du tout", "Un peu", "Beaucoup"].map((f) => (
+                <label key={f} className="flex-1">
+                  <input type="radio" name="fatigue" value={f} required className="peer sr-only" />
+                  <div className="h-10 rounded-xl border border-[#E7E7E2] bg-white text-[12px] font-semibold flex items-center justify-center text-center px-1 peer-checked:bg-[#EDF2F8] peer-checked:border-blue">
+                    {f}
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="text-[12.5px] font-semibold mb-1.5">Tu as une douleur ?</div>
+            <div className="flex gap-1.5">
+              {[["non", "Non"], ["oui", "Oui"]].map(([v, label]) => (
+                <label key={v} className="flex-1">
+                  <input type="radio" name="pain" value={v} required className="peer sr-only" />
+                  <div className="h-10 rounded-xl border border-[#E7E7E2] bg-white text-[13px] font-semibold flex items-center justify-center peer-checked:bg-[#EDF2F8] peer-checked:border-blue">
+                    {label}
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+          <input name="painLocation" placeholder="Où as-tu mal ? (facultatif)" className="h-10 border border-[#E7E7E2] rounded-xl px-3 text-[13px] bg-white outline-none" />
+          <button type="submit" className="h-11 rounded-xl bg-ink text-white text-[14px] font-bold">Valider</button>
+        </form>
+      ) : postDone ? (
+        <div className="text-[13px] text-[#3F8F5B] font-semibold">✓ Questionnaire renseigné.</div>
+      ) : preDone ? (
+        <div className="text-[13px] text-[#3F8F5B] font-semibold">✓ Ressenti avant séance renseigné.</div>
+      ) : (
+        <div className="text-[13px] text-[#8A8D93]">Questionnaire disponible à partir de 14h.</div>
+      )}
     </div>
   );
 }
