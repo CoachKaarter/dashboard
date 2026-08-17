@@ -12,21 +12,26 @@ export async function createParentAccountAction(
 ) {
   await requireAdmin();
   const playerId = String(formData.get("playerId") ?? "");
-  const player = await prisma.player.findUnique({ where: { id: playerId } });
-  if (!player) return { error: "Joueur introuvable." };
 
-  const existing = await prisma.parentAccount.findUnique({ where: { playerId } });
-  if (existing) return { error: "Un compte existe déjà pour ce joueur." };
+  try {
+    const player = await prisma.player.findUnique({ where: { id: playerId } });
+    if (!player) return { error: "Joueur introuvable." };
 
-  const username = await generateUsername(player.firstName, player.lastName);
-  const tempPassword = generateTempPassword();
-  const passwordHash = await bcrypt.hash(tempPassword, 10);
+    const existing = await prisma.parentAccount.findUnique({ where: { playerId } });
+    if (existing) return { error: "Un compte existe déjà pour ce joueur." };
 
-  await prisma.parentAccount.create({
-    data: { playerId, username, passwordHash, mustChangePassword: true },
-  });
-  revalidatePath(`/joueurs/${playerId}`);
-  return { username, tempPassword };
+    const username = await generateUsername(player.firstName, player.lastName);
+    const tempPassword = generateTempPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
+
+    await prisma.parentAccount.create({
+      data: { playerId, username, passwordHash, mustChangePassword: true },
+    });
+    revalidatePath(`/joueurs/${playerId}`);
+    return { username, tempPassword };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 export async function resetParentPasswordAction(
@@ -35,17 +40,22 @@ export async function resetParentPasswordAction(
 ) {
   await requireAdmin();
   const accountId = String(formData.get("accountId") ?? "");
-  const account = await prisma.parentAccount.findUnique({ where: { id: accountId } });
-  if (!account) return { error: "Compte introuvable." };
 
-  const tempPassword = generateTempPassword();
-  const passwordHash = await bcrypt.hash(tempPassword, 10);
-  await prisma.parentAccount.update({
-    where: { id: accountId },
-    data: { passwordHash, mustChangePassword: true },
-  });
-  revalidatePath(`/joueurs/${account.playerId}`);
-  return { username: account.username, tempPassword };
+  try {
+    const account = await prisma.parentAccount.findUnique({ where: { id: accountId } });
+    if (!account) return { error: "Compte introuvable." };
+
+    const tempPassword = generateTempPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
+    await prisma.parentAccount.update({
+      where: { id: accountId },
+      data: { passwordHash, mustChangePassword: true },
+    });
+    revalidatePath(`/joueurs/${account.playerId}`);
+    return { username: account.username, tempPassword };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 export async function setParentAccountActive(accountId: string, active: boolean) {
