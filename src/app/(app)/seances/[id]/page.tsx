@@ -5,7 +5,15 @@ import { Badge } from "@/components/ui/Badge";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Avatar } from "@/components/ui/Avatar";
 import { requireUser, canAccessSession } from "@/lib/authz";
-import { setAttendance, markAllPresent, resetPresence, updateSession, cancelSession, deleteSession } from "../actions";
+import {
+  setAttendance,
+  setAttendanceNote,
+  markAllPresent,
+  resetPresence,
+  updateSession,
+  cancelSession,
+  deleteSession,
+} from "../actions";
 
 const CODES: { code: string; label: string }[] = [
   { code: "P", label: "Présent" },
@@ -40,6 +48,10 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
   }
   const label = session.scopeTeam ? session.scopeTeam.code : session.category;
   const dayLabel = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"][session.date.getDay()];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const isFuture = session.date > today;
+  const previsionnel = isFuture && pointed > 0;
 
   return (
     <div className="max-w-[1200px] mx-auto animate-fadein">
@@ -58,6 +70,16 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
           <div className="text-muted text-[12.5px] mt-1">
             {session.startTime} › {session.endTime} · {session.location} · {players.length} joueurs attendus
           </div>
+          {(session.theme || session.objective) && (
+            <div className="text-[12.5px] mt-1.5 flex items-center gap-3 flex-wrap">
+              {session.theme && (
+                <span><span className="text-muted-2">Thème :</span> <span className="font-semibold">{session.theme}</span></span>
+              )}
+              {session.objective && (
+                <span><span className="text-muted-2">Objectif :</span> <span className="font-semibold">{session.objective}</span></span>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex-1" />
         <div className="flex gap-5 flex-wrap">
@@ -90,6 +112,8 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
               <input type="time" name="startTime" defaultValue={session.startTime} className={detailInputClass} />
               <input type="time" name="endTime" defaultValue={session.endTime} className={detailInputClass} />
             </div>
+            <input name="theme" defaultValue={session.theme ?? ""} placeholder="Thème (ex. Conservation du ballon)" className={detailInputClass} />
+            <input name="objective" defaultValue={session.objective ?? ""} placeholder="Objectif pédagogique" className={detailInputClass} />
             <button type="submit" className="col-span-2 h-9 border-none rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36]">
               Enregistrer les modifications
             </button>
@@ -110,6 +134,13 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
           </div>
         </div>
       </details>
+
+      {previsionnel && (
+        <div className="mt-3.5 px-3.5 py-2.5 rounded-lg border border-blue/30 bg-blue-bg text-blue text-[12.5px] font-medium">
+          Présence prévisionnelle — cette séance n&apos;a pas encore eu lieu, ce pointage reflète ce qui est déjà su à
+          l&apos;avance (absences prévenues…). Il ne passera en « Réalisée » qu&apos;à partir du jour de la séance.
+        </div>
+      )}
 
       <div className="flex items-center gap-2.5 my-3.5">
         <form action={markAllPresent.bind(null, id)}>
@@ -140,18 +171,20 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
       </div>
 
       <div className="bg-surface border border-line rounded-lg overflow-auto">
-        <div className="grid grid-cols-[minmax(190px,1fr)_76px_140px_300px] gap-3 items-center px-3.5 h-[34px] bg-[#FAFAF8] border-b border-line text-[10.5px] font-bold tracking-[0.08em] uppercase text-muted">
+        <div className="grid grid-cols-[minmax(190px,1fr)_76px_140px_300px_180px] gap-3 items-center px-3.5 h-[34px] bg-[#FAFAF8] border-b border-line text-[10.5px] font-bold tracking-[0.08em] uppercase text-muted">
           <div>Joueur</div>
           <div>Équipe</div>
           <div>Poste</div>
           <div>Pointage</div>
+          <div>Motif</div>
         </div>
         {players.map((p) => {
           const current = p.attendances[0]?.code;
+          const note = p.attendances[0]?.note ?? "";
           return (
             <div
               key={p.id}
-              className={`grid grid-cols-[minmax(190px,1fr)_76px_140px_300px] gap-3 items-center px-3.5 h-11 border-b border-line-soft-2 last:border-b-0 ${
+              className={`grid grid-cols-[minmax(190px,1fr)_76px_140px_300px_180px] gap-3 items-center px-3.5 h-11 border-b border-line-soft-2 last:border-b-0 ${
                 current ? "bg-[#FCFCFB]" : "bg-surface"
               }`}
             >
@@ -186,6 +219,17 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
                   );
                 })}
               </div>
+              <form action={setAttendanceNote.bind(null, id, p.id)} className="flex gap-1">
+                <input
+                  name="note"
+                  defaultValue={note}
+                  placeholder="—"
+                  className="h-7 flex-1 min-w-0 border border-line rounded-md px-2 text-[11.5px] bg-surface outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
+                />
+                <button type="submit" className="h-7 px-2 border border-line rounded-md text-[10.5px] font-semibold text-muted hover:border-ink hover:text-ink">
+                  OK
+                </button>
+              </form>
             </div>
           );
         })}

@@ -19,8 +19,18 @@ async function scopePlayers(sessionId: string) {
   });
 }
 
+// Marking attendance on a session that hasn't happened yet is "présence
+// prévisionnelle" — anticipated absences a coach already knows about — and
+// must not flip the session to "Réalisée" the way real post-séance pointage
+// does. Only sessions dated today or earlier count as actually pointed.
+function isPastOrToday(date: Date) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return date <= today;
+}
+
 export async function setAttendance(sessionId: string, playerId: string, code: string) {
-  await assertSessionAccess(sessionId);
+  const { session } = await assertSessionAccess(sessionId);
   const existing = await prisma.attendance.findUnique({
     where: { sessionId_playerId: { sessionId, playerId } },
   });
@@ -31,14 +41,27 @@ export async function setAttendance(sessionId: string, playerId: string, code: s
   } else {
     await prisma.attendance.create({ data: { sessionId, playerId, code } });
   }
-  await prisma.trainingSession.update({ where: { id: sessionId }, data: { status: "Réalisée" } });
+  if (isPastOrToday(session.date)) {
+    await prisma.trainingSession.update({ where: { id: sessionId }, data: { status: "Réalisée" } });
+  }
   revalidatePath(`/seances/${sessionId}`);
   revalidatePath("/seances");
   revalidatePath("/");
 }
 
-export async function markAllPresent(sessionId: string) {
+export async function setAttendanceNote(sessionId: string, playerId: string, formData: FormData) {
   await assertSessionAccess(sessionId);
+  const note = String(formData.get("note") || "").trim() || null;
+  await prisma.attendance.upsert({
+    where: { sessionId_playerId: { sessionId, playerId } },
+    update: { note },
+    create: { sessionId, playerId, code: "AJ", note },
+  });
+  revalidatePath(`/seances/${sessionId}`);
+}
+
+export async function markAllPresent(sessionId: string) {
+  const { session } = await assertSessionAccess(sessionId);
   const players = await scopePlayers(sessionId);
   const existing = await prisma.attendance.findMany({ where: { sessionId }, select: { playerId: true } });
   const done = new Set(existing.map((e) => e.playerId));
@@ -46,7 +69,9 @@ export async function markAllPresent(sessionId: string) {
   await prisma.attendance.createMany({
     data: toCreate.map((p) => ({ sessionId, playerId: p.id, code: "P" })),
   });
-  await prisma.trainingSession.update({ where: { id: sessionId }, data: { status: "Réalisée" } });
+  if (isPastOrToday(session.date)) {
+    await prisma.trainingSession.update({ where: { id: sessionId }, data: { status: "Réalisée" } });
+  }
   revalidatePath(`/seances/${sessionId}`);
   revalidatePath("/seances");
   revalidatePath("/");
@@ -70,9 +95,11 @@ export async function createSession(formData: FormData) {
   const startTime = String(formData.get("startTime"));
   const endTime = String(formData.get("endTime"));
   const location = String(formData.get("location"));
+  const theme = String(formData.get("theme") || "").trim() || null;
+  const objective = String(formData.get("objective") || "").trim() || null;
 
   const session = await prisma.trainingSession.create({
-    data: { category, scopeTeamId, label, date, startTime, endTime, location, status: "Prévue" },
+    data: { category, scopeTeamId, label, date, startTime, endTime, location, theme, objective, status: "Prévue" },
   });
   revalidatePath("/seances");
   revalidatePath("/planning");
@@ -87,11 +114,13 @@ export async function updateSession(sessionId: string, formData: FormData) {
   const startTime = String(formData.get("startTime"));
   const endTime = String(formData.get("endTime"));
   const location = String(formData.get("location"));
+  const theme = String(formData.get("theme") || "").trim() || null;
+  const objective = String(formData.get("objective") || "").trim() || null;
   if (!label || !startTime || !endTime || !location) return;
 
   await prisma.trainingSession.update({
     where: { id: sessionId },
-    data: { label, date, startTime, endTime, location },
+    data: { label, date, startTime, endTime, location, theme, objective },
   });
   revalidatePath(`/seances/${sessionId}`);
   revalidatePath("/seances");

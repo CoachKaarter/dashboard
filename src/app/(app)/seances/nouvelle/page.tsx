@@ -49,6 +49,12 @@ export default async function NouvelleSeancePage() {
           <Field label="Terrain">
             <input name="location" defaultValue="Gripots 1" required className={inputClass} />
           </Field>
+          <Field label="Thème (optionnel)">
+            <input name="theme" placeholder="Conservation du ballon" className={inputClass} />
+          </Field>
+          <Field label="Objectif pédagogique (optionnel)">
+            <input name="objective" placeholder="Jouer sous pression en 2 touches" className={inputClass} />
+          </Field>
           <button
             type="submit"
             className="h-10 border-none rounded-md bg-ink text-white text-[13px] font-semibold cursor-pointer mt-1 hover:bg-[#2A2E36]"

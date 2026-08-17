@@ -148,6 +148,8 @@ model TrainingSession {
   scopeTeam   Team?   @relation(fields: [scopeTeamId], references: [id])
   scopeTeamId String?
   label       String // "Séance commune" | "Spécifique U13A" | "Technique"
+  theme       String? // thème de la séance, ex. "Conservation du ballon"
+  objective   String? // objectif pédagogique, ex. "Jouer sous pression en 2 touches"
 
   // Set when this session was auto-generated from a RecurringSlot, so the
   // generator can tell which weeks already have a session and skip them —
@@ -168,6 +170,7 @@ model Attendance {
   player    Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
   playerId  String
   code      String // "P" | "R" | "AJ" | "ANJ" | "B"
+  note      String? // motif — ex. raison d'une absence justifiée (AJ)
 
   @@unique([sessionId, playerId])
   @@index([playerId])
