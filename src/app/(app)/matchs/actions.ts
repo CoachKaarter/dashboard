@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser, canAccessTeam } from "@/lib/authz";
 import { getSettings } from "@/lib/settings";
+import { logActivity } from "@/lib/activity";
 
 function computeMeetTime(time: string | null, delaiRdv: number): string | null {
   if (!time) return null;
@@ -158,8 +159,14 @@ export async function updateMatch(matchId: string, formData: FormData) {
 }
 
 export async function cancelMatch(matchId: string) {
-  await assertMatchAccess(matchId);
-  await prisma.match.update({ where: { id: matchId }, data: { status: "Annulé" } });
+  const user = await assertMatchAccess(matchId);
+  const match = await prisma.match.update({ where: { id: matchId }, data: { status: "Annulé" }, include: { team: true } });
+  await logActivity({
+    actorId: user.id,
+    summary: `a annulé le match ${match.team.code} vs ${match.opponent ?? "adversaire à définir"}`,
+    entityType: "Match",
+    entityId: matchId,
+  });
   revalidatePath(`/matchs/${matchId}`);
   revalidatePath("/matchs");
   revalidatePath("/planning");
@@ -167,8 +174,14 @@ export async function cancelMatch(matchId: string) {
 }
 
 export async function deleteMatch(matchId: string) {
-  await assertMatchAccess(matchId);
-  await prisma.match.delete({ where: { id: matchId } });
+  const user = await assertMatchAccess(matchId);
+  const match = await prisma.match.delete({ where: { id: matchId }, include: { team: true } });
+  await logActivity({
+    actorId: user.id,
+    summary: `a supprimé le match ${match.team.code} vs ${match.opponent ?? "adversaire à définir"}`,
+    entityType: "Match",
+    entityId: matchId,
+  });
   revalidatePath("/matchs");
   revalidatePath("/planning");
   revalidatePath("/");

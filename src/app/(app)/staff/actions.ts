@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/authz";
+import { logActivity } from "@/lib/activity";
 
 const ROLES = ["ADMIN", "COACH", "STAFF"];
 
@@ -13,7 +14,7 @@ function randomPassword() {
 }
 
 export async function createStaff(formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const username = String(formData.get("username") ?? "").trim().toLowerCase();
   const name = String(formData.get("name") ?? "").trim();
   const role = String(formData.get("role") ?? "");
@@ -28,12 +29,13 @@ export async function createStaff(formData: FormData) {
   const user = await prisma.user.create({
     data: { username, name, role, jobTitle, accessLabel, email, teamIds, passwordHash },
   });
+  await logActivity({ actorId: admin.id, summary: `a créé le compte ${name} (${role})`, entityType: "User", entityId: user.id });
   revalidatePath("/staff");
   redirect(`/staff/${user.id}?tempPassword=${tempPassword}`);
 }
 
 export async function updateStaff(userId: string, formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const name = String(formData.get("name") ?? "").trim();
   const role = String(formData.get("role") ?? "");
   const jobTitle = String(formData.get("jobTitle") ?? "").trim();
@@ -46,6 +48,7 @@ export async function updateStaff(userId: string, formData: FormData) {
     where: { id: userId },
     data: { name, role, jobTitle, accessLabel, email, teamIds },
   });
+  await logActivity({ actorId: admin.id, summary: `a modifié le compte ${name}`, entityType: "User", entityId: userId });
   revalidatePath("/staff");
   revalidatePath(`/staff/${userId}`);
 }
@@ -53,16 +56,23 @@ export async function updateStaff(userId: string, formData: FormData) {
 export async function setActive(userId: string, active: boolean) {
   const admin = await requireAdmin();
   if (userId === admin.id && !active) return; // can't lock yourself out
-  await prisma.user.update({ where: { id: userId }, data: { active } });
+  const target = await prisma.user.update({ where: { id: userId }, data: { active } });
+  await logActivity({
+    actorId: admin.id,
+    summary: `a ${active ? "réactivé" : "désactivé"} le compte ${target.name}`,
+    entityType: "User",
+    entityId: userId,
+  });
   revalidatePath("/staff");
   revalidatePath(`/staff/${userId}`);
 }
 
 export async function resetPassword(userId: string) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const tempPassword = randomPassword();
   const passwordHash = await bcrypt.hash(tempPassword, 10);
-  await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+  const target = await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+  await logActivity({ actorId: admin.id, summary: `a réinitialisé le mot de passe de ${target.name}`, entityType: "User", entityId: userId });
   revalidatePath(`/staff/${userId}`);
   redirect(`/staff/${userId}?tempPassword=${tempPassword}`);
 }

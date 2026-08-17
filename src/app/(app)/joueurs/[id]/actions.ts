@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { requireUser, canAccessTeam } from "@/lib/authz";
 import { PLAYER_STATUSES, POSITIONS } from "@/lib/constants";
+import { logActivity } from "@/lib/activity";
 
 export async function addPlayerNote(playerId: string, formData: FormData) {
   const user = await requireUser();
@@ -37,6 +38,13 @@ export async function changeTeam(playerId: string, formData: FormData) {
       },
     }),
   ]);
+  const toTeam = await prisma.team.findUnique({ where: { id: toTeamId } });
+  await logActivity({
+    actorId: user.id,
+    summary: `a changé le groupe de ${player.firstName} ${player.lastName} vers ${toTeam?.code ?? toTeamId} (${reason})`,
+    entityType: "Player",
+    entityId: playerId,
+  });
   revalidatePath(`/joueurs/${playerId}`);
   revalidatePath("/joueurs");
 }
@@ -49,6 +57,12 @@ export async function changeStatus(playerId: string, formData: FormData) {
   if (!canAccessTeam(user, player.teamId)) return;
 
   await prisma.player.update({ where: { id: playerId }, data: { status } });
+  await logActivity({
+    actorId: user.id,
+    summary: `a changé le statut de ${player.firstName} ${player.lastName} en ${status}`,
+    entityType: "Player",
+    entityId: playerId,
+  });
   revalidatePath(`/joueurs/${playerId}`);
   revalidatePath("/joueurs");
   revalidatePath("/");
@@ -99,6 +113,12 @@ export async function declareUnavailability(playerId: string, formData: FormData
     }),
     prisma.player.update({ where: { id: playerId }, data: { status: STATUS_BY_TYPE[type] } }),
   ]);
+  await logActivity({
+    actorId: user.id,
+    summary: `a déclaré ${player.firstName} ${player.lastName} indisponible (${type})`,
+    entityType: "Player",
+    entityId: playerId,
+  });
   revalidatePath(`/joueurs/${playerId}`);
   revalidatePath("/joueurs");
   revalidatePath("/");
@@ -113,6 +133,12 @@ export async function endUnavailability(playerId: string, unavailabilityId: stri
     prisma.unavailability.update({ where: { id: unavailabilityId }, data: { actualReturn: new Date() } }),
     prisma.player.update({ where: { id: playerId }, data: { status: "Actif" } }),
   ]);
+  await logActivity({
+    actorId: user.id,
+    summary: `a marqué ${player.firstName} ${player.lastName} de retour`,
+    entityType: "Player",
+    entityId: playerId,
+  });
   revalidatePath(`/joueurs/${playerId}`);
   revalidatePath("/joueurs");
   revalidatePath("/");
@@ -124,6 +150,12 @@ export async function setArchived(playerId: string, archived: boolean) {
   if (!canAccessTeam(user, player.teamId)) return;
 
   await prisma.player.update({ where: { id: playerId }, data: { archived } });
+  await logActivity({
+    actorId: user.id,
+    summary: `a ${archived ? "archivé" : "réactivé"} ${player.firstName} ${player.lastName}`,
+    entityType: "Player",
+    entityId: playerId,
+  });
   revalidatePath(`/joueurs/${playerId}`);
   revalidatePath("/joueurs");
 }

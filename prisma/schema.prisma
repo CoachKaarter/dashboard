@@ -32,6 +32,7 @@ model User {
   treatedAlerts    AlertTreated[]
   historyDecisions TeamHistoryEntry[]
   unavailabilities Unavailability[]
+  activityLogs     ActivityLog[]
 
   createdAt DateTime @default(now())
 }
@@ -326,6 +327,20 @@ model AlertTreated {
   treatedBy   User?    @relation(fields: [treatedById], references: [id])
   treatedById String?
   treatedAt   DateTime @default(now())
+}
+
+// ---------- Activity log (journal d'activité du staff) ----------
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  actor      User?    @relation(fields: [actorId], references: [id])
+  actorId    String?
+  summary    String // phrase lisible, ex. "a changé le statut de Naël ABDELMOUMENE en Blessé"
+  entityType String? // "Player" | "Team" | "Match" | "TrainingSession" | "User" ...
+  entityId   String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 // ---------- Settings (single row of tunable alert thresholds) ----------

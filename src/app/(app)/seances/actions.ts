@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser, canAccessSession, canAccessTeam } from "@/lib/authz";
+import { logActivity } from "@/lib/activity";
 
 async function assertSessionAccess(sessionId: string) {
   const user = await requireUser();
@@ -129,8 +130,14 @@ export async function updateSession(sessionId: string, formData: FormData) {
 }
 
 export async function cancelSession(sessionId: string) {
-  await assertSessionAccess(sessionId);
+  const { user, session } = await assertSessionAccess(sessionId);
   await prisma.trainingSession.update({ where: { id: sessionId }, data: { status: "Annulée" } });
+  await logActivity({
+    actorId: user.id,
+    summary: `a annulé la séance ${session.category} du ${session.date.toLocaleDateString("fr-FR")}`,
+    entityType: "TrainingSession",
+    entityId: sessionId,
+  });
   revalidatePath(`/seances/${sessionId}`);
   revalidatePath("/seances");
   revalidatePath("/planning");
@@ -138,8 +145,14 @@ export async function cancelSession(sessionId: string) {
 }
 
 export async function deleteSession(sessionId: string) {
-  await assertSessionAccess(sessionId);
+  const { user, session } = await assertSessionAccess(sessionId);
   await prisma.trainingSession.delete({ where: { id: sessionId } });
+  await logActivity({
+    actorId: user.id,
+    summary: `a supprimé la séance ${session.category} du ${session.date.toLocaleDateString("fr-FR")}`,
+    entityType: "TrainingSession",
+    entityId: sessionId,
+  });
   revalidatePath("/seances");
   revalidatePath("/planning");
   revalidatePath("/");

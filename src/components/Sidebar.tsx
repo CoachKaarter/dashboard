@@ -26,6 +26,7 @@ export async function Sidebar() {
     { href: "/alertes", label: "Alertes", badge: String(totalAlerts), urgent: urgentCount > 0 },
     { href: "/materiel", label: "Matériel" },
     { href: "/staff", label: "Staff" },
+    { href: "/journal", label: "Journal" },
     { href: "/parametres", label: "Paramètres" },
   ];
 
