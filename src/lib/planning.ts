@@ -25,7 +25,17 @@ function visible(eventTeam: string, filterTeam: string): boolean {
   return eventTeam === filterTeam || eventTeam.startsWith(filterTeam) || filterTeam.startsWith(eventTeam);
 }
 
-export async function getPlanEvents(from: Date, to: Date, team: string): Promise<PlanEvent[]> {
+export async function getPlanEvents(
+  from: Date,
+  to: Date,
+  team: string,
+  allowedTeamCodes: string[] | "ALL" = "ALL"
+): Promise<PlanEvent[]> {
+  const authorized = (eTeam: string) =>
+    allowedTeamCodes === "ALL" ||
+    eTeam === "Toutes" ||
+    allowedTeamCodes.some((c) => eTeam === c || eTeam.startsWith(c) || c.startsWith(eTeam));
+
   const [sessions, matches, calEvents] = await Promise.all([
     prisma.trainingSession.findMany({ where: { date: { gte: from, lt: to } }, include: { scopeTeam: true } }),
     prisma.match.findMany({ where: { date: { gte: from, lt: to } }, include: { team: true } }),
@@ -35,14 +45,14 @@ export async function getPlanEvents(from: Date, to: Date, team: string): Promise
   const events: PlanEvent[] = [];
   for (const s of sessions) {
     const eTeam = s.scopeTeam?.code ?? s.category;
-    if (!visible(eTeam, team)) continue;
+    if (!visible(eTeam, team) || !authorized(eTeam)) continue;
     events.push({
       id: `s-${s.id}`, kind: "seance", date: s.date, start: s.startTime, end: s.endTime,
       title: `${eTeam} — ${s.label}`, lieu: s.location, team: eTeam, href: `/seances/${s.id}`,
     });
   }
   for (const m of matches) {
-    if (!visible(m.team.code, team)) continue;
+    if (!visible(m.team.code, team) || !authorized(m.team.code)) continue;
     events.push({
       id: `m-${m.id}`, kind: "match", date: m.date, start: m.time ?? "—", end: "",
       title: m.opponent ?? "Match à programmer", lieu: m.location ?? "lieu à définir", team: m.team.code, href: `/matchs/${m.id}`,
@@ -50,7 +60,7 @@ export async function getPlanEvents(from: Date, to: Date, team: string): Promise
   }
   for (const e of calEvents) {
     const eTeam = e.team?.code ?? e.teamLabel;
-    if (!visible(eTeam, team)) continue;
+    if (!visible(eTeam, team) || !authorized(eTeam)) continue;
     events.push({
       id: `c-${e.id}`, kind: e.kind as PlanEvent["kind"], date: e.date, start: e.startTime, end: e.endTime,
       title: e.title, lieu: e.location ?? "lieu à définir", team: eTeam, href: "/planning",

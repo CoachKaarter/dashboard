@@ -6,7 +6,9 @@ import { Avatar } from "@/components/ui/Avatar";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Badge } from "@/components/ui/Badge";
 import { statutTone, formatDateShort } from "@/lib/format";
-import { addPlayerNote } from "./actions";
+import { PLAYER_STATUSES, POSITIONS } from "@/lib/constants";
+import { requireUser, canAccessTeam, scopedTeamIds } from "@/lib/authz";
+import { addPlayerNote, changeTeam, changeStatus, updatePlayer, setArchived } from "./actions";
 
 const TABS = [
   { key: "assiduite", label: "Assiduité" },
@@ -34,7 +36,8 @@ export default async function FichePage({
   const { tab: rawTab } = await searchParams;
   const tab = TABS.some((t) => t.key === rawTab) ? rawTab! : "assiduite";
 
-  const [player, stats] = await Promise.all([
+  const user = await requireUser();
+  const [player, stats, allTeams] = await Promise.all([
     prisma.player.findUnique({
       where: { id },
       include: {
@@ -47,8 +50,12 @@ export default async function FichePage({
       },
     }),
     getPlayerStatsById(id),
+    prisma.team.findMany({ orderBy: { code: "asc" } }),
   ]);
   if (!player || !stats) notFound();
+  if (!canAccessTeam(user, player.teamId)) notFound();
+  const scope = scopedTeamIds(user);
+  const reassignableTeams = scope === "ALL" ? allTeams : allTeams.filter((t) => scope.includes(t.id));
 
   return (
     <div className="max-w-[1400px] mx-auto animate-fadein">
@@ -63,6 +70,7 @@ export default async function FichePage({
             <div className="text-[22px] font-bold tracking-[-0.02em]">{stats.name}</div>
             <TeamChip code={stats.teamCode} />
             <Badge tone={statutTone(stats.status)}>{stats.status}</Badge>
+            {player.archived && <Badge tone="neutral">Archivé</Badge>}
           </div>
           <div className="text-muted text-[12.5px] mt-1">
             {stats.category} · né en {stats.birthYear} · {stats.position} · pied {stats.foot.toLowerCase()}
@@ -176,11 +184,6 @@ export default async function FichePage({
             <div className="flex flex-col gap-2">
               {[
                 ["Identifiant", player.id.slice(0, 10)],
-                ["Année", String(stats.birthYear)],
-                ["Poste principal", stats.position],
-                ["Poste secondaire", stats.positionAlt],
-                ["Pied fort", stats.foot],
-                ["Arrivée au club", stats.joinedLabel],
                 [
                   "Dernière convocation",
                   stats.lastConvocDaysAgo === null
@@ -196,6 +199,72 @@ export default async function FichePage({
                 </div>
               ))}
             </div>
+
+            <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted mt-4 mb-[11px]">Modifier</div>
+            <form action={updatePlayer.bind(null, id)} className="flex flex-col gap-2.5">
+              <EditField label="Année de naissance">
+                <input type="number" name="birthYear" defaultValue={stats.birthYear} className={editInputClass} />
+              </EditField>
+              <EditField label="Poste principal">
+                <select name="position" defaultValue={stats.position} className={editInputClass}>
+                  <option value="Non renseigné">Non renseigné</option>
+                  {POSITIONS.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </EditField>
+              <EditField label="Poste secondaire">
+                <select name="positionAlt" defaultValue={stats.positionAlt} className={editInputClass}>
+                  <option value="Non renseigné">Non renseigné</option>
+                  {POSITIONS.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </EditField>
+              <EditField label="Pied fort">
+                <select name="foot" defaultValue={stats.foot} className={editInputClass}>
+                  <option value="Non renseigné">Non renseigné</option>
+                  <option value="Gauche">Gauche</option>
+                  <option value="Droit">Droit</option>
+                  <option value="Les deux">Les deux</option>
+                </select>
+              </EditField>
+              <EditField label="Arrivée au club">
+                <input name="joinedLabel" defaultValue={stats.joinedLabel} className={editInputClass} />
+              </EditField>
+              <button type="submit" className={editButtonClass}>Enregistrer</button>
+            </form>
+
+            <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted mt-4 mb-[11px]">Statut</div>
+            <form action={changeStatus.bind(null, id)} className="flex gap-2">
+              <select name="status" defaultValue={stats.status} className={editInputClass}>
+                {PLAYER_STATUSES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <button type="submit" className={editButtonClass + " w-auto px-3"}>OK</button>
+            </form>
+
+            {reassignableTeams.length > 1 && (
+              <>
+                <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted mt-4 mb-[11px]">Changer de groupe</div>
+                <form action={changeTeam.bind(null, id)} className="flex flex-col gap-2">
+                  <select name="toTeamId" defaultValue={player.teamId} className={editInputClass}>
+                    {reassignableTeams.map((t) => (
+                      <option key={t.id} value={t.id}>{t.code}</option>
+                    ))}
+                  </select>
+                  <input name="reason" placeholder="Motif (optionnel)" className={editInputClass} />
+                  <button type="submit" className={editButtonClass}>Déplacer</button>
+                </form>
+              </>
+            )}
+
+            <form action={setArchived.bind(null, id, !player.archived)} className="mt-4">
+              <button type="submit" className="w-full h-8 border border-line rounded-md text-xs font-semibold text-muted hover:border-red hover:text-red">
+                {player.archived ? "Réactiver ce joueur" : "Archiver ce joueur"}
+              </button>
+            </form>
           </div>
 
           <div className="bg-surface border border-line rounded-lg px-3.5 py-[13px]">
@@ -230,6 +299,20 @@ export default async function FichePage({
         </div>
       </div>
     </div>
+  );
+}
+
+const editInputClass =
+  "h-8 border border-line rounded-md px-2 text-[12.5px] bg-surface outline-none w-full focus:border-blue focus:ring-[3px] focus:ring-blue-bg";
+const editButtonClass =
+  "h-8 border border-line rounded-md bg-[#FCFCFB] text-xs font-semibold text-ink-soft hover:border-ink hover:text-ink";
+
+function EditField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[10.5px] text-muted">{label}</span>
+      {children}
+    </label>
   );
 }
 

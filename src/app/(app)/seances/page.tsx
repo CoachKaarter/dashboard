@@ -2,14 +2,27 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/Badge";
 import { formatDateShort } from "@/lib/format";
+import { requireUser, scopedTeamIds } from "@/lib/authz";
 
 const DAY_NAMES = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const GRID = "grid-cols-[76px_70px_86px_80px_120px_110px_96px_minmax(190px,1fr)_24px]";
 
 export default async function SeancesPage() {
-  const sessions = await prisma.trainingSession.findMany({
+  const user = await requireUser();
+  const scope = scopedTeamIds(user);
+  const allSessions = await prisma.trainingSession.findMany({
     include: { scopeTeam: true, _count: { select: { attendances: true } } },
     orderBy: { date: "asc" },
+  });
+  let allowedCategories: Set<string> | null = null;
+  if (scope !== "ALL") {
+    const teams = await prisma.team.findMany({ where: { id: { in: scope } } });
+    allowedCategories = new Set(teams.map((t) => t.category));
+  }
+  const sessions = allSessions.filter((s) => {
+    if (scope === "ALL") return true;
+    if (s.scopeTeamId) return scope.includes(s.scopeTeamId);
+    return allowedCategories!.has(s.category);
   });
 
   const expectedBySession = await Promise.all(

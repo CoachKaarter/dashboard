@@ -9,6 +9,7 @@ async function computeAllPlayerStats() {
   const now = new Date();
 
   const players = await prisma.player.findMany({
+    where: { archived: false },
     include: {
       team: true,
       attendances: { include: { session: true }, orderBy: { session: { date: "desc" } } },

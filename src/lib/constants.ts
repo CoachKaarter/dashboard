@@ -12,7 +12,7 @@ export const POSITIONS = [
   "Polyvalent",
 ];
 
-export const PLAYER_STATUSES = ["Actif", "Blessé", "Malade"];
+export const PLAYER_STATUSES = ["Actif", "Blessé", "Malade", "Incertain", "Reprise"];
 
 export const EVAL_PERIODS = ["Septembre", "Décembre", "Mars", "Juin"];
 

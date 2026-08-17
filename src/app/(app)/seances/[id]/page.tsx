@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/Badge";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Avatar } from "@/components/ui/Avatar";
-import { setAttendance, markAllPresent, resetPresence } from "../actions";
+import { requireUser, canAccessSession } from "@/lib/authz";
+import { setAttendance, markAllPresent, resetPresence, updateSession, cancelSession, deleteSession } from "../actions";
 
 const CODES: { code: string; label: string }[] = [
   { code: "P", label: "Présent" },
@@ -17,8 +18,10 @@ const CODE_TONE: Record<string, string> = { P: "#3F8F5B", R: "#C97A17", AJ: "#6E
 
 export default async function SeanceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const user = await requireUser();
   const session = await prisma.trainingSession.findUnique({ where: { id }, include: { scopeTeam: true } });
   if (!session) notFound();
+  if (!(await canAccessSession(user, session))) notFound();
 
   const players = await prisma.player.findMany({
     where: session.scopeTeamId ? { teamId: session.scopeTeamId } : { team: { category: session.category } },
@@ -50,7 +53,7 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
             <div className="text-[19px] font-bold tracking-[-0.01em]">
               {label} — {dayLabel} {session.date.getDate()}
             </div>
-            <Badge tone={session.status === "Réalisée" ? "green" : "blue"}>{session.status}</Badge>
+            <Badge tone={session.status === "Réalisée" ? "green" : session.status === "Annulée" ? "red" : "blue"}>{session.status}</Badge>
           </div>
           <div className="text-muted text-[12.5px] mt-1">
             {session.startTime} › {session.endTime} · {session.location} · {players.length} joueurs attendus
@@ -73,6 +76,40 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
           ))}
         </div>
       </div>
+
+      <details className="bg-surface border border-line rounded-lg mt-3.5">
+        <summary className="cursor-pointer px-3.5 py-2.5 text-[12.5px] font-semibold text-muted hover:text-ink select-none">
+          Modifier / annuler la séance
+        </summary>
+        <div className="px-3.5 pb-3.5 flex flex-col gap-2.5">
+          <form action={updateSession.bind(null, id)} className="grid grid-cols-2 gap-2.5">
+            <input name="label" defaultValue={session.label} className={detailInputClass} />
+            <input name="location" defaultValue={session.location} className={detailInputClass} />
+            <input type="date" name="date" defaultValue={session.date.toISOString().slice(0, 10)} className={detailInputClass} />
+            <div className="flex gap-2">
+              <input type="time" name="startTime" defaultValue={session.startTime} className={detailInputClass} />
+              <input type="time" name="endTime" defaultValue={session.endTime} className={detailInputClass} />
+            </div>
+            <button type="submit" className="col-span-2 h-9 border-none rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36]">
+              Enregistrer les modifications
+            </button>
+          </form>
+          <div className="flex gap-2.5 pt-2 border-t border-line-soft">
+            {session.status !== "Annulée" && (
+              <form action={cancelSession.bind(null, id)}>
+                <button type="submit" className="h-9 px-3 border border-line rounded-md text-xs font-semibold text-orange hover:border-orange">
+                  Annuler la séance
+                </button>
+              </form>
+            )}
+            <form action={deleteSession.bind(null, id)}>
+              <button type="submit" className="h-9 px-3 border border-line rounded-md text-xs font-semibold text-red hover:border-red">
+                Supprimer définitivement
+              </button>
+            </form>
+          </div>
+        </div>
+      </details>
 
       <div className="flex items-center gap-2.5 my-3.5">
         <form action={markAllPresent.bind(null, id)}>
@@ -156,3 +193,6 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
     </div>
   );
 }
+
+const detailInputClass =
+  "h-9 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none w-full focus:border-blue focus:ring-[3px] focus:ring-blue-bg";

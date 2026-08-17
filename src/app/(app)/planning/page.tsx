@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
 import { FilterChip } from "@/components/ui/FilterChip";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { TEAM_FILTERS } from "@/lib/constants";
 import { toQueryString } from "@/lib/query";
 import { getPlanEvents, KIND_COLOR, startOfWeek, startOfMonth } from "@/lib/planning";
 import { formatDateShort } from "@/lib/format";
+import { requireUser, scopedTeamIds } from "@/lib/authz";
 
 const VIEWS = ["semaine", "mois", "agenda"];
 const DAY_NAMES = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
@@ -22,6 +24,15 @@ export default async function PlanningPage({
   const weekOffset = Number(sp.week ?? 0) || 0;
   const monthOffset = Number(sp.month ?? 0) || 0;
 
+  const user = await requireUser();
+  const scope = scopedTeamIds(user);
+  let allowed: string[] | "ALL" = "ALL";
+  if (scope !== "ALL") {
+    const teams = await prisma.team.findMany({ where: { id: { in: scope } } });
+    allowed = teams.map((t) => t.code);
+  }
+  const visibleTeamFilters = allowed === "ALL" ? TEAM_FILTERS : ["Toutes", ...allowed];
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -37,16 +48,16 @@ export default async function PlanningPage({
           </FilterChip>
         ))}
         <div className="w-px h-[22px] bg-line mx-1" />
-        {TEAM_FILTERS.map((t) => (
+        {visibleTeamFilters.map((t) => (
           <FilterChip key={t} href={baseHref({ team: t === "Toutes" ? undefined : t })} active={team === t}>
             {t}
           </FilterChip>
         ))}
       </div>
 
-      {view === "semaine" && <WeekView team={team} weekOffset={weekOffset} today={today} baseHref={baseHref} />}
-      {view === "mois" && <MonthView team={team} monthOffset={monthOffset} today={today} baseHref={baseHref} />}
-      {view === "agenda" && <AgendaView team={team} today={today} />}
+      {view === "semaine" && <WeekView team={team} weekOffset={weekOffset} today={today} baseHref={baseHref} allowed={allowed} />}
+      {view === "mois" && <MonthView team={team} monthOffset={monthOffset} today={today} baseHref={baseHref} allowed={allowed} />}
+      {view === "agenda" && <AgendaView team={team} today={today} allowed={allowed} />}
     </div>
   );
 }
@@ -56,18 +67,20 @@ async function WeekView({
   weekOffset,
   today,
   baseHref,
+  allowed,
 }: {
   team: string;
   weekOffset: number;
   today: Date;
   baseHref: (p: Record<string, string | undefined>) => string;
+  allowed: string[] | "ALL";
 }) {
   const monday = startOfWeek(today);
   monday.setDate(monday.getDate() + weekOffset * 7);
   const sunday = new Date(monday);
   sunday.setDate(sunday.getDate() + 7);
 
-  const events = await getPlanEvents(monday, sunday, team);
+  const events = await getPlanEvents(monday, sunday, team, allowed);
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday);
     d.setDate(d.getDate() + i);
@@ -149,11 +162,13 @@ async function MonthView({
   monthOffset,
   today,
   baseHref,
+  allowed,
 }: {
   team: string;
   monthOffset: number;
   today: Date;
   baseHref: (p: Record<string, string | undefined>) => string;
+  allowed: string[] | "ALL";
 }) {
   const monthStart = startOfMonth(today);
   monthStart.setMonth(monthStart.getMonth() + monthOffset);
@@ -161,7 +176,7 @@ async function MonthView({
   const gridEnd = new Date(gridStart);
   gridEnd.setDate(gridEnd.getDate() + 42);
 
-  const events = await getPlanEvents(gridStart, gridEnd, team);
+  const events = await getPlanEvents(gridStart, gridEnd, team, allowed);
   const cells = Array.from({ length: 42 }, (_, i) => {
     const d = new Date(gridStart);
     d.setDate(d.getDate() + i);
@@ -229,11 +244,11 @@ async function MonthView({
   );
 }
 
-async function AgendaView({ team, today }: { team: string; today: Date }) {
+async function AgendaView({ team, today, allowed }: { team: string; today: Date; allowed: string[] | "ALL" }) {
   const from = today;
   const to = new Date(today);
   to.setDate(to.getDate() + 45);
-  const events = await getPlanEvents(from, to, team);
+  const events = await getPlanEvents(from, to, team, allowed);
 
   return (
     <div className="bg-surface border border-line rounded-lg overflow-auto">

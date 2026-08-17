@@ -3,11 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Badge } from "@/components/ui/Badge";
 import { formatDateShort } from "@/lib/format";
+import { requireUser, teamScopeWhere } from "@/lib/authz";
 
 const GRID = "grid-cols-[70px_76px_minmax(190px,1fr)_110px_140px_62px_68px_130px_24px]";
 
 export default async function MatchsPage() {
+  const user = await requireUser();
   const matches = await prisma.match.findMany({
+    where: teamScopeWhere(user),
     include: { team: true, convocations: true, _count: { select: { stats: true } } },
     orderBy: { date: "asc" },
   });

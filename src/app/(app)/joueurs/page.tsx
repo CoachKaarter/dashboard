@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getAllPlayerStats } from "@/lib/stats";
+import { requireUser, scopedTeamIds } from "@/lib/authz";
 import { FilterChip } from "@/components/ui/FilterChip";
 import { QuerySelect } from "@/components/ui/QuerySelect";
 import { TextFilter } from "@/components/ui/TextFilter";
@@ -23,9 +24,12 @@ export default async function JoueursPage({
   const statut = sp.statut ?? "Tous";
   const q = (sp.q ?? "").trim().toLowerCase();
 
+  const user = await requireUser();
+  const scope = scopedTeamIds(user);
   const all = await getAllPlayerStats();
   const players = all.filter(
     (p) =>
+      (scope === "ALL" || scope.includes(p.teamId)) &&
       (team === "Toutes" || p.teamCode === team || p.category === team) &&
       (pos === "Tous" || p.position === pos) &&
       (statut === "Tous" || p.status === statut) &&
@@ -45,6 +49,12 @@ export default async function JoueursPage({
         <QuerySelect paramKey="pos" options={[{ value: "Tous", label: "Tous les postes" }, ...POSITIONS.map((p) => ({ value: p, label: p }))]} />
         <QuerySelect paramKey="statut" options={[{ value: "Tous", label: "Tous les statuts" }, ...PLAYER_STATUSES.map((s) => ({ value: s, label: s }))]} />
         <div className="font-mono text-[11.5px] text-muted">{players.length} joueurs</div>
+        <Link
+          href="/joueurs/nouveau"
+          className="h-8 px-3 border border-line rounded-md bg-[#FCFCFB] text-xs font-semibold text-ink-soft flex items-center hover:border-ink hover:text-ink"
+        >
+          + Nouveau joueur
+        </Link>
       </div>
 
       <div className="bg-surface border border-line rounded-lg overflow-auto">

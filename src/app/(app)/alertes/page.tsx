@@ -3,6 +3,7 @@ import { getAlertGroups } from "@/lib/alerts";
 import { FilterChip } from "@/components/ui/FilterChip";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { toQueryString } from "@/lib/query";
+import { requireUser, scopedTeamIds } from "@/lib/authz";
 import { toggleTreated } from "./actions";
 
 const LEVELS = ["Tous", "Urgent", "À traiter", "À surveiller", "Information"];
@@ -17,7 +18,8 @@ export default async function AlertesPage({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const level = LEVELS.includes(sp.level ?? "") ? sp.level! : "Tous";
 
-  const groups = await getAlertGroups();
+  const user = await requireUser();
+  const groups = await getAlertGroups(scopedTeamIds(user));
   const rows = groups
     .filter((g) => level === "Tous" || g.title === level)
     .flatMap((g) => g.items.map((a) => ({ ...a, level: g.title })));

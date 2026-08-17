@@ -5,7 +5,8 @@ export function teamTone(code: string): "blue" | "purple" {
 export function statutTone(status: string): "green" | "red" | "orange" | "neutral" {
   if (status === "Actif") return "green";
   if (status === "Blessé") return "red";
-  if (status === "Malade") return "orange";
+  if (status === "Malade" || status === "Incertain") return "orange";
+  if (status === "Reprise") return "neutral";
   return "neutral";
 }
 

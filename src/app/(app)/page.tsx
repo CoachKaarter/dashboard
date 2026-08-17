@@ -6,6 +6,7 @@ import { StatTile } from "@/components/ui/StatTile";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Avatar } from "@/components/ui/Avatar";
 import { formatDateLong, formatDayShort } from "@/lib/format";
+import { requireUser, scopedTeamIds, teamScopeWhere } from "@/lib/authz";
 
 const ALERT_HEAD_TONE: Record<string, string> = {
   red: "bg-red-bg text-red",
@@ -27,27 +28,38 @@ const ALERT_TAG_TONE: Record<string, string> = {
 };
 
 export default async function CockpitPage() {
+  const user = await requireUser();
+  const scope = scopedTeamIds(user);
+  const teamFilter = teamScopeWhere(user);
+
   const [playerCount, teamCount, alertGroups, dataChecks] = await Promise.all([
-    prisma.player.count(),
-    prisma.team.count(),
-    getAlertGroups(),
-    getDataChecks(),
+    prisma.player.count({ where: { archived: false, ...teamFilter } }),
+    scope === "ALL" ? prisma.team.count() : Promise.resolve(scope.length),
+    getAlertGroups(scope),
+    getDataChecks(scope),
   ]);
 
   const upcomingMatches = await prisma.match.findMany({
-    where: { status: "Planifié" },
+    where: { status: "Planifié", ...teamFilter },
     include: { team: true, convocations: true },
     orderBy: { date: "asc" },
   });
   const matchDay = upcomingMatches[0]?.date ?? new Date();
   const completeConvocs = upcomingMatches.filter((m) => m.opponent && m.convocations.length >= m.needed).length;
 
-  const nextSessions = await prisma.trainingSession.findMany({
+  let allowedCategories: Set<string> | null = null;
+  if (scope !== "ALL") {
+    const teams = await prisma.team.findMany({ where: { id: { in: scope } } });
+    allowedCategories = new Set(teams.map((t) => t.category));
+  }
+  const allNextSessions = await prisma.trainingSession.findMany({
     where: { status: "Prévue" },
     include: { scopeTeam: true },
     orderBy: { date: "asc" },
-    take: 4,
   });
+  const nextSessions = allNextSessions
+    .filter((s) => scope === "ALL" || (s.scopeTeamId ? scope.includes(s.scopeTeamId) : allowedCategories!.has(s.category)))
+    .slice(0, 4);
   const sessionExpected = await Promise.all(
     nextSessions.map((s) =>
       prisma.player.count({
@@ -57,11 +69,13 @@ export default async function CockpitPage() {
   );
 
   const unavailablePlayers = await prisma.player.findMany({
-    where: { status: { not: "Actif" } },
+    where: { status: { not: "Actif" }, archived: false, ...teamFilter },
     include: { team: true },
     take: 4,
   });
-  const unavailableCount = await prisma.player.count({ where: { status: { not: "Actif" } } });
+  const unavailableCount = await prisma.player.count({
+    where: { status: { not: "Actif" }, archived: false, ...teamFilter },
+  });
 
   const urgentCount = alertGroups.find((g) => g.key === "urgent")?.items.filter((i) => !i.treated).length ?? 0;
   const totalActions = alertGroups
@@ -72,7 +86,7 @@ export default async function CockpitPage() {
     <div className="max-w-[1560px] mx-auto animate-fadein">
       <div className="flex items-end justify-between gap-5 mb-[18px] flex-wrap">
         <div>
-          <div className="text-2xl font-bold tracking-[-0.02em]">Bonjour Marvyn</div>
+          <div className="text-2xl font-bold tracking-[-0.02em]">Bonjour {user.name.split(" ")[0]}</div>
           <div className="text-muted mt-1 text-[13.5px]">
             {formatDateLong(matchDay)} · {upcomingMatches.length} matchs · {completeConvocs}/{upcomingMatches.length} convocations
             terminées · {totalActions} action{totalActions === 1 ? "" : "s"} prioritaire{totalActions === 1 ? "" : "s"}
@@ -215,7 +229,7 @@ export default async function CockpitPage() {
             right={
               <>
                 <span className="font-mono text-[11px] text-red font-bold ml-2">{unavailableCount}</span>
-                <Link href="/joueurs?statut=indisponible" className="text-blue text-xs font-semibold hover:underline ml-2">
+                <Link href="/joueurs" className="text-blue text-xs font-semibold hover:underline ml-2">
                   Voir
                 </Link>
               </>

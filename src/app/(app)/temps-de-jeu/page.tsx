@@ -5,6 +5,7 @@ import { FilterChip } from "@/components/ui/FilterChip";
 import { Avatar } from "@/components/ui/Avatar";
 import { toQueryString } from "@/lib/query";
 import { formatDateShort, minuteTone } from "@/lib/format";
+import { requireUser, scopedTeamIds } from "@/lib/authz";
 
 const MINUTE_COLORS: Record<string, { fg: string; bg: string }> = {
   none: { fg: "#9A9DA3", bg: "#F1F1EE" },
@@ -16,8 +17,14 @@ const MINUTE_COLORS: Record<string, { fg: string; bg: string }> = {
 
 export default async function TempsDeJeuPage({ searchParams }: { searchParams: Promise<{ team?: string }> }) {
   const sp = await searchParams;
-  const teams = await prisma.team.findMany({ orderBy: { code: "asc" } });
-  const team = teams.some((t) => t.code === sp.team) ? sp.team! : teams[0].code;
+  const user = await requireUser();
+  const scope = scopedTeamIds(user);
+  const allTeams = await prisma.team.findMany({ orderBy: { code: "asc" } });
+  const teams = scope === "ALL" ? allTeams : allTeams.filter((t) => scope.includes(t.id));
+  const team = teams.some((t) => t.code === sp.team) ? sp.team! : teams[0]?.code;
+  if (!team) {
+    return <div className="max-w-[1620px] mx-auto animate-fadein text-muted text-[13px]">Aucune équipe autorisée pour votre compte.</div>;
+  }
 
   const [players, settings] = await Promise.all([getPlayerStatsByTeam(team), getSettings()]);
 
