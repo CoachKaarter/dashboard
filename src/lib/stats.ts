@@ -45,6 +45,10 @@ async function computeAllPlayerStats() {
     const attendanceRate = seances ? presents / seances : 1;
     const last5 = p.attendances.slice(0, 5).map((a) => ({ code: a.code, date: a.session.date }));
 
+    const recentWindow = p.attendances.slice(0, settings.fenetreSeances);
+    const recentAbsences = recentWindow.filter((a) => a.code === "AJ" || a.code === "ANJ" || a.code === "B").length;
+    const recentANJ = recentWindow.filter((a) => a.code === "ANJ").length;
+
     const minutes = minutesByPlayer.get(p.id) ?? 0;
     const minutesRecent = p.matchStats
       .filter((m) => m.match.date >= recentCutoff)
@@ -106,6 +110,8 @@ async function computeAllPlayerStats() {
       blesses,
       attendanceRate,
       last5,
+      recentAbsences,
+      recentANJ,
       minutes,
       minutesRecent,
       matchsDispo,

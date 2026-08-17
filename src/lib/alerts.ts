@@ -91,6 +91,79 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
         treated: treatedSet.has(key),
       });
     }
+    if (p.recentANJ >= settings.seuilANJ) {
+      const key = `anj-recent:${p.id}`;
+      urgent.push({
+        key,
+        tag: p.teamCode,
+        title: `${p.firstName} — absences non justifiées répétées`,
+        detail: `${p.recentANJ} absences non justifiées sur les ${settings.fenetreSeances} dernières séances (seuil fixé à ${settings.seuilANJ}).`,
+        meta: `${p.recentANJ} ANJ`,
+        action: "Voir le joueur",
+        href: `/joueurs/${p.id}`,
+        treated: treatedSet.has(key),
+      });
+    } else if (p.recentAbsences >= settings.absRecentes) {
+      const key = `abs-recent:${p.id}`;
+      traiter.push({
+        key,
+        tag: p.teamCode,
+        title: `${p.firstName} — absences récentes`,
+        detail: `${p.recentAbsences} absences sur les ${settings.fenetreSeances} dernières séances (seuil fixé à ${settings.absRecentes}).`,
+        meta: `${p.recentAbsences} abs.`,
+        action: "Voir le joueur",
+        href: `/joueurs/${p.id}`,
+        treated: treatedSet.has(key),
+      });
+    }
+    if (p.lastConvocDaysAgo === null || p.lastConvocDaysAgo > settings.delaiConvoc) {
+      const key = `no-convoc:${p.id}`;
+      surveiller.push({
+        key,
+        tag: p.teamCode,
+        title: p.lastConvocDaysAgo === null ? `${p.firstName} — jamais convoqué` : `${p.firstName} — non convoqué depuis ${p.lastConvocDaysAgo} jours`,
+        detail: `Délai sans convocation fixé à ${settings.delaiConvoc} jours.`,
+        meta: "Convoc.",
+        action: "Voir le joueur",
+        href: `/joueurs/${p.id}`,
+        treated: treatedSet.has(key),
+      });
+    }
+    if (p.matchsJoues > 0 && p.minutes / p.matchsJoues < settings.minMinutes) {
+      const key = `low-rotation:${p.id}`;
+      surveiller.push({
+        key,
+        tag: p.teamCode,
+        title: `${p.firstName} — sous le minimum de rotation`,
+        detail: `${Math.round(p.minutes / p.matchsJoues)} minutes en moyenne par match, sous le repère de ${settings.minMinutes} minutes.`,
+        meta: `${p.matchsJoues} matchs`,
+        action: "Voir le joueur",
+        href: `/joueurs/${p.id}`,
+        treated: treatedSet.has(key),
+      });
+    }
+  }
+
+  const teamsForHorizon = await prisma.team.findMany({
+    where: scope === "ALL" ? {} : { id: { in: scope } },
+    include: { matches: { where: { status: "Planifié" }, orderBy: { date: "asc" }, take: 1 } },
+  });
+  for (const t of teamsForHorizon) {
+    const next = t.matches[0];
+    const daysUntil = next ? Math.round((next.date.getTime() - now.getTime()) / 86400000) : null;
+    if (daysUntil === null || daysUntil > settings.horizonMatch) {
+      const key = `no-match-horizon:${t.id}`;
+      information.push({
+        key,
+        tag: t.code,
+        title: `${t.code} — aucun match dans les ${settings.horizonMatch} prochains jours`,
+        detail: daysUntil === null ? "Aucun match planifié pour cette équipe." : `Prochain match dans ${daysUntil} jours.`,
+        meta: "Horizon",
+        action: "Voir les matchs",
+        href: "/matchs",
+        treated: treatedSet.has(key),
+      });
+    }
   }
 
   playerStats
@@ -162,10 +235,10 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
 
   return (
     [
-      { key: "urgent", title: "Urgent", hint: "à régler dès que possible", tone: "red", items: urgent },
+      { key: "urgent", title: "Urgent", hint: "à régler dès que possible", tone: "red", items: urgent.slice(0, 10) },
       { key: "traiter", title: "À traiter", hint: "avant le prochain match", tone: "orange", items: traiter.slice(0, 6) },
-      { key: "surveiller", title: "À surveiller", hint: "tendance sur plusieurs semaines", tone: "green", items: surveiller },
-      { key: "information", title: "Information", hint: "sans urgence", tone: "blue", items: information },
+      { key: "surveiller", title: "À surveiller", hint: "tendance sur plusieurs semaines", tone: "green", items: surveiller.slice(0, 8) },
+      { key: "information", title: "Information", hint: "sans urgence", tone: "blue", items: information.slice(0, 8) },
     ] satisfies AlertGroup[]
   ).filter((g) => g.items.length);
 }

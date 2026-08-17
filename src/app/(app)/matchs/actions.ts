@@ -4,6 +4,15 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser, canAccessTeam } from "@/lib/authz";
+import { getSettings } from "@/lib/settings";
+
+function computeMeetTime(time: string | null, delaiRdv: number): string | null {
+  if (!time) return null;
+  const [h, m] = time.split(":").map(Number);
+  const total = h * 60 + m - delaiRdv;
+  const wrapped = ((total % 1440) + 1440) % 1440;
+  return `${String(Math.floor(wrapped / 60)).padStart(2, "0")}:${String(wrapped % 60).padStart(2, "0")}`;
+}
 
 async function assertMatchAccess(matchId: string) {
   const user = await requireUser();
@@ -121,10 +130,11 @@ export async function updateMatch(matchId: string, formData: FormData) {
   const location = String(formData.get("location") || "") || null;
   const needed = Number(formData.get("needed")) || 12;
   if (!competition || Number.isNaN(date.getTime())) return;
+  const settings = await getSettings();
 
   await prisma.match.update({
     where: { id: matchId },
-    data: { opponent, competition, date, time, isHome, location, needed },
+    data: { opponent, competition, date, time, meetTime: computeMeetTime(time, settings.delaiRdv), isHome, location, needed },
   });
   revalidatePath(`/matchs/${matchId}`);
   revalidatePath("/matchs");
@@ -161,9 +171,14 @@ export async function createMatch(formData: FormData) {
   const isHome = formData.get("isHome") === "on";
   const location = String(formData.get("location") || "") || null;
   const needed = Number(formData.get("needed")) || 12;
+  const settings = await getSettings();
 
   const match = await prisma.match.create({
-    data: { teamId, opponent, competition, date, time, isHome, location, needed, status: "Planifié" },
+    data: {
+      teamId, opponent, competition, date, time,
+      meetTime: computeMeetTime(time, settings.delaiRdv),
+      isHome, location, needed, status: "Planifié",
+    },
   });
   revalidatePath("/matchs");
   revalidatePath("/planning");
