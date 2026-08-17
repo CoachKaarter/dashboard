@@ -73,6 +73,51 @@ export async function updatePlayer(playerId: string, formData: FormData) {
   revalidatePath(`/joueurs/${playerId}`);
 }
 
+const UNAVAILABILITY_TYPES = ["Blessure", "Maladie", "Absence longue", "Autre"];
+const STATUS_BY_TYPE: Record<string, string> = {
+  Blessure: "Blessé",
+  Maladie: "Malade",
+  "Absence longue": "Incertain",
+  Autre: "Incertain",
+};
+
+export async function declareUnavailability(playerId: string, formData: FormData) {
+  const user = await requireUser();
+  const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
+  if (!canAccessTeam(user, player.teamId)) return;
+
+  const type = String(formData.get("type") ?? "");
+  if (!UNAVAILABILITY_TYPES.includes(type)) return;
+  const description = String(formData.get("description") || "").trim() || null;
+  const startDate = new Date(String(formData.get("startDate") || new Date().toISOString().slice(0, 10)));
+  const expectedReturnRaw = String(formData.get("expectedReturn") || "");
+  const expectedReturn = expectedReturnRaw ? new Date(expectedReturnRaw) : null;
+
+  await prisma.$transaction([
+    prisma.unavailability.create({
+      data: { playerId, type, description, startDate, expectedReturn, createdById: user.id },
+    }),
+    prisma.player.update({ where: { id: playerId }, data: { status: STATUS_BY_TYPE[type] } }),
+  ]);
+  revalidatePath(`/joueurs/${playerId}`);
+  revalidatePath("/joueurs");
+  revalidatePath("/");
+}
+
+export async function endUnavailability(playerId: string, unavailabilityId: string) {
+  const user = await requireUser();
+  const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
+  if (!canAccessTeam(user, player.teamId)) return;
+
+  await prisma.$transaction([
+    prisma.unavailability.update({ where: { id: unavailabilityId }, data: { actualReturn: new Date() } }),
+    prisma.player.update({ where: { id: playerId }, data: { status: "Actif" } }),
+  ]);
+  revalidatePath(`/joueurs/${playerId}`);
+  revalidatePath("/joueurs");
+  revalidatePath("/");
+}
+
 export async function setArchived(playerId: string, archived: boolean) {
   const user = await requireUser();
   const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });

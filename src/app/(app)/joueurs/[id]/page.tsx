@@ -8,7 +8,15 @@ import { Badge } from "@/components/ui/Badge";
 import { statutTone, formatDateShort } from "@/lib/format";
 import { PLAYER_STATUSES, POSITIONS } from "@/lib/constants";
 import { requireUser, canAccessTeam, scopedTeamIds } from "@/lib/authz";
-import { addPlayerNote, changeTeam, changeStatus, updatePlayer, setArchived } from "./actions";
+import {
+  addPlayerNote,
+  changeTeam,
+  changeStatus,
+  updatePlayer,
+  setArchived,
+  declareUnavailability,
+  endUnavailability,
+} from "./actions";
 
 const TABS = [
   { key: "assiduite", label: "Assiduité" },
@@ -47,6 +55,7 @@ export default async function FichePage({
         evaluations: { orderBy: { createdAt: "desc" } },
         history: { include: { fromTeam: true, toTeam: true, decidedBy: true }, orderBy: { date: "desc" } },
         notes: { include: { author: true }, orderBy: { createdAt: "desc" } },
+        unavailabilities: { orderBy: { startDate: "desc" } },
       },
     }),
     getPlayerStatsById(id),
@@ -264,6 +273,48 @@ export default async function FichePage({
               <button type="submit" className="w-full h-8 border border-line rounded-md text-xs font-semibold text-muted hover:border-red hover:text-red">
                 {player.archived ? "Réactiver ce joueur" : "Archiver ce joueur"}
               </button>
+            </form>
+          </div>
+
+          <div className="bg-surface border border-line rounded-lg px-3.5 py-[13px]">
+            <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted mb-[11px]">Indisponibilités</div>
+            <div className="flex flex-col gap-2.5">
+              {player.unavailabilities.map((u) => (
+                <div key={u.id} className="border-l-2 pl-2.5" style={{ borderColor: u.actualReturn ? "#D2D2CB" : "#C4362C" }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12.5px] font-semibold">{u.type}</span>
+                    {!u.actualReturn && <Badge tone="red">En cours</Badge>}
+                  </div>
+                  <div className="text-[11.5px] text-muted mt-px">
+                    depuis {formatDateShort(u.startDate)}
+                    {u.expectedReturn ? ` · retour prévu ${formatDateShort(u.expectedReturn)}` : ""}
+                    {u.actualReturn ? ` · retour effectif ${formatDateShort(u.actualReturn)}` : ""}
+                  </div>
+                  {u.description && <div className="text-[11.5px] text-ink-soft mt-1">{u.description}</div>}
+                  {!u.actualReturn && (
+                    <form action={endUnavailability.bind(null, id, u.id)} className="mt-1.5">
+                      <button type="submit" className="h-6 px-2 border border-line rounded-md text-[10.5px] font-semibold text-green hover:border-green">
+                        Marquer de retour
+                      </button>
+                    </form>
+                  )}
+                </div>
+              ))}
+              {player.unavailabilities.length === 0 && <div className="text-[12.5px] text-muted-2">Aucune indisponibilité enregistrée.</div>}
+            </div>
+            <form action={declareUnavailability.bind(null, id)} className="mt-3 flex flex-col gap-2">
+              <select name="type" defaultValue="Blessure" className={editInputClass}>
+                <option value="Blessure">Blessure</option>
+                <option value="Maladie">Maladie</option>
+                <option value="Absence longue">Absence longue</option>
+                <option value="Autre">Autre</option>
+              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <input type="date" name="startDate" defaultValue={new Date().toISOString().slice(0, 10)} className={editInputClass} />
+                <input type="date" name="expectedReturn" className={editInputClass} />
+              </div>
+              <input name="description" placeholder="Description (optionnel)" className={editInputClass} />
+              <button type="submit" className={editButtonClass}>Déclarer une indisponibilité</button>
             </form>
           </div>
 

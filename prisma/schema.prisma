@@ -31,6 +31,7 @@ model User {
   evaluations      EvaluationScore[]
   treatedAlerts    AlertTreated[]
   historyDecisions TeamHistoryEntry[]
+  unavailabilities Unavailability[]
 
   createdAt DateTime @default(now())
 }
@@ -58,11 +59,11 @@ model Team {
 }
 
 model Player {
-  id          String @id @default(cuid())
+  id          String  @id @default(cuid())
   firstName   String
   lastName    String
   birthYear   Int
-  team        Team   @relation(fields: [teamId], references: [id])
+  team        Team    @relation(fields: [teamId], references: [id])
   teamId      String
   position    String
   positionAlt String
@@ -79,10 +80,27 @@ model Player {
   evaluations      EvaluationScore[]
   history          TeamHistoryEntry[]
   jerseys          Jersey[]
+  unavailabilities Unavailability[]
 
   createdAt DateTime @default(now())
 
   @@index([teamId])
+}
+
+model Unavailability {
+  id             String    @id @default(cuid())
+  player         Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId       String
+  type           String // "Blessure" | "Maladie" | "Absence longue" | "Autre"
+  description    String?
+  startDate      DateTime
+  expectedReturn DateTime?
+  actualReturn   DateTime? // renseigné quand le joueur est marqué de retour
+  createdBy      User?     @relation(fields: [createdById], references: [id])
+  createdById    String?
+  createdAt      DateTime  @default(now())
+
+  @@index([playerId])
 }
 
 model PlayerNote {
@@ -116,16 +134,16 @@ model TeamHistoryEntry {
 // ---------- Recurring training template ----------
 
 model RecurringSlot {
-  id        String @id @default(cuid())
-  category  String // "U12" | "U13"
-  scopeTeam Team?  @relation(fields: [scopeTeamId], references: [id])
+  id          String  @id @default(cuid())
+  category    String // "U12" | "U13"
+  scopeTeam   Team?   @relation(fields: [scopeTeamId], references: [id])
   scopeTeamId String?
-  weekday   Int // 0=dimanche .. 6=samedi
-  startTime String // "18:15"
-  endTime   String // "19:45"
-  location  String
-  label     String // "Séance commune" | "Spécifique U13A" | "Technique"
-  active    Boolean @default(true) // false = suspendu, ne génère plus de séances
+  weekday     Int // 0=dimanche .. 6=samedi
+  startTime   String // "18:15"
+  endTime     String // "19:45"
+  location    String
+  label       String // "Séance commune" | "Spécifique U13A" | "Technique"
+  active      Boolean @default(true) // false = suspendu, ne génère plus de séances
 
   sessions TrainingSession[]
 
@@ -232,15 +250,15 @@ model CompositionSlot {
 }
 
 model MatchPlayerStat {
-  id       String @id @default(cuid())
-  match    Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  id       String  @id @default(cuid())
+  match    Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
   matchId  String
-  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  player   Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
   playerId String
   role     String // "Titulaire" | "Remplaçant"
   minutes  Int
-  goals    Int    @default(0)
-  assists  Int    @default(0)
+  goals    Int     @default(0)
+  assists  Int     @default(0)
   note     Float?
   comment  String? // note individuelle qualitative pour ce match
 
