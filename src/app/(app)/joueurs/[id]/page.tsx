@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { statutTone, formatDateShort } from "@/lib/format";
 import { PLAYER_STATUSES, POSITIONS, EVAL_PERIODS } from "@/lib/constants";
 import { ProgressChart } from "@/components/ui/ProgressChart";
+import { ParentAccountPanel } from "@/components/ParentAccountPanel";
 import { updateObjectives } from "../../evaluations/actions";
 import { requireUser, canAccessTeam, scopedTeamIds } from "@/lib/authz";
 import {
@@ -58,6 +59,7 @@ export default async function FichePage({
         history: { include: { fromTeam: true, toTeam: true, decidedBy: true }, orderBy: { date: "desc" } },
         notes: { include: { author: true }, orderBy: { createdAt: "desc" } },
         unavailabilities: { orderBy: { startDate: "desc" } },
+        parentAccount: true,
       },
     }),
     getPlayerStatsById(id),
@@ -333,6 +335,14 @@ export default async function FichePage({
               </button>
             </form>
           </div>
+
+          {user.role === "ADMIN" && (
+            <ParentAccountPanel
+              playerId={player.id}
+              playerName={`${player.firstName} ${player.lastName}`}
+              account={player.parentAccount ? { id: player.parentAccount.id, username: player.parentAccount.username, active: player.parentAccount.active } : null}
+            />
+          )}
 
           <div className="bg-surface border border-line rounded-lg px-3.5 py-[13px]">
             <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted mb-[11px]">Indisponibilités</div>
