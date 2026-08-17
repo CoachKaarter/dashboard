@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { requireUser, scopedTeamIds } from "@/lib/authz";
-import { getTodayDigest, getWeekendRecap, getWeekRecap } from "@/lib/synthese";
+import { getTodayDigest, getWeekendRecap, getWeekRecap, getMonthlyTrends } from "@/lib/synthese";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Badge } from "@/components/ui/Badge";
+import { ProgressChart } from "@/components/ui/ProgressChart";
 import { formatDateFull, formatDateShort } from "@/lib/format";
 
 const RESULT_TONE: Record<string, "green" | "orange" | "red"> = { V: "green", N: "orange", D: "red" };
@@ -11,10 +12,11 @@ export default async function SynthesePage() {
   const user = await requireUser();
   const scope = scopedTeamIds(user);
 
-  const [today, weekend, week] = await Promise.all([
+  const [today, weekend, week, trends] = await Promise.all([
     getTodayDigest(scope),
     getWeekendRecap(scope),
     getWeekRecap(scope),
+    getMonthlyTrends(scope),
   ]);
 
   return (
@@ -110,6 +112,42 @@ export default async function SynthesePage() {
               </div>
             </>
           )}
+        </section>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <section className="bg-surface border border-line rounded-lg p-4">
+          <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted mb-2.5">
+            Présence — tendance sur 6 mois
+          </div>
+          <ProgressChart
+            points={trends.map((t) => ({ label: t.label, value: t.attendanceRate }))}
+            min={0}
+            max={100}
+            gridLines={[0, 50, 100]}
+          />
+          <div className="flex justify-between text-[10.5px] text-muted-2 mt-1 px-1">
+            {trends.map((t) => (
+              <span key={t.label}>{t.label}</span>
+            ))}
+          </div>
+        </section>
+
+        <section className="bg-surface border border-line rounded-lg p-4">
+          <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted mb-2.5">
+            Minutes moyennes par match — tendance sur 6 mois
+          </div>
+          <ProgressChart
+            points={trends.map((t) => ({ label: t.label, value: t.avgMinutes }))}
+            min={0}
+            max={Math.max(60, ...trends.map((t) => t.avgMinutes ?? 0))}
+            gridLines={[0, Math.max(60, ...trends.map((t) => t.avgMinutes ?? 0))]}
+          />
+          <div className="flex justify-between text-[10.5px] text-muted-2 mt-1 px-1">
+            {trends.map((t) => (
+              <span key={t.label}>{t.label}</span>
+            ))}
+          </div>
         </section>
       </div>
     </div>

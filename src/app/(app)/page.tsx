@@ -82,6 +82,31 @@ export default async function CockpitPage() {
     .filter((g) => g.key === "urgent" || g.key === "traiter")
     .reduce((n, g) => n + g.items.filter((i) => !i.treated).length, 0);
 
+  // ADMIN-only: a cross-team scan a single-team coach doesn't need, since
+  // their own Cockpit already *is* their one team.
+  const clubOverview =
+    user.role === "ADMIN"
+      ? await (async () => {
+          const teams = await prisma.team.findMany({
+            include: { matches: { where: { status: "Planifié" }, orderBy: { date: "asc" }, take: 1 } },
+            orderBy: { code: "asc" },
+          });
+          const openAlertsByTeam = new Map<string, number>();
+          for (const g of alertGroups) {
+            for (const a of g.items) {
+              if (a.treated) continue;
+              openAlertsByTeam.set(a.tag, (openAlertsByTeam.get(a.tag) ?? 0) + 1);
+            }
+          }
+          return teams.map((t) => ({
+            code: t.code,
+            id: t.id,
+            nextMatch: t.matches[0] ?? null,
+            openAlerts: openAlertsByTeam.get(t.code) ?? 0,
+          }));
+        })()
+      : null;
+
   return (
     <div className="max-w-[1560px] mx-auto animate-fadein">
       <div className="flex items-end justify-between gap-5 mb-[18px] flex-wrap">
@@ -99,6 +124,33 @@ export default async function CockpitPage() {
           <StatTile value={String(urgentCount)} label="Urgences" />
         </div>
       </div>
+
+      {clubOverview && (
+        <section className="bg-surface border border-line rounded-lg overflow-hidden mb-3.5">
+          <div className="flex items-center gap-2 px-3.5 py-[9px] border-b border-line-soft">
+            <span className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Vue d&apos;ensemble du club</span>
+            <span className="flex-1" />
+            <Link href="/equipes" className="text-blue text-xs font-semibold hover:underline">
+              Toutes les équipes
+            </Link>
+          </div>
+          <div className="flex flex-wrap">
+            {clubOverview.map((t) => (
+              <Link key={t.id} href={`/equipes/${t.id}`} className="flex-1 min-w-[150px] px-3 py-2.5 border-r border-b border-line-soft-2 hover:bg-bg/60">
+                <div className="flex items-center gap-1.5">
+                  <TeamChip code={t.code} />
+                  {t.openAlerts > 0 && (
+                    <span className="font-mono text-[10.5px] font-bold text-red">{t.openAlerts}</span>
+                  )}
+                </div>
+                <div className="text-[11px] text-muted mt-1.5 truncate">
+                  {t.nextMatch ? `vs ${t.nextMatch.opponent ?? "?"} · ${formatDayShort(t.nextMatch.date)}` : "Aucun match prévu"}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] gap-4 items-start">
         <div className="flex flex-col gap-3.5">

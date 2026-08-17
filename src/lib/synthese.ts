@@ -99,3 +99,44 @@ export async function getWeekRecap(scope: Scope) {
 
   return { sessionsCount: sessions.length, attendanceRate, totalANJ, sessions };
 }
+
+const MONTH_LABELS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
+
+/** Month-over-month attendance rate and average match minutes, last 6 months. */
+export async function getMonthlyTrends(scope: Scope) {
+  const now = new Date();
+  const months: { key: string; label: string; start: Date; end: Date }[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+    months.push({ key: `${start.getFullYear()}-${start.getMonth()}`, label: MONTH_LABELS[start.getMonth()], start, end });
+  }
+
+  const teamIdWhere = scope === "ALL" ? {} : { teamId: { in: scope } };
+  const rangeStart = months[0].start;
+
+  const [attendances, matchStats] = await Promise.all([
+    prisma.attendance.findMany({
+      where: { session: { date: { gte: rangeStart } } },
+      include: { session: true, player: true },
+    }),
+    prisma.matchPlayerStat.findMany({
+      where: { match: { date: { gte: rangeStart }, ...teamIdWhere } },
+      include: { match: true },
+    }),
+  ]);
+
+  const scopedAttendances =
+    scope === "ALL" ? attendances : attendances.filter((a) => scope.includes(a.player.teamId));
+
+  return months.map((m) => {
+    const monthAtt = scopedAttendances.filter((a) => a.session.date >= m.start && a.session.date < m.end);
+    const presents = monthAtt.filter((a) => a.code === "P").length;
+    const attendanceRate = monthAtt.length ? Math.round((100 * presents) / monthAtt.length) : null;
+
+    const monthStats = matchStats.filter((s) => s.match.date >= m.start && s.match.date < m.end);
+    const avgMinutes = monthStats.length ? Math.round(monthStats.reduce((sum, s) => sum + s.minutes, 0) / monthStats.length) : null;
+
+    return { label: m.label, attendanceRate, avgMinutes };
+  });
+}
