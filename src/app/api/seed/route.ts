@@ -1,11 +1,19 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { seedDatabase, DEMO_PASSWORD } from "@/lib/seed-data";
 
 // One-time setup endpoint: visit this URL once after the first deploy to
-// populate the database with demo data. Safe to call more than once —
-// it only seeds when the database is empty, and never deletes anything.
-export async function GET() {
+// populate the database with demo data. Requires ?key=<SEED_SECRET> so it
+// can't be triggered (or its demo credentials read) by anyone who finds the
+// URL. Safe to call more than once — it only seeds when the database is
+// empty, and never deletes anything.
+export async function GET(req: NextRequest) {
+  const secret = process.env.SEED_SECRET;
+  const key = req.nextUrl.searchParams.get("key");
+  if (!secret || key !== secret) {
+    return NextResponse.json({ error: "Non autorisé." }, { status: 403 });
+  }
+
   try {
     const existing = await prisma.user.count();
     if (existing > 0) {

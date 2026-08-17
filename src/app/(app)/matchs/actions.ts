@@ -64,7 +64,7 @@ export async function generateFeuille(matchId: string) {
   ];
 
   await prisma.$transaction(
-    rows.map((r, i) =>
+    rows.map((r) =>
       prisma.matchPlayerStat.upsert({
         where: { matchId_playerId: { matchId, playerId: r.playerId } },
         update: {},
@@ -72,7 +72,7 @@ export async function generateFeuille(matchId: string) {
           matchId,
           playerId: r.playerId,
           role: r.role,
-          minutes: r.role === "Titulaire" ? 50 - i * 3 : 20,
+          minutes: 0, // à confirmer par le coach — la composition ne détermine pas les minutes réelles
           goals: 0,
           assists: 0,
           note: null,
