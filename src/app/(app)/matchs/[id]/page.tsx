@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { CopyButton } from "@/components/CopyButton";
 import { prisma } from "@/lib/prisma";
 import { getPlayerStatsByTeam } from "@/lib/stats";
 import { getSettings } from "@/lib/settings";
@@ -44,8 +46,23 @@ export default async function MatchDetailPage({
   const defaultTab = match.status === "Joué" ? "feuille" : "convocation";
   const tab = TABS.some((t) => t.key === rawTab) ? rawTab! : defaultTab;
 
-  const [squad, settings] = await Promise.all([getPlayerStatsByTeam(match.team.code), getSettings()]);
+  const [squad, settings, hdrs] = await Promise.all([getPlayerStatsByTeam(match.team.code), getSettings(), headers()]);
   const convocatedIds = new Set(match.convocations.map((c) => c.playerId));
+  const host = hdrs.get("host");
+  const proto = hdrs.get("x-forwarded-proto") ?? "https";
+  const shareUrl = `${proto}://${host}/convocation/${match.shareToken}`;
+  const confirmedCount = match.convocations.filter((c) => c.confirmed === true).length;
+  const declinedCount = match.convocations.filter((c) => c.confirmed === false).length;
+  const whatsappText = [
+    `Convocation ${match.team.code} — vs ${match.opponent ?? "adversaire à définir"}`,
+    `${formatDateFull(match.date)}${match.time ? ` à ${match.time}` : ""}`,
+    match.meetTime ? `Rendez-vous : ${match.meetTime}` : null,
+    match.location ? `Lieu : ${match.location}` : null,
+    "",
+    `Confirmez votre présence ici : ${shareUrl}`,
+  ]
+    .filter((l): l is string => l !== null)
+    .join("\n");
 
   const played = match.status === "Joué";
   const stage = played ? (match.stats.length > 0 ? 4 : 3) : convocatedIds.size >= match.needed ? 2 : 1;
@@ -223,12 +240,22 @@ export default async function MatchDetailPage({
                 {convocatedIds.size} <span className="text-base text-muted-2">/ {match.needed}</span>
               </div>
               <div className="text-[12.5px] text-muted mt-1">joueurs sélectionnés sur {squad.length} de l&apos;effectif</div>
-              <button className="mt-3.5 w-full h-[34px] rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36]">
-                Envoyer la convocation
-              </button>
-              <button className="mt-2 w-full h-8 border border-line rounded-md bg-surface text-[12.5px] font-semibold text-ink-soft hover:border-ink">
-                Proposer une sélection
-              </button>
+              {convocatedIds.size > 0 && (
+                <div className="text-[11.5px] text-muted mt-1.5">
+                  {confirmedCount} confirmé{confirmedCount > 1 ? "s" : ""} · {declinedCount} décliné{declinedCount > 1 ? "s" : ""} ·{" "}
+                  {convocatedIds.size - confirmedCount - declinedCount} en attente
+                </div>
+              )}
+              <CopyButton
+                text={whatsappText}
+                label="Copier le message WhatsApp"
+                className="mt-3.5 w-full h-[34px] rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36] cursor-pointer"
+              />
+              <CopyButton
+                text={shareUrl}
+                label="Copier le lien de convocation"
+                className="mt-2 w-full h-8 border border-line rounded-md bg-surface text-[12.5px] font-semibold text-ink-soft hover:border-ink cursor-pointer"
+              />
             </section>
             {atRisk.length > 0 && (
               <section className="rounded-lg p-3.5" style={{ background: "#FDF3E4", border: "1px solid #F0DFC0" }}>
