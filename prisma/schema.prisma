@@ -15,14 +15,16 @@ datasource db {
 // ---------- Staff / auth ----------
 
 model User {
-  id           String  @id @default(cuid())
-  username     String  @unique
+  id           String   @id @default(cuid())
+  username     String   @unique
   passwordHash String
   name         String
   role         String // "ADMIN" | "COACH" | "STAFF"
   accessLabel  String // free text shown in Staff screen, e.g. "Équipes autorisées"
   jobTitle     String // e.g. "Responsable de catégorie", "Coach", "Entraîneur des gardiens"
   email        String?
+  active       Boolean  @default(true) // false = compte désactivé, connexion bloquée
+  teamIds      String[] @default([]) // équipes autorisées pour un COACH/STAFF ; ignoré pour ADMIN (accès total)
 
   teams            Team[]             @relation("TeamCoach")
   notes            PlayerNote[]
@@ -62,8 +64,9 @@ model Player {
   position    String
   positionAlt String
   foot        String // "Gauche" | "Droit" | "Les deux"
-  status      String // "Actif" | "Blessé" | "Malade"
+  status      String // "Actif" | "Blessé" | "Malade" | "Incertain" | "Reprise"
   joinedLabel String // "Août 2022" (display string, matches prototype)
+  archived    Boolean @default(false) // joueur parti du club — masqué des listes actives, historique conservé
 
   notes            PlayerNote[]
   attendances      Attendance[]
