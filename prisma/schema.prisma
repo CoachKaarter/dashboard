@@ -26,15 +26,20 @@ model User {
   active       Boolean  @default(true) // false = compte désactivé, connexion bloquée
   teamIds      String[] @default([]) // équipes autorisées pour un COACH/STAFF ; ignoré pour ADMIN (accès total)
 
-  teams            Team[]             @relation("TeamCoach")
-  notes            PlayerNote[]
-  evaluations      EvaluationScore[]
-  treatedAlerts    AlertTreated[]     @relation("AlertTreatedBy")
-  assignedAlerts   AlertTreated[]     @relation("AlertAssignee")
-  historyDecisions TeamHistoryEntry[]
-  unavailabilities Unavailability[]
-  activityLogs     ActivityLog[]
-  notifications    Notification[]
+  teams                  Team[]                 @relation("TeamCoach")
+  notes                  PlayerNote[]
+  evaluations            EvaluationScore[]
+  treatedAlerts          AlertTreated[]         @relation("AlertTreatedBy")
+  assignedAlerts         AlertTreated[]         @relation("AlertAssignee")
+  historyDecisions       TeamHistoryEntry[]
+  unavailabilities       Unavailability[]
+  activityLogs           ActivityLog[]
+  notifications          Notification[]
+  weekendAssignmentsMade WeekendAssignment[]
+  matchStaffRoles        MatchStaffAssignment[]
+  weekendPlansValidated  WeekendPlan[]
+  interviews             PlayerInterview[]
+  objectivesCreated      PlayerObjective[]
 
   createdAt DateTime @default(now())
 }
@@ -51,14 +56,15 @@ model Team {
   coach   User?   @relation("TeamCoach", fields: [coachId], references: [id])
   coachId String?
 
-  players        Player[]
-  sessions       TrainingSession[]
-  recurringSlots RecurringSlot[]
-  matches        Match[]
-  jerseys        Jersey[]
-  calendarEvents CalendarEvent[]
-  historyFrom    TeamHistoryEntry[] @relation("HistoryFromTeam")
-  historyTo      TeamHistoryEntry[] @relation("HistoryToTeam")
+  players            Player[]
+  sessions           TrainingSession[]
+  recurringSlots     RecurringSlot[]
+  matches            Match[]
+  jerseys            Jersey[]
+  calendarEvents     CalendarEvent[]
+  historyFrom        TeamHistoryEntry[]  @relation("HistoryFromTeam")
+  historyTo          TeamHistoryEntry[]  @relation("HistoryToTeam")
+  weekendAssignments WeekendAssignment[]
 }
 
 model Player {
@@ -75,18 +81,21 @@ model Player {
   joinedLabel String // "Août 2022" (display string, matches prototype)
   archived    Boolean @default(false) // joueur parti du club — masqué des listes actives, historique conservé
 
-  notes            PlayerNote[]
-  attendances      Attendance[]
-  convocations     MatchConvocation[]
-  compositionSlots CompositionSlot[]
-  matchStats       MatchPlayerStat[]
-  evaluations      EvaluationScore[]
-  history          TeamHistoryEntry[]
-  jerseys          Jersey[]
-  unavailabilities Unavailability[]
-  parentAccount    ParentAccount?
-  availabilities   PlayerAvailability[]
-  sessionFeedback  SessionFeedback[]
+  notes              PlayerNote[]
+  attendances        Attendance[]
+  convocations       MatchConvocation[]
+  compositionSlots   CompositionSlot[]
+  matchStats         MatchPlayerStat[]
+  evaluations        EvaluationScore[]
+  history            TeamHistoryEntry[]
+  jerseys            Jersey[]
+  unavailabilities   Unavailability[]
+  parentAccount      ParentAccount?
+  availabilities     PlayerAvailability[]
+  sessionFeedback    SessionFeedback[]
+  weekendAssignments WeekendAssignment[]
+  interviews         PlayerInterview[]
+  objectives         PlayerObjective[]
 
   createdAt DateTime @default(now())
 
@@ -150,6 +159,7 @@ model PlayerAvailability {
   answeredAt    DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
+  @@unique([playerId, eventDate, type]) // une seule réponse par joueur, par jour concerné, par type
   @@index([playerId, weekStartDate])
   @@index([sessionId])
 }
@@ -310,9 +320,11 @@ model Match {
   objectiveMet      Boolean? // atteint ou non — renseigné dans le bilan après match
   collectiveNote    String? // bilan collectif après match
 
-  convocations MatchConvocation[]
-  slots        CompositionSlot[]
-  stats        MatchPlayerStat[]
+  convocations       MatchConvocation[]
+  slots              CompositionSlot[]
+  stats              MatchPlayerStat[]
+  weekendAssignments WeekendAssignment[]
+  staffAssignments   MatchStaffAssignment[]
 
   @@index([teamId])
   @@index([date])
@@ -327,6 +339,131 @@ model MatchConvocation {
   confirmed Boolean? // null = pas de réponse, true = confirmé, false = décliné — via le lien de convocation
 
   @@unique([matchId, playerId])
+}
+
+// ---------- Répartition du week-end ----------
+// Affectation PONCTUELLE d'un joueur à une équipe pour un samedi donné — ne
+// modifie JAMAIS Player.teamId (son équipe permanente). Un joueur d'U13A
+// peut ainsi renforcer U13B un week-end sans que sa fiche ne change.
+model WeekendAssignment {
+  id            String   @id @default(cuid())
+  weekStartDate DateTime // lundi de la semaine — aligné sur WeeklyAvailabilityWindow
+  weekendDate   DateTime // samedi concerné
+  player        Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId      String
+  team          Team     @relation(fields: [teamId], references: [id])
+  teamId        String
+  match         Match?   @relation(fields: [matchId], references: [id])
+  matchId       String?
+  assignedBy    User?    @relation(fields: [assignedById], references: [id])
+  assignedById  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([weekendDate, playerId]) // un joueur = une seule affectation par week-end
+  @@index([weekStartDate])
+  @@index([teamId])
+}
+
+// Staff encadrant un match donné (coach, adjoint, dirigeant...) — distinct de
+// Team.coachId (le coach "titulaire" de l'équipe à l'année).
+model MatchStaffAssignment {
+  id      String @id @default(cuid())
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  matchId String
+  user    User   @relation(fields: [userId], references: [id])
+  userId  String
+  role    String // "Coach" | "Adjoint" | "Dirigeant" | "Entraîneur gardien" | "Vidéo" | "Autre"
+
+  @@unique([matchId, userId, role])
+}
+
+// État de préparation du week-end : DRAFT -> VALIDATED -> PUBLISHED (convocations générées).
+model WeekendPlan {
+  id            String    @id @default(cuid())
+  weekStartDate DateTime  @unique
+  weekendDate   DateTime
+  status        String    @default("DRAFT") // "DRAFT" | "VALIDATED" | "PUBLISHED"
+  validatedAt   DateTime?
+  validatedBy   User?     @relation(fields: [validatedById], references: [id])
+  validatedById String?
+  publishedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// ---------- Entretiens & suivi individuel ----------
+// La parole du joueur, le retour du coach, et les décisions communes sont
+// des champs strictement séparés — jamais un unique champ "notes" fourre-tout.
+model PlayerInterview {
+  id       String @id @default(cuid())
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId String
+  author   User   @relation(fields: [authorId], references: [id])
+  authorId String
+
+  date DateTime
+  type String // "DEBUT_SAISON" | "POINT_INTERMEDIAIRE" | "MI_SAISON" | "FIN_SAISON" | "EXCEPTIONNEL" | "RETOUR_BLESSURE" | "CHANGEMENT_GROUPE" | "COMPORTEMENT" | "PROJET_INDIVIDUEL"
+
+  // Parole du joueur — champs libres, jamais obligatoires
+  playerFeeling      String?
+  playerFeedback     String?
+  playerExpectations String?
+  playerDifficulties String?
+
+  // Retour du coach
+  coachFeedback    String?
+  strengths        String?
+  developmentAreas String?
+
+  // Décisions communes / suivi
+  agreedSummary  String?
+  privateNotes   String? // jamais exposé côté parent/joueur
+  nextReviewDate DateTime?
+
+  objectives PlayerObjective[] @relation("ObjectivesFromInterview")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([playerId])
+}
+
+model PlayerObjective {
+  id                     String           @id @default(cuid())
+  player                 Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId               String
+  createdFromInterview   PlayerInterview? @relation("ObjectivesFromInterview", fields: [createdFromInterviewId], references: [id])
+  createdFromInterviewId String?
+
+  title       String
+  description String?
+  category    String // "TECHNIQUE" | "TACTIQUE" | "PHYSIQUE" | "MENTAL" | "COMPORTEMENT" | "AUTRE"
+  status      String  @default("A_TRAVAILLER") // "A_TRAVAILLER" | "EN_PROGRESSION" | "ACQUIS" | "ABANDONNE"
+
+  startDate   DateTime  @default(now())
+  targetDate  DateTime?
+  completedAt DateTime?
+
+  visibleToPlayer Boolean @default(false) // jamais publié automatiquement — décision explicite du staff
+
+  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdById String
+
+  updates PlayerObjectiveUpdate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([playerId])
+}
+
+model PlayerObjectiveUpdate {
+  id          String          @id @default(cuid())
+  objective   PlayerObjective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  objectiveId String
+  comment     String
+  createdAt   DateTime        @default(now())
 }
 
 model CompositionSlot {

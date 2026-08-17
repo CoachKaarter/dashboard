@@ -71,12 +71,6 @@ type UpsertInput = {
 };
 
 export async function upsertAvailability(input: UpsertInput) {
-  const where =
-    input.type === "TRAINING" && input.sessionId
-      ? { playerId: input.playerId, sessionId: input.sessionId }
-      : { playerId: input.playerId, type: "WEEKEND", eventDate: input.eventDate };
-
-  const existing = await prisma.playerAvailability.findFirst({ where });
   const data = {
     status: input.status,
     absenceReason: input.absenceReason ?? null,
@@ -84,11 +78,13 @@ export async function upsertAvailability(input: UpsertInput) {
     answeredBy: input.answeredBy ?? "PARENT",
     answeredAt: new Date(),
   };
-  if (existing) {
-    return prisma.playerAvailability.update({ where: { id: existing.id }, data });
-  }
-  return prisma.playerAvailability.create({
-    data: {
+  // Real DB-level uniqueness (playerId, eventDate, type) — one answer per
+  // player per concerned day per type, enforced by Postgres, not just by
+  // application logic racing a findFirst-then-write.
+  return prisma.playerAvailability.upsert({
+    where: { playerId_eventDate_type: { playerId: input.playerId, eventDate: input.eventDate, type: input.type } },
+    update: data,
+    create: {
       playerId: input.playerId,
       type: input.type,
       sessionId: input.type === "TRAINING" ? input.sessionId ?? null : null,
