@@ -55,7 +55,15 @@ export default async function MatchDetailPage({
   const defaultTab = match.status === "Joué" ? "feuille" : "convocation";
   const tab = TABS.some((t) => t.key === rawTab) ? rawTab! : defaultTab;
 
-  const [squad, hdrs] = await Promise.all([getPlayerStatsByTeam(match.team.code), headers()]);
+  const [squad, weekendAvail, hdrs] = await Promise.all([
+    getPlayerStatsByTeam(match.team.code),
+    prisma.playerAvailability.findMany({
+      where: { type: "WEEKEND", eventDate: match.date, player: { teamId: match.teamId } },
+      select: { playerId: true, status: true },
+    }),
+    headers(),
+  ]);
+  const weekendAvailability = new Map(weekendAvail.map((a) => [a.playerId, a.status as "AVAILABLE" | "UNAVAILABLE"]));
   const convocatedIds = new Set(match.convocations.map((c) => c.playerId));
   const host = hdrs.get("host");
   const proto = hdrs.get("x-forwarded-proto") ?? "https";
@@ -79,7 +87,10 @@ export default async function MatchDetailPage({
 
   const cancelled = match.status === "Annulé";
   const suggestions = !played && !cancelled
-    ? recommendConvocations(squad, convocatedIds, match.needed).slice(0, Math.max(0, match.needed - convocatedIds.size) || 4)
+    ? recommendConvocations(squad, convocatedIds, match.needed, weekendAvailability).slice(
+        0,
+        Math.max(0, match.needed - convocatedIds.size) || 4
+      )
     : [];
 
   return (
