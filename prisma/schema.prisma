@@ -276,6 +276,7 @@ model EvaluationScore {
   tactique     Float
   physique     Float
   comportement Float
+  objectives   String? // objectifs individuels fixés pour cette période
   comment      String?
   evaluator    User?    @relation(fields: [evaluatorId], references: [id])
   evaluatorId  String?

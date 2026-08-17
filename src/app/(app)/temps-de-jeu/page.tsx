@@ -15,7 +15,13 @@ const MINUTE_COLORS: Record<string, { fg: string; bg: string }> = {
   great: { fg: "#FFFFFF", bg: "#3F8F5B" },
 };
 
-export default async function TempsDeJeuPage({ searchParams }: { searchParams: Promise<{ team?: string }> }) {
+const PERIODS = [
+  { key: "saison", label: "Saison" },
+  { key: "30j", label: "30 derniers jours" },
+  { key: "5m", label: "5 derniers matchs" },
+];
+
+export default async function TempsDeJeuPage({ searchParams }: { searchParams: Promise<{ team?: string; periode?: string }> }) {
   const sp = await searchParams;
   const user = await requireUser();
   const scope = scopedTeamIds(user);
@@ -25,6 +31,7 @@ export default async function TempsDeJeuPage({ searchParams }: { searchParams: P
   if (!team) {
     return <div className="max-w-[1620px] mx-auto animate-fadein text-muted text-[13px]">Aucune équipe autorisée pour votre compte.</div>;
   }
+  const periode = PERIODS.some((p) => p.key === sp.periode) ? sp.periode! : "saison";
 
   const [players, settings] = await Promise.all([getPlayerStatsByTeam(team), getSettings()]);
 
@@ -36,15 +43,28 @@ export default async function TempsDeJeuPage({ searchParams }: { searchParams: P
   });
   const matchCols = recentMatches.slice().reverse();
 
-  const teamAvg = players.length ? Math.round(players.reduce((s, p) => s + p.minutes, 0) / players.length) : 0;
-  const minutesList = players.map((p) => p.minutes);
-  const ecartMax = minutesList.length ? Math.max(...minutesList) - Math.min(...minutesList) : 0;
-  const sousLeSeuil = players.filter((p) => p.minutes - teamAvg < -settings.ecartTdj).length;
+  const cutoff30j = new Date();
+  cutoff30j.setDate(cutoff30j.getDate() - 30);
 
-  const rows = players
+  function periodMinutes(playerId: string, seasonTotal: number) {
+    if (periode === "5m") return matchCols.reduce((s, m) => s + (m.stats.find((st) => st.playerId === playerId)?.minutes ?? 0), 0);
+    if (periode === "30j")
+      return recentMatches
+        .filter((m) => m.date >= cutoff30j)
+        .reduce((s, m) => s + (m.stats.find((st) => st.playerId === playerId)?.minutes ?? 0), 0);
+    return seasonTotal;
+  }
+
+  const withPeriodMinutes = players.map((p) => ({ p, periodMin: periodMinutes(p.id, p.minutes) }));
+  const teamAvg = withPeriodMinutes.length ? Math.round(withPeriodMinutes.reduce((s, x) => s + x.periodMin, 0) / withPeriodMinutes.length) : 0;
+  const minutesList = withPeriodMinutes.map((x) => x.periodMin);
+  const ecartMax = minutesList.length ? Math.max(...minutesList) - Math.min(...minutesList) : 0;
+  const sousLeSeuil = withPeriodMinutes.filter((x) => x.periodMin - teamAvg < -settings.ecartTdj).length;
+
+  const rows = withPeriodMinutes
     .slice()
-    .sort((a, b) => a.minutes - b.minutes)
-    .map((p, i) => {
+    .sort((a, b) => a.periodMin - b.periodMin)
+    .map(({ p, periodMin }, i) => {
       const cells = matchCols.map((m) => {
         const stat = m.stats.find((s) => s.playerId === p.id);
         const mins = stat?.minutes ?? 0;
@@ -52,18 +72,26 @@ export default async function TempsDeJeuPage({ searchParams }: { searchParams: P
         const c = MINUTE_COLORS[tone];
         return { value: mins === 0 ? "—" : String(mins), fg: c.fg, bg: c.bg };
       });
-      const ecart = p.minutes - teamAvg;
-      return { rank: i + 1, p, cells, ecart };
+      const ecart = periodMin - teamAvg;
+      return { rank: i + 1, p, cells, ecart, periodMin };
     });
 
   return (
     <div className="max-w-[1620px] mx-auto animate-fadein">
-      <div className="flex items-center gap-2.5 mb-3.5 flex-wrap">
+      <div className="flex items-center gap-2.5 mb-2 flex-wrap">
         {teams.map((t) => (
-          <FilterChip key={t.code} href={toQueryString({ team: t.code })} active={team === t.code} mono>
+          <FilterChip key={t.code} href={toQueryString({ team: t.code, periode: sp.periode })} active={team === t.code} mono>
             {t.code}
           </FilterChip>
         ))}
+        <div className="w-px h-[22px] bg-line mx-1" />
+        {PERIODS.map((p) => (
+          <FilterChip key={p.key} href={toQueryString({ team, periode: p.key === "saison" ? undefined : p.key })} active={periode === p.key}>
+            {p.label}
+          </FilterChip>
+        ))}
+      </div>
+      <div className="flex items-center gap-2.5 mb-3.5 flex-wrap">
         <span className="flex-1" />
         {[
           ["Moyenne équipe", `${teamAvg}'`],
@@ -120,8 +148,8 @@ export default async function TempsDeJeuPage({ searchParams }: { searchParams: P
               </div>
             ))}
             {r.cells.length === 0 && <div className="h-[26px] flex items-center justify-center text-muted-2">—</div>}
-            <div className="text-right font-mono font-bold">{r.p.minutes}</div>
-            <div className="text-right font-mono text-muted">{r.p.matchsJoues ? Math.round(r.p.minutes / r.p.matchsJoues) : 0}</div>
+            <div className="text-right font-mono font-bold">{r.periodMin}</div>
+            <div className="text-right font-mono text-muted">{r.p.matchsJoues ? Math.round(r.periodMin / r.p.matchsJoues) : 0}</div>
             <div className="text-right font-mono text-muted">
               {r.p.titularisations}/{r.p.matchsDispo}
             </div>

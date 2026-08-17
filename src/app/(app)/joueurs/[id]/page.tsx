@@ -6,7 +6,9 @@ import { Avatar } from "@/components/ui/Avatar";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Badge } from "@/components/ui/Badge";
 import { statutTone, formatDateShort } from "@/lib/format";
-import { PLAYER_STATUSES, POSITIONS } from "@/lib/constants";
+import { PLAYER_STATUSES, POSITIONS, EVAL_PERIODS } from "@/lib/constants";
+import { ProgressChart } from "@/components/ui/ProgressChart";
+import { updateObjectives } from "../../evaluations/actions";
 import { requireUser, canAccessTeam, scopedTeamIds } from "@/lib/authz";
 import {
   addPlayerNote,
@@ -149,26 +151,82 @@ export default async function FichePage({
           )}
 
           {tab === "performance" && (
-            <Panel title={`Évaluation — période ${stats.currentEval?.period ?? "—"}`} hint={stats.previousEval ? `comparée à ${stats.previousEval.period}` : "aucune période précédente"}>
-              {stats.currentEval ? (
-                (["technique", "tactique", "physique", "comportement"] as const).map((k) => {
-                  const v = stats.currentEval![k];
-                  const prevV = stats.previousEval?.moyenne ?? v;
-                  const delta = Math.round((v - prevV) * 10) / 10;
-                  return (
-                    <Row
-                      key={k}
-                      left={k[0].toUpperCase() + k.slice(1)}
-                      title=""
-                      detail={`${delta >= 0 ? "+" : ""}${delta} vs période précédente`}
-                      valueNode={<span className={`font-mono text-[13px] font-bold ${delta >= 0 ? "text-green" : "text-orange"}`}>{v.toFixed(1)} / 5</span>}
+            <>
+              <Panel title={`Évaluation — période ${stats.currentEval?.period ?? "—"}`} hint={stats.previousEval ? `comparée à ${stats.previousEval.period}` : "aucune période précédente"}>
+                {stats.currentEval ? (
+                  (["technique", "tactique", "physique", "comportement"] as const).map((k) => {
+                    const v = stats.currentEval![k];
+                    const prevV = stats.previousEval?.moyenne ?? v;
+                    const delta = Math.round((v - prevV) * 10) / 10;
+                    return (
+                      <Row
+                        key={k}
+                        left={k[0].toUpperCase() + k.slice(1)}
+                        title=""
+                        detail={`${delta >= 0 ? "+" : ""}${delta} vs période précédente`}
+                        valueNode={<span className={`font-mono text-[13px] font-bold ${delta >= 0 ? "text-green" : "text-orange"}`}>{v.toFixed(1)} / 5</span>}
+                      />
+                    );
+                  })
+                ) : (
+                  <EmptyRow text="Ce joueur n'a pas encore été évalué." />
+                )}
+              </Panel>
+
+              {player.evaluations.length > 0 && (
+                <Panel title="Progression" hint="moyenne sur 5, par période">
+                  <div className="px-3.5 py-3">
+                    <ProgressChart
+                      points={[...player.evaluations]
+                        .sort((a, b) => EVAL_PERIODS.indexOf(a.period) - EVAL_PERIODS.indexOf(b.period))
+                        .map((e) => ({
+                          label: e.period,
+                          value: Math.round(((e.technique + e.tactique + e.physique + e.comportement) / 4) * 10) / 10,
+                        }))}
                     />
-                  );
-                })
-              ) : (
-                <EmptyRow text="Ce joueur n'a pas encore été évalué." />
+                    <div className="flex justify-between text-[10.5px] text-muted-2 mt-1 px-1">
+                      {[...player.evaluations]
+                        .sort((a, b) => EVAL_PERIODS.indexOf(a.period) - EVAL_PERIODS.indexOf(b.period))
+                        .map((e) => (
+                          <span key={e.id}>{e.period}</span>
+                        ))}
+                    </div>
+                  </div>
+                </Panel>
               )}
-            </Panel>
+
+              <Panel title="Historique des évaluations" hint={`${player.evaluations.length} période${player.evaluations.length > 1 ? "s" : ""}`}>
+                {player.evaluations.map((e) => {
+                  const moy = Math.round(((e.technique + e.tactique + e.physique + e.comportement) / 4) * 10) / 10;
+                  return (
+                    <div key={e.id} className="px-3.5 py-2.5 border-b border-line-soft-2 last:border-b-0">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-[12.5px] font-semibold w-20">{e.period}</span>
+                        <span className="font-mono text-[12.5px] text-muted">
+                          T {e.technique.toFixed(1)} · Ta {e.tactique.toFixed(1)} · P {e.physique.toFixed(1)} · C {e.comportement.toFixed(1)}
+                        </span>
+                        <span className="flex-1" />
+                        <span className="font-mono text-[13px] font-bold">{moy.toFixed(1)} / 5</span>
+                      </div>
+                      {e.objectives && <div className="text-[11.5px] text-ink-soft mt-1">Objectif : {e.objectives}</div>}
+                      {e.id === player.evaluations[0].id && (
+                        <form action={updateObjectives.bind(null, e.id)} className="mt-1.5 flex gap-1.5">
+                          <input
+                            name="objectives"
+                            defaultValue={e.objectives ?? ""}
+                            placeholder="Objectif individuel pour cette période…"
+                            className="h-7 flex-1 border border-line rounded-md px-2 text-[11.5px] bg-surface outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
+                          />
+                          <button type="submit" className="h-7 px-2 border border-line rounded-md text-[10.5px] font-semibold text-muted hover:border-ink hover:text-ink">
+                            OK
+                          </button>
+                        </form>
+                      )}
+                    </div>
+                  );
+                })}
+              </Panel>
+            </>
           )}
 
           {tab === "historique" && (
