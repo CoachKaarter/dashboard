@@ -2,18 +2,20 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FORMATIONS } from "@/lib/constants";
+import { FORMATIONS, FORMATIONS_BY_FORMAT } from "@/lib/constants";
 import { assignSlot, clearSlot, setFormation } from "@/app/(app)/matchs/actions";
 
 type SquadPlayer = { id: string; name: string; initials: string; poste: string };
 
 export function CompositionBoard({
   matchId,
+  format,
   formation,
   slots,
   bench,
 }: {
   matchId: string;
+  format: string;
   formation: string;
   slots: Record<number, SquadPlayer>;
   bench: SquadPlayer[];
@@ -26,22 +28,24 @@ export function CompositionBoard({
     startTransition(() => router.refresh());
   }
 
-  const positions = FORMATIONS[formation] ?? FORMATIONS["1-3-3-1"];
+  const available = FORMATIONS_BY_FORMAT[format] ?? FORMATIONS_BY_FORMAT["Foot à 8"];
+  const activeFormation = available.includes(formation) ? formation : available[0];
+  const positions = FORMATIONS[activeFormation] ?? FORMATIONS["1-3-3-1"];
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_300px] gap-4 items-start">
       <section className="bg-surface border border-line rounded-lg p-3.5">
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Composition — foot à 8</span>
+          <span className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Composition — {format.toLowerCase()}</span>
           <span className="flex-1" />
-          {Object.keys(FORMATIONS).map((f) => (
+          {available.map((f) => (
             <button
               key={f}
               onClick={() => {
                 setFormation(matchId, f).then(refresh);
               }}
               className={`h-[26px] px-2.5 rounded-md font-mono text-[11px] font-bold border cursor-pointer ${
-                formation === f ? "bg-ink text-white border-ink" : "bg-surface text-ink-soft border-line"
+                activeFormation === f ? "bg-ink text-white border-ink" : "bg-surface text-ink-soft border-line"
               }`}
             >
               {f}

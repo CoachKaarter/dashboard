@@ -196,6 +196,10 @@ model Match {
   scoreAgainst Int?
   shareToken   String   @unique @default(cuid()) // lien de convocation partageable, sans connexion
 
+  preMatchObjective String? // objectif fixé avant le match
+  objectiveMet      Boolean? // atteint ou non — renseigné dans le bilan après match
+  collectiveNote    String? // bilan collectif après match
+
   convocations MatchConvocation[]
   slots        CompositionSlot[]
   stats        MatchPlayerStat[]
@@ -238,6 +242,7 @@ model MatchPlayerStat {
   goals    Int    @default(0)
   assists  Int    @default(0)
   note     Float?
+  comment  String? // note individuelle qualitative pour ce match
 
   @@unique([matchId, playerId])
 }

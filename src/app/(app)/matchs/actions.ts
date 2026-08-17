@@ -113,10 +113,20 @@ export async function updateStatRow(matchId: string, playerId: string, formData:
   const assists = Number(formData.get("assists"));
   const noteRaw = formData.get("note");
   const note = noteRaw ? Number(noteRaw) : null;
+  const comment = String(formData.get("comment") || "").trim() || null;
   await prisma.matchPlayerStat.update({
     where: { matchId_playerId: { matchId, playerId } },
-    data: { minutes, goals, assists, note },
+    data: { minutes, goals, assists, note, comment },
   });
+  revalidatePath(`/matchs/${matchId}`);
+}
+
+export async function updateBilan(matchId: string, formData: FormData) {
+  await assertMatchAccess(matchId);
+  const objectiveMetRaw = String(formData.get("objectiveMet") || "");
+  const objectiveMet = objectiveMetRaw === "oui" ? true : objectiveMetRaw === "non" ? false : null;
+  const collectiveNote = String(formData.get("collectiveNote") || "").trim() || null;
+  await prisma.match.update({ where: { id: matchId }, data: { objectiveMet, collectiveNote } });
   revalidatePath(`/matchs/${matchId}`);
 }
 
@@ -129,12 +139,17 @@ export async function updateMatch(matchId: string, formData: FormData) {
   const isHome = formData.get("isHome") === "on";
   const location = String(formData.get("location") || "") || null;
   const needed = Number(formData.get("needed")) || 12;
+  const preMatchObjective = String(formData.get("preMatchObjective") || "").trim() || null;
   if (!competition || Number.isNaN(date.getTime())) return;
   const settings = await getSettings();
 
   await prisma.match.update({
     where: { id: matchId },
-    data: { opponent, competition, date, time, meetTime: computeMeetTime(time, settings.delaiRdv), isHome, location, needed },
+    data: {
+      opponent, competition, date, time,
+      meetTime: computeMeetTime(time, settings.delaiRdv),
+      isHome, location, needed, preMatchObjective,
+    },
   });
   revalidatePath(`/matchs/${matchId}`);
   revalidatePath("/matchs");

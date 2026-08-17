@@ -12,7 +12,16 @@ import { NumField } from "@/components/ui/NumField";
 import { formatDateFull } from "@/lib/format";
 import { requireUser, canAccessTeam } from "@/lib/authz";
 import { Badge } from "@/components/ui/Badge";
-import { toggleConvocation, recordScore, generateFeuille, updateStatRow, updateMatch, cancelMatch, deleteMatch } from "../actions";
+import {
+  toggleConvocation,
+  recordScore,
+  generateFeuille,
+  updateStatRow,
+  updateMatch,
+  updateBilan,
+  cancelMatch,
+  deleteMatch,
+} from "../actions";
 
 const TABS = [
   { key: "convocation", label: "Convocation" },
@@ -97,6 +106,11 @@ export default async function MatchDetailPage({
           {formatDateFull(match.date)} · {match.competition} · {match.isHome ? "Domicile" : "Extérieur"} ·{" "}
           {match.location ?? "lieu à définir"} · coup d&apos;envoi {match.time ?? "—"}
         </div>
+        {match.preMatchObjective && (
+          <div className="text-[12.5px] mt-1.5">
+            <span className="text-muted-2">Objectif :</span> <span className="font-semibold">{match.preMatchObjective}</span>
+          </div>
+        )}
 
         <div className="flex items-center mt-3.5 pt-3 border-t border-line-soft flex-wrap gap-y-2">
           {steps.map((label, i) => {
@@ -153,6 +167,12 @@ export default async function MatchDetailPage({
             <input type="time" name="time" defaultValue={match.time ?? ""} className={matchInputClass} />
             <input name="location" defaultValue={match.location ?? ""} placeholder="Lieu" className={matchInputClass} />
             <input type="number" name="needed" defaultValue={match.needed} min={7} max={16} className={matchInputClass} />
+            <input
+              name="preMatchObjective"
+              defaultValue={match.preMatchObjective ?? ""}
+              placeholder="Objectif avant match (ex. Gagner les duels)"
+              className={`${matchInputClass} col-span-2`}
+            />
             <label className="flex items-center gap-2 text-[12.5px] text-ink-soft col-span-2">
               <input type="checkbox" name="isHome" defaultChecked={match.isHome} className="w-4 h-4" />
               Match à domicile
@@ -282,6 +302,7 @@ export default async function MatchDetailPage({
       {tab === "composition" && (
         <CompositionBoard
           matchId={match.id}
+          format={match.team.format}
           formation={match.formation}
           slots={Object.fromEntries(
             match.slots.map((s) => [
@@ -301,52 +322,98 @@ export default async function MatchDetailPage({
       )}
 
       {tab === "feuille" && (
-        <section className="bg-surface border border-line rounded-lg overflow-auto">
-          {!played ? (
-            <div className="px-4 py-10 text-center text-muted text-[13px]">Le match n&apos;a pas encore été joué.</div>
-          ) : match.stats.length === 0 ? (
-            <div className="px-4 py-10 text-center">
-              <div className="text-muted text-[13px] mb-3">Aucune feuille de match saisie pour l&apos;instant.</div>
-              <form action={generateFeuille.bind(null, match.id)}>
-                <button type="submit" className="h-9 px-4 rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36]">
-                  Générer la feuille depuis la composition
+        <div className="flex flex-col gap-3.5">
+          <section className="bg-surface border border-line rounded-lg overflow-auto">
+            {!played ? (
+              <div className="px-4 py-10 text-center text-muted text-[13px]">Le match n&apos;a pas encore été joué.</div>
+            ) : match.stats.length === 0 ? (
+              <div className="px-4 py-10 text-center">
+                <div className="text-muted text-[13px] mb-3">Aucune feuille de match saisie pour l&apos;instant.</div>
+                <form action={generateFeuille.bind(null, match.id)}>
+                  <button type="submit" className="h-9 px-4 rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36]">
+                    Générer la feuille depuis la composition
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-[minmax(160px,1fr)_100px_90px_64px_60px_64px_64px_minmax(140px,1fr)] gap-2.5 items-center px-3.5 h-[34px] bg-[#FAFAF8] border-b border-line text-[10.5px] font-bold tracking-[0.08em] uppercase text-muted">
+                  <div>Joueur</div>
+                  <div>Poste occupé</div>
+                  <div>Statut</div>
+                  <div className="text-right">Min.</div>
+                  <div className="text-right">Buts</div>
+                  <div className="text-right">Passes</div>
+                  <div className="text-right">Note</div>
+                  <div>Note individuelle</div>
+                </div>
+                {match.stats.map((r) => (
+                  <form
+                    key={r.id}
+                    action={updateStatRow.bind(null, match.id, r.playerId)}
+                    className="grid grid-cols-[minmax(160px,1fr)_100px_90px_64px_60px_64px_64px_minmax(140px,1fr)] gap-2.5 items-center px-3.5 h-11 border-b border-line-soft-2 last:border-b-0 text-[12.5px]"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Avatar initials={`${r.player.firstName[0]}${r.player.lastName[0]}`} size={24} />
+                      <div className="font-semibold truncate">
+                        {r.player.firstName} {r.player.lastName}
+                      </div>
+                    </div>
+                    <div className="text-ink-soft">{r.player.position}</div>
+                    <div className={`text-[11.5px] font-semibold ${r.role === "Titulaire" ? "text-green" : "text-muted"}`}>{r.role}</div>
+                    <NumField name="minutes" defaultValue={r.minutes} />
+                    <NumField name="goals" defaultValue={r.goals} />
+                    <NumField name="assists" defaultValue={r.assists} />
+                    <NumField name="note" defaultValue={r.note ?? ""} step="0.1" />
+                    <input
+                      name="comment"
+                      defaultValue={r.comment ?? ""}
+                      placeholder="—"
+                      className="h-7 min-w-0 border border-line rounded-md px-2 text-[11.5px] bg-surface outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
+                    />
+                  </form>
+                ))}
+              </>
+            )}
+          </section>
+
+          {played && (
+            <section className="bg-surface border border-line rounded-lg p-3.5">
+              <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted mb-2.5">Bilan du match</div>
+              <form action={updateBilan.bind(null, match.id)} className="flex flex-col gap-2.5">
+                {match.preMatchObjective && (
+                  <div className="text-[12.5px] text-ink-soft">
+                    Objectif fixé : <span className="font-semibold text-ink">{match.preMatchObjective}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <span className="text-[12.5px] text-muted mr-1">Objectif atteint :</span>
+                  {(["oui", "non"] as const).map((v) => (
+                    <label key={v} className="flex items-center gap-1.5 text-[12.5px]">
+                      <input
+                        type="radio"
+                        name="objectiveMet"
+                        value={v}
+                        defaultChecked={(v === "oui") === match.objectiveMet}
+                      />
+                      {v === "oui" ? "Oui" : "Non"}
+                    </label>
+                  ))}
+                </div>
+                <textarea
+                  name="collectiveNote"
+                  defaultValue={match.collectiveNote ?? ""}
+                  placeholder="Notes collectives sur le match…"
+                  rows={3}
+                  className="border border-line rounded-md px-2.5 py-2 text-[12.5px] bg-surface outline-none resize-y focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
+                />
+                <button type="submit" className="self-start h-9 px-3 rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36]">
+                  Enregistrer le bilan
                 </button>
               </form>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-[minmax(190px,1fr)_130px_100px_76px_70px_78px_78px] gap-3 items-center px-3.5 h-[34px] bg-[#FAFAF8] border-b border-line text-[10.5px] font-bold tracking-[0.08em] uppercase text-muted">
-                <div>Joueur</div>
-                <div>Poste occupé</div>
-                <div>Statut</div>
-                <div className="text-right">Minutes</div>
-                <div className="text-right">Buts</div>
-                <div className="text-right">Passes</div>
-                <div className="text-right">Note</div>
-              </div>
-              {match.stats.map((r) => (
-                <form
-                  key={r.id}
-                  action={updateStatRow.bind(null, match.id, r.playerId)}
-                  className="grid grid-cols-[minmax(190px,1fr)_130px_100px_76px_70px_78px_78px] gap-3 items-center px-3.5 h-11 border-b border-line-soft-2 last:border-b-0 text-[12.5px]"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <Avatar initials={`${r.player.firstName[0]}${r.player.lastName[0]}`} size={24} />
-                    <div className="font-semibold truncate">
-                      {r.player.firstName} {r.player.lastName}
-                    </div>
-                  </div>
-                  <div className="text-ink-soft">{r.player.position}</div>
-                  <div className={`text-[11.5px] font-semibold ${r.role === "Titulaire" ? "text-green" : "text-muted"}`}>{r.role}</div>
-                  <NumField name="minutes" defaultValue={r.minutes} />
-                  <NumField name="goals" defaultValue={r.goals} />
-                  <NumField name="assists" defaultValue={r.assists} />
-                  <NumField name="note" defaultValue={r.note ?? ""} step="0.1" />
-                </form>
-              ))}
-            </>
+            </section>
           )}
-        </section>
+        </div>
       )}
     </div>
   );
