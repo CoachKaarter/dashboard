@@ -340,6 +340,122 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
     });
   }
 
+  // ---------- Espace Parents : douleurs, indisponibilités déclarées, disponibilités manquantes ----------
+
+  const recentFeedbackCutoff = new Date(now);
+  recentFeedbackCutoff.setDate(recentFeedbackCutoff.getDate() - 10);
+  const recentFeedbackAll = await prisma.sessionFeedback.findMany({
+    where: {
+      OR: [{ preAnsweredAt: { gte: recentFeedbackCutoff } }, { postAnsweredAt: { gte: recentFeedbackCutoff } }],
+    },
+    include: { player: { include: { team: true } } },
+    orderBy: { preAnsweredAt: "desc" },
+  });
+  const recentFeedback =
+    scope === "ALL" ? recentFeedbackAll : recentFeedbackAll.filter((f) => scope.includes(f.player.teamId));
+
+  for (const f of recentFeedback) {
+    if (f.pain) {
+      const key = `pain-reported:${f.id}`;
+      urgent.push({
+        key,
+        tag: f.player.team.code,
+        title: `${f.player.firstName} ${f.player.lastName} — douleur signalée`,
+        detail: f.painLocation ? `Douleur signalée : ${f.painLocation}` : "Douleur signalée avant la séance, sans précision.",
+        meta: "Douleur",
+        action: "Voir le joueur",
+        href: `/joueurs/${f.playerId}`,
+        treated: treatedSet.has(key),
+        decision: decisionFor(key),
+      });
+    }
+    if (f.rpe && f.rpe >= 8) {
+      const key = `high-rpe:${f.id}`;
+      traiter.push({
+        key,
+        tag: f.player.team.code,
+        title: `${f.player.firstName} ${f.player.lastName} — difficulté perçue très élevée`,
+        detail: `RPE ${f.rpe}/10 rapporté après la séance.`,
+        meta: `RPE ${f.rpe}`,
+        action: "Voir le joueur",
+        href: `/joueurs/${f.playerId}`,
+        treated: treatedSet.has(key),
+        decision: decisionFor(key),
+      });
+    }
+  }
+
+  // Fatigue élevée répétée : au moins 2 réponses "Beaucoup" sur les 10 derniers jours pour le même joueur.
+  const fatigueByPlayer = new Map<string, { count: number; player: (typeof recentFeedback)[number]["player"] }>();
+  for (const f of recentFeedback) {
+    if (f.fatigue !== "Beaucoup") continue;
+    const cur = fatigueByPlayer.get(f.playerId) ?? { count: 0, player: f.player };
+    cur.count++;
+    fatigueByPlayer.set(f.playerId, cur);
+  }
+  for (const [playerId, { count, player }] of fatigueByPlayer) {
+    if (count < 2) continue;
+    const key = `repeated-fatigue:${playerId}`;
+    traiter.push({
+      key,
+      tag: player.team.code,
+      title: `${player.firstName} ${player.lastName} — fatigue élevée répétée`,
+      detail: `${count} séances récentes avec une fatigue déclarée "Beaucoup".`,
+      meta: "Fatigue",
+      action: "Voir le joueur",
+      href: `/joueurs/${playerId}`,
+      treated: treatedSet.has(key),
+      decision: decisionFor(key),
+    });
+  }
+
+  const pendingUnavailAll = await prisma.unavailability.findMany({
+    where: { status: "PENDING" },
+    include: { player: { include: { team: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  const pendingUnavail = scope === "ALL" ? pendingUnavailAll : pendingUnavailAll.filter((u) => scope.includes(u.player.teamId));
+  for (const u of pendingUnavail) {
+    const key = `pending-unavailability:${u.id}`;
+    urgent.push({
+      key,
+      tag: u.player.team.code,
+      title: `${u.player.firstName} ${u.player.lastName} — indisponibilité déclarée par la famille`,
+      detail: `${u.type}, depuis le ${formatDateShort(u.startDate)} — en attente de validation.`,
+      meta: "À valider",
+      action: "Voir le joueur",
+      href: `/joueurs/${u.playerId}`,
+      treated: treatedSet.has(key),
+      decision: decisionFor(key),
+    });
+  }
+
+  const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const soonClosingWindows = await prisma.weeklyAvailabilityWindow.findMany({
+    where: { status: "OPEN", closesAt: { gte: now, lte: in24h } },
+  });
+  for (const w of soonClosingWindows) {
+    const playersInScope = scope === "ALL" ? await prisma.player.count({ where: { archived: false } }) : await prisma.player.count({ where: { archived: false, teamId: { in: scope } } });
+    const answeredPlayerIds = new Set(
+      (await prisma.playerAvailability.findMany({ where: { weekStartDate: w.weekStartDate }, select: { playerId: true } })).map((a) => a.playerId)
+    );
+    const missing = playersInScope - answeredPlayerIds.size;
+    if (missing > 0) {
+      const key = `missing-availability:${w.id}`;
+      traiter.push({
+        key,
+        tag: "Dispo.",
+        title: `${missing} joueur${missing > 1 ? "s" : ""} sans réponse avant la clôture`,
+        detail: `La fenêtre de disponibilité de la semaine du ${formatDateShort(w.weekStartDate)} clôture bientôt.`,
+        meta: "Clôture proche",
+        action: "Voir les réponses",
+        href: "/disponibilites",
+        treated: treatedSet.has(key),
+        decision: decisionFor(key),
+      });
+    }
+  }
+
   playerStats
     .filter((p) => p.status === "Actif" && (p.lastEvalDaysAgo === null || p.lastEvalDaysAgo > settings.delaiEval))
     .slice(0, 2)

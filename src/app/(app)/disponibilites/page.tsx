@@ -1,9 +1,11 @@
+import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { requireUser, scopedTeamIds } from "@/lib/authz";
 import { getWeekStart, addDays, getWindowForWeek } from "@/lib/availability";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { FilterChip } from "@/components/ui/FilterChip";
 import { Badge } from "@/components/ui/Badge";
+import { CopyButton } from "@/components/CopyButton";
 import { toQueryString } from "@/lib/query";
 import { openWindow, closeWindow, reopenWindow, setAvailabilityByStaff } from "./actions";
 
@@ -24,7 +26,7 @@ export default async function DisponibilitesPage({
   const weekEndExclusive = addDays(baseWeek, 7);
   const weekend = addDays(baseWeek, 5);
 
-  const [window, allTeams, sessionsAll] = await Promise.all([
+  const [window, allTeams, sessionsAll, hdrs] = await Promise.all([
     getWindowForWeek(baseWeek),
     prisma.team.findMany({ orderBy: { code: "asc" } }),
     prisma.trainingSession.findMany({
@@ -32,7 +34,22 @@ export default async function DisponibilitesPage({
       include: { scopeTeam: true },
       orderBy: { date: "asc" },
     }),
+    headers(),
   ]);
+  const host = hdrs.get("host");
+  const proto = hdrs.get("x-forwarded-proto") ?? "https";
+  const parentUrl = `${proto}://${host}/parent`;
+  const sundayMessage = [
+    "Bonjour à tous 👋",
+    "",
+    "Les pointages de présence de la semaine sont désormais ouverts.",
+    "",
+    "Vous pouvez dès à présent renseigner les présences de votre enfant aux séances ainsi que sa disponibilité pour le week-end depuis l'espace parents.",
+    "",
+    `Merci de compléter les informations avant ${window?.closesAt ? `le ${formatDT(new Date(window.closesAt))}` : "la date limite indiquée"}.`,
+    "",
+    `🔗 ${parentUrl}`,
+  ].join("\n");
   const teams = scope === "ALL" ? allTeams : allTeams.filter((t) => scope.includes(t.id));
 
   // One column per distinct calendar date that has at least one session, plus Samedi (weekend) at the end.
@@ -92,6 +109,11 @@ export default async function DisponibilitesPage({
           )}
         </div>
         <span className="flex-1" />
+        <CopyButton
+          text={sundayMessage}
+          label="Copier le message du dimanche"
+          className="h-8 px-3 border border-line rounded-md text-xs font-semibold text-ink-soft hover:border-ink"
+        />
         <a href={toQueryString({ week: addDays(baseWeek, -7).toISOString().slice(0, 10) })} className="h-8 px-3 border border-line rounded-md text-xs font-semibold text-ink-soft hover:border-ink flex items-center">
           ← Semaine précédente
         </a>
