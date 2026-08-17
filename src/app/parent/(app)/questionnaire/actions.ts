@@ -1,16 +1,11 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireParent, type AuthedParent } from "@/lib/parent-session";
+import { requireParent } from "@/lib/parent-session";
 import { isPreOpen, isPostOpen, computeLoad } from "@/lib/session-feedback";
 import { preFeelingSchema, postFeelingSchema, rpeSchema, enjoymentSchema, fatigueSchema, painSchema } from "@/lib/parent-validation";
+import { sessionInParentScope } from "@/lib/parent-scope";
 import { revalidatePath } from "next/cache";
-import type { TrainingSession } from "@/generated/prisma/client";
-
-function sessionInParentScope(session: TrainingSession, parent: AuthedParent) {
-  if (session.scopeTeamId) return session.scopeTeamId === parent.player.teamId;
-  return session.category === parent.player.teamCategory;
-}
 
 export async function submitPreFeedback(sessionId: string, formData: FormData) {
   const parent = await requireParent();
@@ -36,6 +31,7 @@ export async function submitPreFeedback(sessionId: string, formData: FormData) {
     create: { sessionId, playerId: parent.playerId, ...data },
   });
   revalidatePath("/parent");
+  revalidatePath(`/parent/questionnaire/${sessionId}/pre`);
 }
 
 export async function submitPostFeedback(sessionId: string, formData: FormData) {
@@ -64,4 +60,5 @@ export async function submitPostFeedback(sessionId: string, formData: FormData) 
     create: { sessionId, playerId: parent.playerId, ...data },
   });
   revalidatePath("/parent");
+  revalidatePath(`/parent/questionnaire/${sessionId}/post`);
 }

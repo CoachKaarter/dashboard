@@ -1,12 +1,12 @@
 "use server";
 
 import { parentSignOut } from "@/parent-auth";
-import { requireParent, type AuthedParent } from "@/lib/parent-session";
+import { requireParent } from "@/lib/parent-session";
 import { prisma } from "@/lib/prisma";
 import { getWeekStart, getWindowForWeek, upsertAvailability } from "@/lib/availability";
 import { availabilityStatusSchema, absenceReasonSchema } from "@/lib/parent-validation";
+import { sessionInParentScope } from "@/lib/parent-scope";
 import { revalidatePath } from "next/cache";
-import type { TrainingSession } from "@/generated/prisma/client";
 
 export async function parentSignOutAction() {
   await parentSignOut({ redirectTo: "/parent/login" });
@@ -24,14 +24,6 @@ async function assertWindowOpenNow(weekStartDate: Date) {
   if (window.opensAt && now < window.opensAt) return false;
   if (window.closesAt && now > window.closesAt) return false;
   return true;
-}
-
-// A parent must only ever be able to answer for sessions that actually
-// concern their own child's team/category — never trust a sessionId from
-// the client alone. §37 of the spec.
-function sessionInParentScope(session: TrainingSession, parent: AuthedParent) {
-  if (session.scopeTeamId) return session.scopeTeamId === parent.player.teamId;
-  return session.category === parent.player.teamCategory;
 }
 
 export async function setSessionAvailability(sessionId: string, statusRaw: string) {

@@ -1,4 +1,5 @@
 import { parentLoginAction } from "./actions";
+import { PasswordField } from "@/components/parent/PasswordField";
 
 export default async function ParentLoginPage({
   searchParams,
@@ -8,24 +9,29 @@ export default async function ParentLoginPage({
   const { error } = await searchParams;
 
   return (
-    <div className="min-h-screen bg-[#F6F6F3] flex items-center justify-center px-5">
+    <div className="min-h-screen bg-[#F6F6F4] flex items-center justify-center px-5">
       <div className="w-full max-w-[380px]">
-        <div className="flex items-center gap-2.5 justify-center mb-8">
-          <div className="w-8 h-8 rounded-lg bg-green" />
-          <div className="font-bold text-[15px] tracking-[-0.01em]">Espace Parents</div>
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-14 h-14 rounded-2xl bg-green flex items-center justify-center text-white font-bold text-[20px] tracking-[-0.02em]">
+            SS
+          </div>
+          <div className="font-bold text-[17px] tracking-[-0.01em] mt-3.5">Saint-Sébastien FC</div>
+          <div className="text-[11.5px] font-bold tracking-[0.1em] uppercase text-[#9A9DA3] mt-0.5">Espace famille</div>
+          <div className="text-[13.5px] text-[#6E7178] text-center mt-2.5 leading-snug">
+            Votre semaine de football,
+            <br />
+            simplement.
+          </div>
         </div>
 
         <form action={parentLoginAction} className="bg-white rounded-2xl shadow-sm border border-[#E7E7E2] p-6">
-          <div className="text-lg font-bold tracking-[-0.01em]">Connexion</div>
-          <div className="text-[#8A8D93] mt-1 text-[13px]">Saint-Sébastien FC — U12/U13</div>
-
           {error && (
-            <div className="mt-4 rounded-xl border border-red/30 bg-red-bg px-3 py-2.5 text-[13px] text-red">
+            <div className="mb-4 rounded-xl border border-red/30 bg-red-bg px-3 py-2.5 text-[13px] text-red">
               Identifiant ou mot de passe incorrect.
             </div>
           )}
 
-          <div className="flex flex-col gap-3.5 mt-6">
+          <div className="flex flex-col gap-3.5">
             <label className="flex flex-col gap-1.5">
               <span className="text-[11.5px] font-semibold text-[#6E7178]">Identifiant</span>
               <input
@@ -35,16 +41,7 @@ export default async function ParentLoginPage({
                 className="h-12 border border-[#E7E7E2] rounded-xl px-3.5 text-[15px] bg-[#FCFCFB] outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
               />
             </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[11.5px] font-semibold text-[#6E7178]">Mot de passe</span>
-              <input
-                type="password"
-                name="password"
-                autoComplete="current-password"
-                required
-                className="h-12 border border-[#E7E7E2] rounded-xl px-3.5 text-[15px] bg-[#FCFCFB] outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
-              />
-            </label>
+            <PasswordField name="password" label="Mot de passe" autoComplete="current-password" />
             <button
               type="submit"
               className="h-12 border-none rounded-xl bg-ink text-white text-[15px] font-semibold cursor-pointer mt-1.5 active:opacity-80"
@@ -54,7 +51,7 @@ export default async function ParentLoginPage({
           </div>
         </form>
         <div className="text-[12.5px] text-[#8A8D93] text-center mt-4">
-          Identifiants oubliés ? Contacte le staff de la catégorie.
+          Identifiants oubliés ? Contacte le staff U12/U13.
         </div>
       </div>
     </div>
