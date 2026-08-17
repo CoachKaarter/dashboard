@@ -38,9 +38,11 @@ model User {
 // ---------- Teams & players ----------
 
 model Team {
-  id       String @id @default(cuid())
-  code     String @unique // "U13A"
-  category String // "U12" | "U13"
+  id         String @id @default(cuid())
+  code       String @unique // "U13A"
+  category   String // "U12" | "U13"
+  format     String @default("Foot à 8") // "Foot à 8" | "Foot à 11"
+  targetSize Int? // effectif cible — comparé à l'effectif réel sur l'écran Équipes
 
   coach   User?   @relation("TeamCoach", fields: [coachId], references: [id])
   coachId String?
