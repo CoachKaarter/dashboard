@@ -19,6 +19,8 @@ import {
   setArchived,
   declareUnavailability,
   endUnavailability,
+  validateUnavailability,
+  refuseUnavailability,
 } from "./actions";
 
 const TABS = [
@@ -348,10 +350,16 @@ export default async function FichePage({
             <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted mb-[11px]">Indisponibilités</div>
             <div className="flex flex-col gap-2.5">
               {player.unavailabilities.map((u) => (
-                <div key={u.id} className="border-l-2 pl-2.5" style={{ borderColor: u.actualReturn ? "#D2D2CB" : "#C4362C" }}>
+                <div
+                  key={u.id}
+                  className="border-l-2 pl-2.5"
+                  style={{ borderColor: u.status === "PENDING" ? "#C97A17" : u.actualReturn ? "#D2D2CB" : "#C4362C" }}
+                >
                   <div className="flex items-center gap-2">
                     <span className="text-[12.5px] font-semibold">{u.type}</span>
-                    {!u.actualReturn && <Badge tone="red">En cours</Badge>}
+                    {u.status === "PENDING" && <Badge tone="orange">Déclarée par la famille — à valider</Badge>}
+                    {u.status === "REFUSED" && <Badge tone="neutral">Refusée</Badge>}
+                    {u.status === "VALIDATED" && !u.actualReturn && <Badge tone="red">En cours</Badge>}
                   </div>
                   <div className="text-[11.5px] text-muted mt-px">
                     depuis {formatDateShort(u.startDate)}
@@ -359,12 +367,28 @@ export default async function FichePage({
                     {u.actualReturn ? ` · retour effectif ${formatDateShort(u.actualReturn)}` : ""}
                   </div>
                   {u.description && <div className="text-[11.5px] text-ink-soft mt-1">{u.description}</div>}
-                  {!u.actualReturn && (
-                    <form action={endUnavailability.bind(null, id, u.id)} className="mt-1.5">
-                      <button type="submit" className="h-6 px-2 border border-line rounded-md text-[10.5px] font-semibold text-green hover:border-green">
-                        Marquer de retour
-                      </button>
-                    </form>
+                  {u.status === "PENDING" ? (
+                    <div className="flex gap-1.5 mt-1.5">
+                      <form action={validateUnavailability.bind(null, id, u.id)}>
+                        <button type="submit" className="h-6 px-2 border border-line rounded-md text-[10.5px] font-semibold text-green hover:border-green">
+                          Valider
+                        </button>
+                      </form>
+                      <form action={refuseUnavailability.bind(null, id, u.id)}>
+                        <button type="submit" className="h-6 px-2 border border-line rounded-md text-[10.5px] font-semibold text-red hover:border-red">
+                          Refuser
+                        </button>
+                      </form>
+                    </div>
+                  ) : (
+                    u.status === "VALIDATED" &&
+                    !u.actualReturn && (
+                      <form action={endUnavailability.bind(null, id, u.id)} className="mt-1.5">
+                        <button type="submit" className="h-6 px-2 border border-line rounded-md text-[10.5px] font-semibold text-green hover:border-green">
+                          Marquer de retour
+                        </button>
+                      </form>
+                    )
                   )}
                 </div>
               ))}

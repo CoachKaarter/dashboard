@@ -144,6 +144,45 @@ export async function endUnavailability(playerId: string, unavailabilityId: stri
   revalidatePath("/");
 }
 
+// Validates a PENDING declaration submitted from the Espace Parents (see
+// declareUnavailabilityByParent). Only VALIDATED declarations adjust
+// Player.status — a parent's report alone must never silently change
+// internal data, per the Phase 4 spec.
+export async function validateUnavailability(playerId: string, unavailabilityId: string) {
+  const user = await requireUser();
+  const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
+  if (!canAccessTeam(user, player.teamId)) return;
+  const u = await prisma.unavailability.findUniqueOrThrow({ where: { id: unavailabilityId } });
+
+  await prisma.$transaction([
+    prisma.unavailability.update({ where: { id: unavailabilityId }, data: { status: "VALIDATED", createdById: user.id } }),
+    prisma.player.update({ where: { id: playerId }, data: { status: STATUS_BY_TYPE[u.type] ?? "Incertain" } }),
+  ]);
+  await logActivity({
+    actorId: user.id,
+    summary: `a validé l'indisponibilité déclarée par la famille de ${player.firstName} ${player.lastName}`,
+    entityType: "Player",
+    entityId: playerId,
+  });
+  revalidatePath(`/joueurs/${playerId}`);
+  revalidatePath("/joueurs");
+}
+
+export async function refuseUnavailability(playerId: string, unavailabilityId: string) {
+  const user = await requireUser();
+  const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
+  if (!canAccessTeam(user, player.teamId)) return;
+
+  await prisma.unavailability.update({ where: { id: unavailabilityId }, data: { status: "REFUSED" } });
+  await logActivity({
+    actorId: user.id,
+    summary: `a refusé l'indisponibilité déclarée par la famille de ${player.firstName} ${player.lastName}`,
+    entityType: "Player",
+    entityId: playerId,
+  });
+  revalidatePath(`/joueurs/${playerId}`);
+}
+
 export async function setArchived(playerId: string, archived: boolean) {
   const user = await requireUser();
   const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });

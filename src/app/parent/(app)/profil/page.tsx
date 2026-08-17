@@ -3,12 +3,18 @@ import { requireParentReady } from "@/lib/parent-guard";
 import { prisma } from "@/lib/prisma";
 import { parentSignOutAction } from "../actions";
 
-export default async function ParentProfilPage() {
+export default async function ParentProfilPage({ searchParams }: { searchParams: Promise<{ declared?: string }> }) {
   const parent = await requireParentReady();
   const player = await prisma.player.findUniqueOrThrow({ where: { id: parent.playerId }, include: { team: true } });
+  const { declared } = await searchParams;
 
   return (
     <div className="flex flex-col gap-4">
+      {declared === "1" && (
+        <div className="bg-[#ECF5EF] border border-[#CFE6D6] rounded-xl px-3.5 py-3 text-[13px] font-medium text-[#3F8F5B]">
+          ✓ Indisponibilité envoyée au staff, en attente de validation.
+        </div>
+      )}
       <div className="bg-white rounded-2xl border border-[#E7E7E2] p-4">
         <div className="text-lg font-bold tracking-[-0.01em]">
           {player.firstName} {player.lastName}
