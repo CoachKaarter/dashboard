@@ -2,29 +2,28 @@
  * Pre/post-séance questionnaire windows and perceived load. Deliberately
  * simple (no per-club configuration in V1, per spec §22/§27) — defaults:
  * pre-séance opens 14:00 same day, closes at kickoff; post-séance opens at
- * the session's end time, closes the next day at noon.
+ * the session's end time, closes the next day at noon. All wall-clock
+ * times are Europe/Paris (src/lib/timezone.ts) — a server-local setHours()
+ * would be wrong on Vercel, which runs in UTC.
  */
 import type { TrainingSession } from "@/generated/prisma/client";
+import { parisDateAtTime } from "@/lib/timezone";
+import { addDays as parisAddDays } from "@/lib/availability";
 
-function atTime(date: Date, hhmm: string) {
+function atParisTime(date: Date, hhmm: string) {
   const [h, m] = hhmm.split(":").map(Number);
-  const d = new Date(date);
-  d.setHours(h, m, 0, 0);
-  return d;
+  return parisDateAtTime(date, h, m);
 }
 
 export function preWindow(session: TrainingSession) {
-  const opens = new Date(session.date);
-  opens.setHours(14, 0, 0, 0);
-  const closes = atTime(session.date, session.startTime);
+  const opens = parisDateAtTime(session.date, 14, 0);
+  const closes = atParisTime(session.date, session.startTime);
   return { opens, closes };
 }
 
 export function postWindow(session: TrainingSession) {
-  const opens = atTime(session.date, session.endTime);
-  const closes = new Date(session.date);
-  closes.setDate(closes.getDate() + 1);
-  closes.setHours(12, 0, 0, 0);
+  const opens = atParisTime(session.date, session.endTime);
+  const closes = parisDateAtTime(parisAddDays(session.date, 1), 12, 0);
   return { opens, closes };
 }
 

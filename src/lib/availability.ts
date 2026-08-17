@@ -8,20 +8,23 @@
  * Ce fichier ne touche à aucun des trois.
  */
 import { prisma } from "@/lib/prisma";
+import { parisWeekStart, parisStartOfDay } from "@/lib/timezone";
 
+/** Monday 00:00 Europe/Paris of the week containing this instant. */
 export function getWeekStart(date: Date) {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  const day = d.getDay(); // 0=dimanche..6=samedi
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diffToMonday);
-  return d;
+  return parisWeekStart(date);
 }
 
+/**
+ * Adds N calendar days and re-normalizes to Paris midnight — a plain
+ * +N*86400000ms would drift by an hour across a DST transition. Only
+ * meaningful when `date` is already a Paris-midnight instant (as
+ * getWeekStart/getWeekendDate return); for arbitrary instants this is day
+ * arithmetic on the Paris calendar date, not a fixed duration.
+ */
 export function addDays(date: Date, days: number) {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
+  const rough = new Date(date.getTime() + days * 86400000);
+  return parisStartOfDay(rough);
 }
 
 export function getWeekendDate(weekStartDate: Date) {

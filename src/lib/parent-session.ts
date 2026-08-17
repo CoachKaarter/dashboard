@@ -7,7 +7,7 @@ export type AuthedParent = {
   username: string;
   playerId: string;
   mustChangePassword: boolean;
-  player: { firstName: string; lastName: string; teamId: string };
+  player: { firstName: string; lastName: string; teamId: string; teamCategory: string };
 };
 
 /**
@@ -24,7 +24,7 @@ export async function getAuthedParent(): Promise<AuthedParent | null> {
 
   const account = await prisma.parentAccount.findUnique({
     where: { id: raw.id },
-    include: { player: { select: { firstName: true, lastName: true, teamId: true } } },
+    include: { player: { select: { firstName: true, lastName: true, teamId: true, team: { select: { category: true } } } } },
   });
   if (!account || !account.active) return null;
 
@@ -33,7 +33,12 @@ export async function getAuthedParent(): Promise<AuthedParent | null> {
     username: account.username,
     playerId: account.playerId,
     mustChangePassword: account.mustChangePassword,
-    player: account.player,
+    player: {
+      firstName: account.player.firstName,
+      lastName: account.player.lastName,
+      teamId: account.player.teamId,
+      teamCategory: account.player.team.category,
+    },
   };
 }
 
