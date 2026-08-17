@@ -8,6 +8,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { CompositionBoard } from "@/components/CompositionBoard";
 import { NumField } from "@/components/ui/NumField";
 import { formatDateFull } from "@/lib/format";
+import { requireUser, canAccessTeam } from "@/lib/authz";
 import { toggleConvocation, recordScore, generateFeuille, updateStatRow } from "../actions";
 
 const TABS = [
@@ -26,6 +27,7 @@ export default async function MatchDetailPage({
   const { id } = await params;
   const { tab: rawTab } = await searchParams;
 
+  const user = await requireUser();
   const match = await prisma.match.findUnique({
     where: { id },
     include: {
@@ -36,6 +38,7 @@ export default async function MatchDetailPage({
     },
   });
   if (!match) notFound();
+  if (!canAccessTeam(user, match.teamId)) notFound();
 
   const defaultTab = match.status === "Joué" ? "feuille" : "convocation";
   const tab = TABS.some((t) => t.key === rawTab) ? rawTab! : defaultTab;

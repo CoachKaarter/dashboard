@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { requireUser, scopedTeamIds } from "@/lib/authz";
 import { createMatch } from "../actions";
 
 const inputClass =
   "h-9 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none w-full focus:border-blue focus:ring-[3px] focus:ring-blue-bg";
 
 export default async function NouveauMatchPage() {
-  const teams = await prisma.team.findMany({ orderBy: { code: "asc" } });
+  const user = await requireUser();
+  const scope = scopedTeamIds(user);
+  const allTeams = await prisma.team.findMany({ orderBy: { code: "asc" } });
+  const teams = scope === "ALL" ? allTeams : allTeams.filter((t) => scope.includes(t.id));
 
   return (
     <div className="max-w-[560px] mx-auto animate-fadein">

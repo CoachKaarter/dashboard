@@ -25,7 +25,9 @@ export type AlertGroup = {
   items: Alert[];
 };
 
-async function computeAlertGroups(): Promise<AlertGroup[]> {
+type Scope = string[] | "ALL";
+
+async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
   const settings = await getSettings();
   const now = new Date();
   const treatedRows = await prisma.alertTreated.findMany({ select: { alertKey: true } });
@@ -37,7 +39,7 @@ async function computeAlertGroups(): Promise<AlertGroup[]> {
   const information: Alert[] = [];
 
   const upcomingMatches = await prisma.match.findMany({
-    where: { status: "Planifié" },
+    where: scope === "ALL" ? { status: "Planifié" } : { status: "Planifié", teamId: { in: scope } },
     include: { team: true, convocations: true },
     orderBy: { date: "asc" },
   });
@@ -71,7 +73,8 @@ async function computeAlertGroups(): Promise<AlertGroup[]> {
     }
   }
 
-  const playerStats = await getAllPlayerStats();
+  const allPlayerStats = await getAllPlayerStats();
+  const playerStats = scope === "ALL" ? allPlayerStats : allPlayerStats.filter((p) => scope.includes(p.teamId));
 
   for (const p of playerStats) {
     if (p.status !== "Actif") continue;
@@ -133,7 +136,10 @@ async function computeAlertGroups(): Promise<AlertGroup[]> {
     });
 
   const lateJerseys = await prisma.jersey.findMany({
-    where: { returnedDate: null, dueDate: { lt: now } },
+    where:
+      scope === "ALL"
+        ? { returnedDate: null, dueDate: { lt: now } }
+        : { returnedDate: null, dueDate: { lt: now }, teamId: { in: scope } },
     include: { team: true },
   });
   if (lateJerseys.length) {
@@ -165,6 +171,7 @@ async function computeAlertGroups(): Promise<AlertGroup[]> {
 }
 
 export const getAlertGroups = cache(computeAlertGroups);
+export type { Scope as AlertScope };
 
 export async function toggleAlertTreated(key: string, userId: string) {
   const existing = await prisma.alertTreated.findUnique({ where: { alertKey: key } });
@@ -177,8 +184,12 @@ export async function toggleAlertTreated(key: string, userId: string) {
 
 export type DataCheck = { label: string; value: number; ok: boolean };
 
-async function computeDataChecks(): Promise<DataCheck[]> {
-  const players = await prisma.player.findMany({ select: { firstName: true, lastName: true, birthYear: true } });
+async function computeDataChecks(scope: Scope = "ALL"): Promise<DataCheck[]> {
+  const teamFilter = scope === "ALL" ? {} : { teamId: { in: scope } };
+  const players = await prisma.player.findMany({
+    where: teamFilter,
+    select: { firstName: true, lastName: true, birthYear: true },
+  });
   const seen = new Set<string>();
   let dupes = 0;
   for (const p of players) {
@@ -188,15 +199,18 @@ async function computeDataChecks(): Promise<DataCheck[]> {
   }
 
   const badMatches = await prisma.match.count({
-    where: { status: "Planifié", OR: [{ opponent: null }, { time: null }] },
+    where: { status: "Planifié", OR: [{ opponent: null }, { time: null }], ...teamFilter },
   });
 
   const unpointedSessions = await prisma.trainingSession.count({
-    where: { status: "Réalisée", attendances: { none: {} } },
+    where:
+      scope === "ALL"
+        ? { status: "Réalisée", attendances: { none: {} } }
+        : { status: "Réalisée", attendances: { none: {} }, OR: [{ scopeTeamId: { in: scope } }, { scopeTeamId: null }] },
   });
 
   const playedMatches = await prisma.match.findMany({
-    where: { status: "Joué" },
+    where: { status: "Joué", ...teamFilter },
     include: { _count: { select: { stats: true } } },
   });
   const incompleteSheets = playedMatches.filter((m) => m._count.stats === 0).length;

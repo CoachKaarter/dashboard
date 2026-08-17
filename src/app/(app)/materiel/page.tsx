@@ -2,12 +2,18 @@ import { prisma } from "@/lib/prisma";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Badge } from "@/components/ui/Badge";
 import { formatDateShort } from "@/lib/format";
+import { requireUser, teamScopeWhere } from "@/lib/authz";
 
 const GRID = "grid-cols-[84px_76px_minmax(190px,1fr)_110px_110px_96px_96px]";
 const CONDITION_TONE: Record<string, "green" | "orange" | "red"> = { Bon: "green", "À laver": "orange", Abîmé: "red" };
 
 export default async function MaterielPage() {
-  const jerseys = await prisma.jersey.findMany({ include: { team: true }, orderBy: { issuedDate: "desc" } });
+  const user = await requireUser();
+  const jerseys = await prisma.jersey.findMany({
+    where: teamScopeWhere(user),
+    include: { team: true },
+    orderBy: { issuedDate: "desc" },
+  });
   const now = new Date();
 
   return (

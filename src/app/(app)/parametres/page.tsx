@@ -1,10 +1,10 @@
 import { getSettings } from "@/lib/settings";
-import { auth } from "@/auth";
+import { requireAdmin } from "@/lib/authz";
 import { NumField } from "@/components/ui/NumField";
 import { updateSettings } from "./actions";
 
 export default async function ParametresPage() {
-  const [settings, session] = await Promise.all([getSettings(), auth()]);
+  const [settings, admin] = await Promise.all([getSettings(), requireAdmin()]);
 
   const seuilRows = [
     { key: "seuilPresence", label: "Taux de présence minimum", unit: "%", hint: "en dessous : alerte assiduité" },
@@ -30,7 +30,7 @@ export default async function ParametresPage() {
         {[
           ["Saison", "2026 / 2027", "du 17 août 2026 au 30 juin 2027"],
           ["Club", "Saint-Sébastien FC", "catégorie U12 / U13"],
-          ["Responsable", session?.user?.name ?? "—", "accès complet"],
+          ["Responsable", admin.name, "accès complet"],
         ].map(([label, value, hint]) => (
           <div key={label} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3.5 items-center px-3.5 py-[10px] border-b border-line-soft-2 last:border-b-0">
             <div>

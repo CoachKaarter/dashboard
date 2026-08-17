@@ -7,6 +7,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { NumField } from "@/components/ui/NumField";
 import { EVAL_PERIODS, TEAM_FILTERS } from "@/lib/constants";
 import { toQueryString } from "@/lib/query";
+import { requireUser, scopedTeamIds } from "@/lib/authz";
 import { upsertEvaluation } from "./actions";
 
 export default async function EvaluationsPage({
@@ -25,7 +26,13 @@ export default async function EvaluationsPage({
   ]);
   const evalByPlayer = new Map(periodEvals.map((e) => [e.playerId, e]));
 
-  const players = allStats.filter((p) => team === "Toutes" || p.teamCode === team || p.category === team);
+  const user = await requireUser();
+  const scope = scopedTeamIds(user);
+  const players = allStats.filter(
+    (p) =>
+      (scope === "ALL" || scope.includes(p.teamId)) &&
+      (team === "Toutes" || p.teamCode === team || p.category === team)
+  );
 
   return (
     <div className="max-w-[1620px] mx-auto animate-fadein">

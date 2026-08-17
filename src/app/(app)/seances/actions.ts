@@ -3,6 +3,14 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { requireUser, canAccessSession, canAccessTeam } from "@/lib/authz";
+
+async function assertSessionAccess(sessionId: string) {
+  const user = await requireUser();
+  const session = await prisma.trainingSession.findUniqueOrThrow({ where: { id: sessionId } });
+  if (!(await canAccessSession(user, session))) throw new Error("Accès refusé.");
+  return { user, session };
+}
 
 async function scopePlayers(sessionId: string) {
   const session = await prisma.trainingSession.findUniqueOrThrow({ where: { id: sessionId } });
@@ -12,6 +20,7 @@ async function scopePlayers(sessionId: string) {
 }
 
 export async function setAttendance(sessionId: string, playerId: string, code: string) {
+  await assertSessionAccess(sessionId);
   const existing = await prisma.attendance.findUnique({
     where: { sessionId_playerId: { sessionId, playerId } },
   });
@@ -29,6 +38,7 @@ export async function setAttendance(sessionId: string, playerId: string, code: s
 }
 
 export async function markAllPresent(sessionId: string) {
+  await assertSessionAccess(sessionId);
   const players = await scopePlayers(sessionId);
   const existing = await prisma.attendance.findMany({ where: { sessionId }, select: { playerId: true } });
   const done = new Set(existing.map((e) => e.playerId));
@@ -43,6 +53,7 @@ export async function markAllPresent(sessionId: string) {
 }
 
 export async function resetPresence(sessionId: string) {
+  await assertSessionAccess(sessionId);
   await prisma.attendance.deleteMany({ where: { sessionId } });
   revalidatePath(`/seances/${sessionId}`);
   revalidatePath("/seances");
@@ -50,8 +61,10 @@ export async function resetPresence(sessionId: string) {
 }
 
 export async function createSession(formData: FormData) {
+  const user = await requireUser();
   const category = String(formData.get("category"));
   const scopeTeamId = String(formData.get("scopeTeamId") || "") || null;
+  if (scopeTeamId && !canAccessTeam(user, scopeTeamId)) return;
   const label = String(formData.get("label"));
   const date = new Date(String(formData.get("date")));
   const startTime = String(formData.get("startTime"));
@@ -65,4 +78,41 @@ export async function createSession(formData: FormData) {
   revalidatePath("/planning");
   revalidatePath("/");
   redirect(`/seances/${session.id}`);
+}
+
+export async function updateSession(sessionId: string, formData: FormData) {
+  await assertSessionAccess(sessionId);
+  const label = String(formData.get("label"));
+  const date = new Date(String(formData.get("date")));
+  const startTime = String(formData.get("startTime"));
+  const endTime = String(formData.get("endTime"));
+  const location = String(formData.get("location"));
+  if (!label || !startTime || !endTime || !location) return;
+
+  await prisma.trainingSession.update({
+    where: { id: sessionId },
+    data: { label, date, startTime, endTime, location },
+  });
+  revalidatePath(`/seances/${sessionId}`);
+  revalidatePath("/seances");
+  revalidatePath("/planning");
+  revalidatePath("/");
+}
+
+export async function cancelSession(sessionId: string) {
+  await assertSessionAccess(sessionId);
+  await prisma.trainingSession.update({ where: { id: sessionId }, data: { status: "Annulée" } });
+  revalidatePath(`/seances/${sessionId}`);
+  revalidatePath("/seances");
+  revalidatePath("/planning");
+  revalidatePath("/");
+}
+
+export async function deleteSession(sessionId: string) {
+  await assertSessionAccess(sessionId);
+  await prisma.trainingSession.delete({ where: { id: sessionId } });
+  revalidatePath("/seances");
+  revalidatePath("/planning");
+  revalidatePath("/");
+  redirect("/seances");
 }

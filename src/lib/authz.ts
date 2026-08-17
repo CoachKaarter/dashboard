@@ -59,3 +59,19 @@ export function canAccessTeam(user: AuthedUser, teamId: string) {
   const scope = scopedTeamIds(user);
   return scope === "ALL" || scope.includes(teamId);
 }
+
+/**
+ * TrainingSession targets either one specific team (scopeTeamId set) or an
+ * entire category (U12/U13). For the category-wide case, access requires the
+ * user to be authorized for at least one team in that category.
+ */
+export async function canAccessSession(
+  user: AuthedUser,
+  session: { scopeTeamId: string | null; category: string }
+) {
+  const scope = scopedTeamIds(user);
+  if (scope === "ALL") return true;
+  if (session.scopeTeamId) return scope.includes(session.scopeTeamId);
+  const count = await prisma.team.count({ where: { id: { in: scope }, category: session.category } });
+  return count > 0;
+}

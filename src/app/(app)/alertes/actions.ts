@@ -1,12 +1,12 @@
 "use server";
 
 import { toggleAlertTreated } from "@/lib/alerts";
-import { auth } from "@/auth";
+import { requireUser } from "@/lib/authz";
 import { revalidatePath } from "next/cache";
 
 export async function toggleTreated(key: string) {
-  const session = await auth();
-  await toggleAlertTreated(key, session?.user?.id ?? "");
+  const user = await requireUser();
+  await toggleAlertTreated(key, user.id);
   revalidatePath("/alertes");
   revalidatePath("/");
 }
