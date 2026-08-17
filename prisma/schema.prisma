@@ -29,7 +29,8 @@ model User {
   teams            Team[]             @relation("TeamCoach")
   notes            PlayerNote[]
   evaluations      EvaluationScore[]
-  treatedAlerts    AlertTreated[]
+  treatedAlerts    AlertTreated[]     @relation("AlertTreatedBy")
+  assignedAlerts   AlertTreated[]     @relation("AlertAssignee")
   historyDecisions TeamHistoryEntry[]
   unavailabilities Unavailability[]
   activityLogs     ActivityLog[]
@@ -322,11 +323,16 @@ model CalendarEvent {
 // ---------- Alerts (computed) — persisted "treated" flags ----------
 
 model AlertTreated {
-  id          String   @id @default(cuid())
-  alertKey    String   @unique // deterministic key, e.g. "match-no-opp:{matchId}"
-  treatedBy   User?    @relation(fields: [treatedById], references: [id])
-  treatedById String?
-  treatedAt   DateTime @default(now())
+  id           String    @id @default(cuid())
+  alertKey     String    @unique // deterministic key, e.g. "match-no-opp:{matchId}"
+  status       String    @default("TRAITE") // "TRAITE" | "ASSUME" | "IGNORE" | "REVOIR"
+  snoozeUntil  DateTime? // pour IGNORE/REVOIR — l'alerte redevient active passée cette date
+  comment      String?
+  assignedTo   User?     @relation("AlertAssignee", fields: [assignedToId], references: [id])
+  assignedToId String?
+  treatedBy    User?     @relation("AlertTreatedBy", fields: [treatedById], references: [id])
+  treatedById  String?
+  treatedAt    DateTime  @default(now())
 }
 
 // ---------- Activity log (journal d'activité du staff) ----------

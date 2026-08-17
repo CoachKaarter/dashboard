@@ -6,6 +6,16 @@ import { formatDateShort } from "@/lib/format";
 
 export type AlertTone = "red" | "orange" | "green" | "blue";
 
+export type AlertDecision = {
+  status: string; // "TRAITE" | "ASSUME" | "IGNORE" | "REVOIR"
+  snoozeUntil: Date | null;
+  comment: string | null;
+  assignedToId: string | null;
+  assignedToName: string | null;
+  treatedByName: string | null;
+  treatedAt: Date;
+};
+
 export type Alert = {
   key: string;
   tag: string;
@@ -15,6 +25,7 @@ export type Alert = {
   action: string;
   href: string;
   treated: boolean;
+  decision: AlertDecision | null;
 };
 
 export type AlertGroup = {
@@ -30,8 +41,35 @@ type Scope = string[] | "ALL";
 async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
   const settings = await getSettings();
   const now = new Date();
-  const treatedRows = await prisma.alertTreated.findMany({ select: { alertKey: true } });
-  const treatedSet = new Set(treatedRows.map((r) => r.alertKey));
+  const treatedRows = await prisma.alertTreated.findMany({
+    include: { assignedTo: true, treatedBy: true },
+  });
+  const decisionByKey = new Map<string, AlertDecision>(
+    treatedRows.map((r) => [
+      r.alertKey,
+      {
+        status: r.status,
+        snoozeUntil: r.snoozeUntil,
+        comment: r.comment,
+        assignedToId: r.assignedToId,
+        assignedToName: r.assignedTo?.name ?? null,
+        treatedByName: r.treatedBy?.name ?? null,
+        treatedAt: r.treatedAt,
+      },
+    ])
+  );
+  // Hidden from the active count only while the decision is still in effect:
+  // TRAITE/ASSUME are permanent, IGNORE/REVOIR expire once snoozeUntil passes.
+  function isActiveDecision(d: AlertDecision) {
+    if (d.status === "IGNORE" || d.status === "REVOIR") return !d.snoozeUntil || d.snoozeUntil > now;
+    return true;
+  }
+  const treatedSet = new Set(
+    [...decisionByKey.entries()].filter(([, d]) => isActiveDecision(d)).map(([k]) => k)
+  );
+  function decisionFor(key: string) {
+    return decisionByKey.get(key) ?? null;
+  }
 
   const urgent: Alert[] = [];
   const traiter: Alert[] = [];
@@ -57,6 +95,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
         action: "Ajouter un match",
         href: "/matchs",
         treated: treatedSet.has(key),
+        decision: decisionFor(key),
       });
     } else if (m.convocations.length < m.needed) {
       const key = `convoc-incomplete:${m.id}`;
@@ -69,6 +108,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
         action: "Compléter",
         href: `/matchs/${m.id}`,
         treated: treatedSet.has(key),
+        decision: decisionFor(key),
       });
     }
   }
@@ -89,6 +129,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
         action: "Voir le joueur",
         href: `/joueurs/${p.id}`,
         treated: treatedSet.has(key),
+        decision: decisionFor(key),
       });
     }
     if (p.recentANJ >= settings.seuilANJ) {
@@ -102,6 +143,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
         action: "Voir le joueur",
         href: `/joueurs/${p.id}`,
         treated: treatedSet.has(key),
+        decision: decisionFor(key),
       });
     } else if (p.recentAbsences >= settings.absRecentes) {
       const key = `abs-recent:${p.id}`;
@@ -114,6 +156,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
         action: "Voir le joueur",
         href: `/joueurs/${p.id}`,
         treated: treatedSet.has(key),
+        decision: decisionFor(key),
       });
     }
     if (p.lastConvocDaysAgo === null || p.lastConvocDaysAgo > settings.delaiConvoc) {
@@ -127,6 +170,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
         action: "Voir le joueur",
         href: `/joueurs/${p.id}`,
         treated: treatedSet.has(key),
+        decision: decisionFor(key),
       });
     }
     if (p.matchsJoues > 0 && p.minutes / p.matchsJoues < settings.minMinutes) {
@@ -140,6 +184,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
         action: "Voir le joueur",
         href: `/joueurs/${p.id}`,
         treated: treatedSet.has(key),
+        decision: decisionFor(key),
       });
     }
   }
@@ -162,6 +207,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
         action: "Voir les matchs",
         href: "/matchs",
         treated: treatedSet.has(key),
+        decision: decisionFor(key),
       });
     }
   }
@@ -182,6 +228,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
         action: "Voir le joueur",
         href: `/joueurs/${p.id}`,
         treated: treatedSet.has(key),
+        decision: decisionFor(key),
       });
     });
 
@@ -205,6 +252,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
         action: "Évaluer",
         href: "/evaluations",
         treated: treatedSet.has(key),
+        decision: decisionFor(key),
       });
     });
 
@@ -230,6 +278,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
       action: "Voir le matériel",
       href: "/materiel",
       treated: treatedSet.has(key),
+        decision: decisionFor(key),
     });
   }
 
@@ -246,13 +295,34 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
 export const getAlertGroups = cache(computeAlertGroups);
 export type { Scope as AlertScope };
 
-export async function toggleAlertTreated(key: string, userId: string) {
-  const existing = await prisma.alertTreated.findUnique({ where: { alertKey: key } });
-  if (existing) {
-    await prisma.alertTreated.delete({ where: { alertKey: key } });
-  } else {
-    await prisma.alertTreated.create({ data: { alertKey: key, treatedById: userId } });
-  }
+export async function setAlertDecision(
+  key: string,
+  userId: string,
+  data: { status: string; snoozeUntil?: Date | null; comment?: string | null; assignedToId?: string | null }
+) {
+  await prisma.alertTreated.upsert({
+    where: { alertKey: key },
+    update: {
+      status: data.status,
+      snoozeUntil: data.snoozeUntil ?? null,
+      comment: data.comment ?? null,
+      assignedToId: data.assignedToId ?? null,
+      treatedById: userId,
+      treatedAt: new Date(),
+    },
+    create: {
+      alertKey: key,
+      status: data.status,
+      snoozeUntil: data.snoozeUntil ?? null,
+      comment: data.comment ?? null,
+      assignedToId: data.assignedToId ?? null,
+      treatedById: userId,
+    },
+  });
+}
+
+export async function clearAlertDecision(key: string) {
+  await prisma.alertTreated.deleteMany({ where: { alertKey: key } });
 }
 
 export type DataCheck = { label: string; value: number; ok: boolean };
