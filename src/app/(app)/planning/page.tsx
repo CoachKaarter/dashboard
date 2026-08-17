@@ -55,6 +55,12 @@ export default async function PlanningPage({
         ))}
         <span className="flex-1" />
         <Link
+          href="/planning/recurrent"
+          className="h-8 px-3 border border-line rounded-md bg-[#FCFCFB] text-xs font-semibold text-ink-soft flex items-center hover:border-ink hover:text-ink"
+        >
+          Planning récurrent
+        </Link>
+        <Link
           href="/planning/nouveau"
           className="h-8 px-3 border border-line rounded-md bg-[#FCFCFB] text-xs font-semibold text-ink-soft flex items-center hover:border-ink hover:text-ink"
         >

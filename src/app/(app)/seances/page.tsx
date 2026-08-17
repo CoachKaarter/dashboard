@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/Badge";
 import { formatDateShort } from "@/lib/format";
 import { requireUser, scopedTeamIds } from "@/lib/authz";
+import { ensureUpcomingSessions } from "@/lib/recurring";
 
 const DAY_NAMES = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const GRID = "grid-cols-[76px_70px_86px_80px_120px_110px_96px_minmax(190px,1fr)_24px]";
@@ -10,6 +11,7 @@ const GRID = "grid-cols-[76px_70px_86px_80px_120px_110px_96px_minmax(190px,1fr)_
 export default async function SeancesPage() {
   const user = await requireUser();
   const scope = scopedTeamIds(user);
+  await ensureUpcomingSessions();
   const allSessions = await prisma.trainingSession.findMany({
     include: { scopeTeam: true, _count: { select: { attendances: true } } },
     orderBy: { date: "asc" },

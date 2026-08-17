@@ -49,6 +49,7 @@ model Team {
 
   players        Player[]
   sessions       TrainingSession[]
+  recurringSlots RecurringSlot[]
   matches        Match[]
   jerseys        Jersey[]
   calendarEvents CalendarEvent[]
@@ -112,6 +113,25 @@ model TeamHistoryEntry {
   @@index([playerId])
 }
 
+// ---------- Recurring training template ----------
+
+model RecurringSlot {
+  id        String @id @default(cuid())
+  category  String // "U12" | "U13"
+  scopeTeam Team?  @relation(fields: [scopeTeamId], references: [id])
+  scopeTeamId String?
+  weekday   Int // 0=dimanche .. 6=samedi
+  startTime String // "18:15"
+  endTime   String // "19:45"
+  location  String
+  label     String // "Séance commune" | "Spécifique U13A" | "Technique"
+  active    Boolean @default(true) // false = suspendu, ne génère plus de séances
+
+  sessions TrainingSession[]
+
+  createdAt DateTime @default(now())
+}
+
 // ---------- Training sessions (séances) & presence ----------
 
 model TrainingSession {
@@ -120,7 +140,7 @@ model TrainingSession {
   startTime String // "18:15"
   endTime   String // "19:45"
   location  String
-  status    String // "Prévue" | "Réalisée"
+  status    String // "Prévue" | "Réalisée" | "Annulée"
 
   // A session targets either a whole category (U12 / U13) or one specific team
   // (e.g. "Spécifique U13A"); scopeTeam is set only in the latter case.
@@ -128,6 +148,13 @@ model TrainingSession {
   scopeTeam   Team?   @relation(fields: [scopeTeamId], references: [id])
   scopeTeamId String?
   label       String // "Séance commune" | "Spécifique U13A" | "Technique"
+
+  // Set when this session was auto-generated from a RecurringSlot, so the
+  // generator can tell which weeks already have a session and skip them —
+  // editing/cancelling/deleting this row (an "exception") doesn't touch the
+  // template itself.
+  sourceSlot   RecurringSlot? @relation(fields: [sourceSlotId], references: [id])
+  sourceSlotId String?
 
   attendances Attendance[]
 
