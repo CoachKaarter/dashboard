@@ -84,6 +84,9 @@ model Player {
   history          TeamHistoryEntry[]
   jerseys          Jersey[]
   unavailabilities Unavailability[]
+  parentAccount    ParentAccount?
+  availabilities   PlayerAvailability[]
+  sessionFeedback  SessionFeedback[]
 
   createdAt DateTime @default(now())
 
@@ -101,9 +104,93 @@ model Unavailability {
   actualReturn   DateTime? // renseigné quand le joueur est marqué de retour
   createdBy      User?     @relation(fields: [createdById], references: [id])
   createdById    String?
+  source         String    @default("STAFF") // "STAFF" | "PARENT"
+  status         String    @default("VALIDATED") // "PENDING" | "VALIDATED" | "REFUSED" — PENDING seulement pour source=PARENT
   createdAt      DateTime  @default(now())
 
   @@index([playerId])
+}
+
+// ---------- Espace Parents / Joueurs ----------
+
+// Compte famille — un par joueur (V1). Volontairement séparé du modèle User
+// (staff) : aucune permission d'équipe, aucun accès au Cockpit interne, et
+// une session cookie distincte (voir src/parent-auth.ts) pour qu'il n'y ait
+// jamais de confusion possible entre les deux systèmes d'identité.
+model ParentAccount {
+  id                 String    @id @default(cuid())
+  player             Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId           String    @unique
+  username           String    @unique
+  passwordHash       String
+  active             Boolean   @default(true)
+  mustChangePassword Boolean   @default(true)
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+// Disponibilité PRÉVISIONNELLE déclarée par la famille — distincte
+// d'Attendance (présence RÉELLE pointée par le coach) et de
+// MatchConvocation (décision officielle du staff). Ne jamais fusionner ces
+// concepts : voir la note dans src/lib/availability.ts.
+model PlayerAvailability {
+  id            String           @id @default(cuid())
+  player        Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId      String
+  session       TrainingSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId     String? // non-null pour type=TRAINING, toujours null pour type=WEEKEND
+  weekStartDate DateTime // lundi de la semaine concernée — aligné sur WeeklyAvailabilityWindow
+  eventDate     DateTime // date réelle concernée (date de la séance, ou le samedi pour WEEKEND)
+  type          String // "TRAINING" | "WEEKEND"
+  status        String // "AVAILABLE" | "UNAVAILABLE"
+  absenceReason String? // "Maladie" | "Famille" | "École" | "Autre" — uniquement si UNAVAILABLE, jamais obligatoire
+  comment       String?
+  answeredBy    String           @default("PARENT") // "PARENT" | "STAFF" (saisie manuelle par le staff)
+  answeredAt    DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([playerId, weekStartDate])
+  @@index([sessionId])
+}
+
+// Fenêtre hebdomadaire de réponse, contrôlée par le staff (page /disponibilites).
+model WeeklyAvailabilityWindow {
+  id            String    @id @default(cuid())
+  weekStartDate DateTime  @unique // lundi, normalisé à minuit
+  weekEndDate   DateTime
+  opensAt       DateTime?
+  closesAt      DateTime?
+  status        String    @default("CLOSED") // "CLOSED" (jamais ouverte) | "OPEN" | "LOCKED" (clôturée après avoir été ouverte)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// Questionnaire joueur pré/post-séance + charge perçue (RPE × durée).
+// Volontairement présenté comme un indicateur de tendance, pas une mesure
+// médicale — voir l'avertissement affiché dans la vue staff wellness.
+model SessionFeedback {
+  id        String          @id @default(cuid())
+  session   TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String
+  player    Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId  String
+
+  preFeeling    Int? // 1 (😩) à 5 (😄)
+  fatigue       String? // "Pas du tout" | "Un peu" | "Beaucoup"
+  pain          Boolean?
+  painLocation  String?
+  preAnsweredAt DateTime?
+
+  postFeeling    Int? // 1 à 5
+  rpe            Int? // 1 à 10 — difficulté perçue
+  enjoyment      Int? // 1 (pas trop) à 3 (beaucoup)
+  comment        String?
+  postAnsweredAt DateTime?
+
+  calculatedLoad Int? // durée de la séance (minutes) × RPE
+
+  @@unique([sessionId, playerId])
 }
 
 model PlayerNote {
@@ -179,7 +266,9 @@ model TrainingSession {
   sourceSlot   RecurringSlot? @relation(fields: [sourceSlotId], references: [id])
   sourceSlotId String?
 
-  attendances Attendance[]
+  attendances     Attendance[]
+  availabilities  PlayerAvailability[]
+  sessionFeedback SessionFeedback[]
 
   @@index([date])
 }

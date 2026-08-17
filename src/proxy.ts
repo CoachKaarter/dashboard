@@ -1,12 +1,34 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
+// Cookie name must match src/parent-auth.ts's cookies.sessionToken.name —
+// this is only a fast redirect on cookie *presence*, not real verification.
+// The actual check (account still active, session still decodes, playerId
+// still valid) happens server-side on every /parent/* request via
+// requireParent() in src/lib/parent-session.ts — never trust middleware
+// alone for an area handling minors' data.
+const PARENT_COOKIE = "parent-session-token";
+
 export default auth((req) => {
+  const { pathname } = req.nextUrl;
+
+  if (pathname.startsWith("/parent")) {
+    const isParentLogin = pathname.startsWith("/parent/login");
+    const hasParentCookie = req.cookies.has(PARENT_COOKIE);
+    if (!hasParentCookie && !isParentLogin) {
+      return NextResponse.redirect(new URL("/parent/login", req.nextUrl));
+    }
+    if (hasParentCookie && isParentLogin) {
+      return NextResponse.redirect(new URL("/parent", req.nextUrl));
+    }
+    return NextResponse.next();
+  }
+
   const isLoggedIn = !!req.auth;
-  const isLoginPage = req.nextUrl.pathname.startsWith("/login");
+  const isLoginPage = pathname.startsWith("/login");
   // Convocation share links are handed to players/parents who have no
   // account — deliberately public, gated only by the unguessable token.
-  const isPublicShare = req.nextUrl.pathname.startsWith("/convocation/");
+  const isPublicShare = pathname.startsWith("/convocation/");
 
   if (!isLoggedIn && !isLoginPage && !isPublicShare) {
     const loginUrl = new URL("/login", req.nextUrl);
