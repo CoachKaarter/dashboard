@@ -22,3 +22,23 @@ export async function updateSettings(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/alertes");
 }
+
+export async function createSeason(formData: FormData) {
+  await requireAdmin();
+  const label = String(formData.get("label") ?? "").trim();
+  const startDate = new Date(String(formData.get("startDate")));
+  const endDate = new Date(String(formData.get("endDate")));
+  if (!label || Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return;
+
+  await prisma.season.create({ data: { label, startDate, endDate } });
+  revalidatePath("/parametres");
+}
+
+export async function setCurrentSeason(seasonId: string) {
+  await requireAdmin();
+  await prisma.$transaction([
+    prisma.season.updateMany({ data: { isCurrent: false } }),
+    prisma.season.update({ where: { id: seasonId }, data: { isCurrent: true } }),
+  ]);
+  revalidatePath("/parametres");
+}

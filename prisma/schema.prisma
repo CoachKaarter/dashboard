@@ -343,6 +343,17 @@ model ActivityLog {
   @@index([createdAt])
 }
 
+// ---------- Seasons (suivi — pas de cloisonnement des données par saison) ----------
+
+model Season {
+  id        String   @id @default(cuid())
+  label     String   @unique // "2026/2027"
+  startDate DateTime
+  endDate   DateTime
+  isCurrent Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
 // ---------- Settings (single row of tunable alert thresholds) ----------
 
 model Settings {

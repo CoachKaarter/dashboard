@@ -1,10 +1,18 @@
+import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { requireAdmin } from "@/lib/authz";
 import { NumField } from "@/components/ui/NumField";
-import { updateSettings } from "./actions";
+import { Badge } from "@/components/ui/Badge";
+import { formatDateFull } from "@/lib/format";
+import { updateSettings, createSeason, setCurrentSeason } from "./actions";
 
 export default async function ParametresPage() {
-  const [settings, admin] = await Promise.all([getSettings(), requireAdmin()]);
+  const [settings, admin, seasons] = await Promise.all([
+    getSettings(),
+    requireAdmin(),
+    prisma.season.findMany({ orderBy: { startDate: "desc" } }),
+  ]);
+  const currentSeason = seasons.find((s) => s.isCurrent) ?? seasons[0] ?? null;
 
   const seuilRows = [
     { key: "seuilPresence", label: "Taux de présence minimum", unit: "%", hint: "en dessous : alerte assiduité" },
@@ -28,7 +36,11 @@ export default async function ParametresPage() {
       <section className="bg-surface border border-line rounded-lg overflow-hidden">
         <div className="px-3.5 py-[11px] border-b border-line-soft text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Saison</div>
         {[
-          ["Saison", "2026 / 2027", "du 17 août 2026 au 30 juin 2027"],
+          [
+            "Saison",
+            currentSeason?.label ?? "non définie",
+            currentSeason ? `du ${formatDateFull(currentSeason.startDate)} au ${formatDateFull(currentSeason.endDate)}` : "à créer ci-dessous",
+          ],
           ["Club", "Saint-Sébastien FC", "catégorie U12 / U13"],
           ["Responsable", admin.name, "accès complet"],
         ].map(([label, value, hint]) => (
@@ -71,6 +83,52 @@ export default async function ParametresPage() {
           ))}
         </section>
       </form>
+
+      <section className="bg-surface border border-line rounded-lg overflow-hidden">
+        <div className="px-3.5 py-[11px] border-b border-line-soft text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Gestion des saisons</div>
+        {seasons.map((s) => (
+          <div key={s.id} className="flex items-center gap-3 px-3.5 py-[10px] border-b border-line-soft-2 last:border-b-0">
+            <div className="flex-1">
+              <div className="text-[12.5px] font-semibold flex items-center gap-2">
+                {s.label}
+                {s.isCurrent && <Badge tone="green">Saison en cours</Badge>}
+              </div>
+              <div className="text-[11.5px] text-muted mt-px">
+                {formatDateFull(s.startDate)} → {formatDateFull(s.endDate)}
+              </div>
+            </div>
+            {!s.isCurrent && (
+              <form action={setCurrentSeason.bind(null, s.id)}>
+                <button type="submit" className="h-8 px-3 border border-line rounded-md text-xs font-semibold text-ink-soft hover:border-ink hover:text-ink">
+                  Définir comme saison en cours
+                </button>
+              </form>
+            )}
+          </div>
+        ))}
+        {seasons.length === 0 && <div className="px-3.5 py-4 text-[12.5px] text-muted">Aucune saison enregistrée.</div>}
+        <form action={createSeason} className="flex items-end gap-2.5 px-3.5 py-3">
+          <label className="flex flex-col gap-1 flex-1">
+            <span className="text-[10.5px] text-muted">Label</span>
+            <input name="label" required placeholder="2027/2028" className="h-8 border border-line rounded-md px-2 text-[12.5px] outline-none focus:border-blue" />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10.5px] text-muted">Début</span>
+            <input type="date" name="startDate" required className="h-8 border border-line rounded-md px-2 text-[12.5px] outline-none focus:border-blue" />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10.5px] text-muted">Fin</span>
+            <input type="date" name="endDate" required className="h-8 border border-line rounded-md px-2 text-[12.5px] outline-none focus:border-blue" />
+          </label>
+          <button type="submit" className="h-8 px-3 rounded-md bg-ink text-white text-xs font-semibold hover:bg-[#2A2E36]">
+            Ajouter une saison
+          </button>
+        </form>
+        <div className="px-3.5 pb-3.5 text-[11.5px] text-muted-2 leading-relaxed">
+          Les matchs, séances et évaluations ne sont pas encore cloisonnés par saison — c&apos;est une liste continue.
+          Avant de clôturer une saison, exporte une sauvegarde complète ci-dessous pour en garder une trace permanente.
+        </div>
+      </section>
 
       <section className="bg-surface border border-line rounded-lg overflow-hidden">
         <div className="px-3.5 py-[11px] border-b border-line-soft text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Sauvegarde</div>
