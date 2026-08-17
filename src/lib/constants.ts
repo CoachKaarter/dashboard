@@ -16,6 +16,34 @@ export const PLAYER_STATUSES = ["Actif", "Blessé", "Malade", "Incertain", "Repr
 
 export const EVAL_PERIODS = ["Septembre", "Décembre", "Mars", "Juin"];
 
+export const INTERVIEW_TYPE_LABELS: Record<string, string> = {
+  DEBUT_SAISON: "Début de saison",
+  POINT_INTERMEDIAIRE: "Point intermédiaire",
+  MI_SAISON: "Mi-saison",
+  FIN_SAISON: "Fin de saison",
+  EXCEPTIONNEL: "Exceptionnel",
+  RETOUR_BLESSURE: "Retour de blessure",
+  CHANGEMENT_GROUPE: "Changement de groupe",
+  COMPORTEMENT: "Comportement",
+  PROJET_INDIVIDUEL: "Projet individuel",
+};
+
+export const OBJECTIVE_CATEGORY_LABELS: Record<string, string> = {
+  TECHNIQUE: "Technique",
+  TACTIQUE: "Tactique",
+  PHYSIQUE: "Physique",
+  MENTAL: "Mental",
+  COMPORTEMENT: "Comportement",
+  AUTRE: "Autre",
+};
+
+export const OBJECTIVE_STATUS_LABELS: Record<string, string> = {
+  A_TRAVAILLER: "À travailler",
+  EN_PROGRESSION: "En progression",
+  ACQUIS: "Acquis",
+  ABANDONNE: "Abandonné",
+};
+
 // 8 postes (dont GB) = Foot à 8 ; 11 postes (dont GB) = Foot à 11.
 export const FORMATIONS: Record<string, [number, number, string][]> = {
   "1-3-3-1": [

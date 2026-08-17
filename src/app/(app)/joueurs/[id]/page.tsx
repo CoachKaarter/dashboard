@@ -6,11 +6,12 @@ import { Avatar } from "@/components/ui/Avatar";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Badge } from "@/components/ui/Badge";
 import { statutTone, formatDateShort } from "@/lib/format";
-import { PLAYER_STATUSES, POSITIONS, EVAL_PERIODS } from "@/lib/constants";
+import { PLAYER_STATUSES, POSITIONS, EVAL_PERIODS, INTERVIEW_TYPE_LABELS, OBJECTIVE_CATEGORY_LABELS, OBJECTIVE_STATUS_LABELS } from "@/lib/constants";
 import { ProgressChart } from "@/components/ui/ProgressChart";
 import { ParentAccountPanel } from "@/components/ParentAccountPanel";
 import { updateObjectives } from "../../evaluations/actions";
 import { requireUser, canAccessTeam, scopedTeamIds } from "@/lib/authz";
+import { getInterviewPrep } from "@/lib/interview-prep";
 import {
   addPlayerNote,
   changeTeam,
@@ -22,11 +23,13 @@ import {
   validateUnavailability,
   refuseUnavailability,
 } from "./actions";
+import { createInterview, updateObjectiveStatus, toggleObjectiveVisibility } from "./interview-actions";
 
 const TABS = [
   { key: "assiduite", label: "Assiduité" },
   { key: "matchs", label: "Matchs" },
   { key: "performance", label: "Performance" },
+  { key: "entretiens", label: "Entretiens" },
   { key: "historique", label: "Historique" },
 ];
 
@@ -50,7 +53,7 @@ export default async function FichePage({
   const tab = TABS.some((t) => t.key === rawTab) ? rawTab! : "assiduite";
 
   const user = await requireUser();
-  const [player, stats, allTeams] = await Promise.all([
+  const [player, stats, allTeams, interviewPrep] = await Promise.all([
     prisma.player.findUnique({
       where: { id },
       include: {
@@ -62,10 +65,13 @@ export default async function FichePage({
         notes: { include: { author: true }, orderBy: { createdAt: "desc" } },
         unavailabilities: { orderBy: { startDate: "desc" } },
         parentAccount: true,
+        interviews: { include: { author: true, objectives: true }, orderBy: { date: "desc" } },
+        objectives: { include: { updates: { orderBy: { createdAt: "desc" } } }, orderBy: { createdAt: "desc" } },
       },
     }),
     getPlayerStatsById(id),
     prisma.team.findMany({ orderBy: { code: "asc" } }),
+    getInterviewPrep(id),
   ]);
   if (!player || !stats) notFound();
   if (!canAccessTeam(user, player.teamId)) notFound();
@@ -229,6 +235,191 @@ export default async function FichePage({
                     </div>
                   );
                 })}
+              </Panel>
+            </>
+          )}
+
+          {tab === "entretiens" && (
+            <>
+              <Panel
+                title="Préparation automatique"
+                hint={
+                  interviewPrep.lastInterviewDaysAgo === null
+                    ? "aucun entretien précédent"
+                    : `dernier entretien il y a ${interviewPrep.lastInterviewDaysAgo} jours`
+                }
+              >
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 px-3.5 py-3 text-[12.5px]">
+                  <PrepFact label="Assiduité" value={`${Math.round(stats.attendanceRate * 100)}% (${stats.seances} séances)`} />
+                  <PrepFact label="Absences non justifiées récentes" value={`${stats.recentANJ}`} />
+                  <PrepFact
+                    label="Temps de jeu vs équipe"
+                    value={`${stats.ecart >= 0 ? "+" : ""}${stats.ecart}' (moy. équipe ${stats.teamAvgMinutes}')`}
+                  />
+                  <PrepFact
+                    label="Dernière évaluation"
+                    value={stats.currentEval ? `période ${stats.currentEval.period}` : "aucune"}
+                  />
+                  <PrepFact label="Objectifs en cours" value={`${interviewPrep.objectivesInProgress}`} />
+                  <PrepFact
+                    label="Wellness récent"
+                    value={
+                      interviewPrep.wellness.sampleSize === 0
+                        ? "aucune réponse récente"
+                        : [
+                            interviewPrep.wellness.avgPostFeeling !== null ? `ressenti moy. ${interviewPrep.wellness.avgPostFeeling.toFixed(1)}/5` : null,
+                            interviewPrep.wellness.avgRpe !== null ? `RPE moy. ${interviewPrep.wellness.avgRpe.toFixed(1)}/10` : null,
+                            interviewPrep.wellness.painCount > 0 ? `${interviewPrep.wellness.painCount} douleur(s) signalée(s)` : null,
+                            interviewPrep.wellness.highFatigueCount > 0 ? `${interviewPrep.wellness.highFatigueCount} fatigue élevée` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || `sur ${interviewPrep.wellness.sampleSize} dernières séances`
+                    }
+                  />
+                  <PrepFact
+                    label="5 derniers matchs"
+                    value={player.matchStats.map((m) => `${m.minutes}'`).join(" · ") || "aucun match"}
+                  />
+                </div>
+              </Panel>
+
+              {player.objectives.length > 0 && (
+                <Panel title="Objectifs" hint={`${interviewPrep.objectivesInProgress} en cours`}>
+                  {player.objectives.map((o) => (
+                    <div key={o.id} className="px-3.5 py-2.5 border-b border-line-soft-2 last:border-b-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[12.5px] font-semibold">{o.title}</span>
+                        <Badge tone="neutral">{OBJECTIVE_CATEGORY_LABELS[o.category] ?? o.category}</Badge>
+                        <Badge
+                          tone={o.status === "ACQUIS" ? "green" : o.status === "ABANDONNE" ? "neutral" : o.status === "EN_PROGRESSION" ? "blue" : "orange"}
+                        >
+                          {OBJECTIVE_STATUS_LABELS[o.status] ?? o.status}
+                        </Badge>
+                        {o.visibleToPlayer && <Badge tone="green">Visible côté joueur</Badge>}
+                      </div>
+                      {o.description && <div className="text-[11.5px] text-ink-soft mt-1">{o.description}</div>}
+                      {o.targetDate && <div className="text-[11px] text-muted mt-0.5">Échéance : {formatDateShort(o.targetDate)}</div>}
+                      {o.updates.length > 0 && (
+                        <div className="mt-1.5 flex flex-col gap-0.5">
+                          {o.updates.map((u) => (
+                            <div key={u.id} className="text-[11px] text-muted-2">
+                              {formatDateShort(u.createdAt)} — {u.comment}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <form action={updateObjectiveStatus.bind(null, id, o.id)} className="mt-2 flex gap-1.5 flex-wrap items-center">
+                        <select name="status" defaultValue={o.status} className="h-7 border border-line rounded-md px-1.5 text-[11px] bg-surface">
+                          {Object.entries(OBJECTIVE_STATUS_LABELS).map(([k, l]) => (
+                            <option key={k} value={k}>{l}</option>
+                          ))}
+                        </select>
+                        <input
+                          name="comment"
+                          placeholder="Commentaire (optionnel)…"
+                          className="h-7 flex-1 min-w-[120px] border border-line rounded-md px-2 text-[11px] bg-surface"
+                        />
+                        <button type="submit" className="h-7 px-2 border border-line rounded-md text-[10.5px] font-semibold text-muted hover:border-ink hover:text-ink">
+                          Mettre à jour
+                        </button>
+                      </form>
+                      <form action={toggleObjectiveVisibility.bind(null, id, o.id, !o.visibleToPlayer)} className="mt-1">
+                        <button type="submit" className="text-[10.5px] text-blue hover:underline">
+                          {o.visibleToPlayer ? "Retirer de l'espace joueur" : "Publier dans l'espace joueur"}
+                        </button>
+                      </form>
+                    </div>
+                  ))}
+                </Panel>
+              )}
+
+              <section className="bg-surface border border-line rounded-lg overflow-hidden">
+                <details>
+                  <summary className="px-3.5 py-[11px] border-b border-line-soft cursor-pointer text-[11px] font-bold tracking-[0.11em] uppercase text-muted">
+                    + Nouvel entretien
+                  </summary>
+                  <form action={createInterview.bind(null, id)} className="p-3.5 flex flex-col gap-3.5">
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <EditField label="Type d'entretien">
+                        <select name="type" defaultValue="POINT_INTERMEDIAIRE" className={editInputClass}>
+                          {Object.entries(INTERVIEW_TYPE_LABELS).map(([k, l]) => (
+                            <option key={k} value={k}>{l}</option>
+                          ))}
+                        </select>
+                      </EditField>
+                      <EditField label="Date">
+                        <input type="date" name="date" defaultValue={new Date().toISOString().slice(0, 10)} className={editInputClass} />
+                      </EditField>
+                    </div>
+
+                    <FormSection title="La parole du joueur" hint="champs libres, jamais obligatoires">
+                      <TextField name="playerFeeling" placeholder="Comment il/elle se sent en ce moment…" />
+                      <TextField name="playerFeedback" placeholder="Ce qu'il/elle pense de sa saison, de son rôle…" />
+                      <TextField name="playerExpectations" placeholder="Ce qu'il/elle souhaite, ses attentes…" />
+                      <TextField name="playerDifficulties" placeholder="Ses difficultés éventuelles…" />
+                    </FormSection>
+
+                    <FormSection title="Retour du coach">
+                      <TextField name="coachFeedback" placeholder="Retour général du staff…" />
+                      <TextField name="strengths" placeholder="Points forts…" />
+                      <TextField name="developmentAreas" placeholder="Axes de progression…" />
+                    </FormSection>
+
+                    <FormSection title="Objectifs décidés ensemble" hint="jusqu'à 3, optionnels">
+                      {[0, 1, 2].map((i) => (
+                        <div key={i} className="grid grid-cols-[1fr_140px_130px] gap-1.5">
+                          <input name={`objectiveTitle${i}`} placeholder={`Objectif ${i + 1}…`} className={editInputClass} />
+                          <select name={`objectiveCategory${i}`} defaultValue="TECHNIQUE" className={editInputClass}>
+                            {Object.entries(OBJECTIVE_CATEGORY_LABELS).map(([k, l]) => (
+                              <option key={k} value={k}>{l}</option>
+                            ))}
+                          </select>
+                          <input type="date" name={`objectiveTargetDate${i}`} className={editInputClass} />
+                        </div>
+                      ))}
+                    </FormSection>
+
+                    <FormSection title="Suivi">
+                      <TextField name="agreedSummary" placeholder="Résumé des décisions communes…" />
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <EditField label="Prochain point prévu le">
+                          <input type="date" name="nextReviewDate" className={editInputClass} />
+                        </EditField>
+                      </div>
+                      <TextField name="privateNotes" placeholder="Notes privées (jamais visibles côté parent/joueur)…" />
+                    </FormSection>
+
+                    <button type="submit" className={editButtonClass}>Enregistrer l&apos;entretien</button>
+                  </form>
+                </details>
+              </section>
+
+              <Panel title="Historique des entretiens" hint={`${player.interviews.length} entretien${player.interviews.length > 1 ? "s" : ""}`}>
+                {player.interviews.map((iv) => (
+                  <details key={iv.id} className="border-b border-line-soft-2 last:border-b-0">
+                    <summary className="px-3.5 py-2.5 cursor-pointer flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-[11.5px] text-muted w-20 shrink-0">{formatDateShort(iv.date)}</span>
+                      <span className="text-[12.5px] font-semibold">{INTERVIEW_TYPE_LABELS[iv.type] ?? iv.type}</span>
+                      <span className="flex-1" />
+                      <span className="text-[11px] text-muted-2">{iv.author.name.split(" ")[0]}</span>
+                    </summary>
+                    <div className="px-3.5 pb-3 flex flex-col gap-2.5">
+                      <InterviewField label="Ressenti joueur" value={iv.playerFeeling} />
+                      <InterviewField label="Retour joueur" value={iv.playerFeedback} />
+                      <InterviewField label="Attentes joueur" value={iv.playerExpectations} />
+                      <InterviewField label="Difficultés" value={iv.playerDifficulties} />
+                      <InterviewField label="Retour coach" value={iv.coachFeedback} />
+                      <InterviewField label="Points forts" value={iv.strengths} />
+                      <InterviewField label="Axes de progression" value={iv.developmentAreas} />
+                      <InterviewField label="Décisions communes" value={iv.agreedSummary} />
+                      <InterviewField label="Notes privées" value={iv.privateNotes} />
+                      {iv.nextReviewDate && (
+                        <div className="text-[11.5px] text-muted">Prochain point prévu le {formatDateShort(iv.nextReviewDate)}</div>
+                      )}
+                    </div>
+                  </details>
+                ))}
+                {player.interviews.length === 0 && <EmptyRow text="Aucun entretien enregistré pour l'instant." />}
               </Panel>
             </>
           )}
@@ -496,4 +687,46 @@ function Row({ left, title, detail, valueNode }: { left: string; title: string; 
 
 function EmptyRow({ text }: { text: string }) {
   return <div className="px-3.5 py-6 text-center text-muted-2 text-[12.5px]">{text}</div>;
+}
+
+function PrepFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[10.5px] text-muted uppercase tracking-[0.05em]">{label}</div>
+      <div className="font-semibold mt-0.5">{value}</div>
+    </div>
+  );
+}
+
+function FormSection({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="border-t border-line-soft pt-3 first:border-t-0 first:pt-0">
+      <div className="text-[11px] font-bold tracking-[0.09em] uppercase text-muted mb-2">
+        {title}
+        {hint && <span className="text-muted-2 font-normal normal-case tracking-normal ml-1.5">— {hint}</span>}
+      </div>
+      <div className="flex flex-col gap-2">{children}</div>
+    </div>
+  );
+}
+
+function TextField({ name, placeholder }: { name: string; placeholder: string }) {
+  return (
+    <textarea
+      name={name}
+      rows={2}
+      placeholder={placeholder}
+      className="w-full border border-line rounded-md px-2.5 py-2 text-[12.5px] outline-none focus:border-blue resize-none bg-surface"
+    />
+  );
+}
+
+function InterviewField({ label, value }: { label: string; value: string | null }) {
+  if (!value) return null;
+  return (
+    <div>
+      <div className="text-[10.5px] font-bold tracking-[0.06em] uppercase text-muted-2">{label}</div>
+      <div className="text-[12.5px] text-ink-soft mt-0.5 whitespace-pre-wrap">{value}</div>
+    </div>
+  );
 }

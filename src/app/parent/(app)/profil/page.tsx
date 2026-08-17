@@ -1,11 +1,23 @@
 import Link from "next/link";
 import { requireParentReady } from "@/lib/parent-guard";
 import { prisma } from "@/lib/prisma";
+import { OBJECTIVE_CATEGORY_LABELS, OBJECTIVE_STATUS_LABELS } from "@/lib/constants";
 import { parentSignOutAction } from "../actions";
 
 export default async function ParentProfilPage({ searchParams }: { searchParams: Promise<{ declared?: string }> }) {
   const parent = await requireParentReady();
-  const player = await prisma.player.findUniqueOrThrow({ where: { id: parent.playerId }, include: { team: true } });
+  const [player, objectives] = await Promise.all([
+    prisma.player.findUniqueOrThrow({ where: { id: parent.playerId }, include: { team: true } }),
+    // Uniquement les objectifs publiés explicitement par le staff — jamais
+    // automatique. Titre/catégorie/statut/échéance seulement : les notes du
+    // coach, la parole du joueur en entretien et les décisions internes ne
+    // sortent jamais de cette table.
+    prisma.playerObjective.findMany({
+      where: { playerId: parent.playerId, visibleToPlayer: true },
+      select: { id: true, title: true, category: true, status: true, targetDate: true },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
   const { declared } = await searchParams;
 
   return (
@@ -23,6 +35,23 @@ export default async function ParentProfilPage({ searchParams }: { searchParams:
           {player.team.category} · Saison 2026/2027
         </div>
       </div>
+
+      {objectives.length > 0 && (
+        <div className="bg-white rounded-2xl border border-[#E7E7E2] overflow-hidden">
+          <div className="px-4 pt-3.5 pb-1 text-[11px] font-bold tracking-[0.08em] uppercase text-[#8A8D93]">Mes objectifs</div>
+          <div className="flex flex-col">
+            {objectives.map((o) => (
+              <div key={o.id} className="px-4 py-3 border-t border-[#EFEFEC]">
+                <div className="text-[14px] font-semibold">{o.title}</div>
+                <div className="text-[12px] text-[#6E7178] mt-0.5">
+                  {OBJECTIVE_CATEGORY_LABELS[o.category] ?? o.category} · {OBJECTIVE_STATUS_LABELS[o.status] ?? o.status}
+                  {o.targetDate ? ` · échéance ${o.targetDate.getDate()}/${o.targetDate.getMonth() + 1}` : ""}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-[#E7E7E2] overflow-hidden">
         <div className="px-4 pt-3.5 pb-1 text-[11px] font-bold tracking-[0.08em] uppercase text-[#8A8D93]">Indisponibilité</div>

@@ -506,6 +506,37 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
     });
   }
 
+  // Entretiens joueurs : un prochain point programmé (nextReviewDate) qui
+  // approche ou est dépassé — un seul rappel par joueur (le plus récent
+  // nextReviewDate connu), pour ne pas spammer.
+  const activePlayerIds = new Set(playerStats.filter((p) => p.status === "Actif").map((p) => p.id));
+  const in7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const dueInterviews = await prisma.playerInterview.findMany({
+    where: { nextReviewDate: { lte: in7d }, player: { archived: false } },
+    include: { player: { include: { team: true } } },
+    orderBy: { nextReviewDate: "desc" },
+    distinct: ["playerId"],
+  });
+  for (const iv of dueInterviews) {
+    if (!iv.nextReviewDate || !activePlayerIds.has(iv.playerId)) continue;
+    if (scope !== "ALL" && !scope.includes(iv.player.teamId)) continue;
+    const overdue = iv.nextReviewDate.getTime() < now.getTime();
+    const key = `interview-due:${iv.playerId}`;
+    (overdue ? traiter : surveiller).push({
+      key,
+      tag: iv.player.team.code,
+      title: overdue
+        ? `${iv.player.firstName} ${iv.player.lastName} — point de suivi dépassé`
+        : `${iv.player.firstName} ${iv.player.lastName} — point de suivi à prévoir bientôt`,
+      detail: `Prochain point prévu pour le ${formatDateShort(iv.nextReviewDate)} lors du dernier entretien.`,
+      meta: overdue ? "En retard" : "Bientôt",
+      action: "Voir le joueur",
+      href: `/joueurs/${iv.playerId}?tab=entretiens`,
+      treated: treatedSet.has(key),
+      decision: decisionFor(key),
+    });
+  }
+
   return (
     [
       { key: "urgent", title: "Urgent", hint: "à régler dès que possible", tone: "red", items: urgent.slice(0, 10) },
