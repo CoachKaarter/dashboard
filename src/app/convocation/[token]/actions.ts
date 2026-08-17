@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { notifyTeamStaff } from "@/lib/notifications";
 
 // Public, unauthenticated by design — this is the action behind a share link
 // handed to players/parents who have no account. The token (not the raw
@@ -13,5 +14,13 @@ export async function confirmAttendance(token: string, playerId: string, confirm
     where: { matchId: match.id, playerId },
     data: { confirmed },
   });
+  const player = await prisma.player.findUnique({ where: { id: playerId } });
+  if (player) {
+    await notifyTeamStaff(match.teamId, {
+      type: "convocation-response",
+      title: `${player.firstName} ${player.lastName} a ${confirmed ? "confirmé" : "décliné"} sa convocation`,
+      href: `/matchs/${match.id}`,
+    });
+  }
   revalidatePath(`/convocation/${token}`);
 }

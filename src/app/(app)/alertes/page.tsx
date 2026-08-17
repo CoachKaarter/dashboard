@@ -102,6 +102,7 @@ export default async function AlertesPage({ searchParams }: { searchParams: Prom
                       </summary>
                       <div className="absolute right-0 z-10 mt-1.5 w-[280px] bg-surface border border-line rounded-lg shadow-lg p-3 flex flex-col gap-2">
                         <form action={decideAlert.bind(null, a.key)} className="flex flex-col gap-2">
+                          <input type="hidden" name="alertTitle" value={a.title} />
                           <div className="grid grid-cols-2 gap-1.5">
                             {(["TRAITE", "ASSUME", "REVOIR", "IGNORE"] as const).map((s) => (
                               <label key={s} className="flex items-center gap-1.5 text-[11.5px]">

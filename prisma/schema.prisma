@@ -34,6 +34,7 @@ model User {
   historyDecisions TeamHistoryEntry[]
   unavailabilities Unavailability[]
   activityLogs     ActivityLog[]
+  notifications    Notification[]
 
   createdAt DateTime @default(now())
 }
@@ -318,6 +319,22 @@ model CalendarEvent {
   teamLabel String // display label when not tied to one Team row, e.g. "Toutes"
 
   @@index([date])
+}
+
+// ---------- Notifications internes ----------
+
+model Notification {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  type      String // "alert-assigned" | "convocation-response" | ...
+  title     String
+  body      String?
+  href      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 // ---------- Alerts (computed) — persisted "treated" flags ----------

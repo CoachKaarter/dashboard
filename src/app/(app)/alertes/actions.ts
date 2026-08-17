@@ -2,6 +2,7 @@
 
 import { setAlertDecision, clearAlertDecision } from "@/lib/alerts";
 import { requireUser } from "@/lib/authz";
+import { notify } from "@/lib/notifications";
 import { revalidatePath } from "next/cache";
 
 function nextFriday() {
@@ -17,10 +18,19 @@ export async function decideAlert(key: string, formData: FormData) {
   const status = String(formData.get("status") ?? "TRAITE");
   const comment = String(formData.get("comment") || "").trim() || null;
   const assignedToId = String(formData.get("assignedToId") || "") || null;
+  const alertTitle = String(formData.get("alertTitle") || "cette alerte");
   const snoozeUntilRaw = String(formData.get("snoozeUntil") || "");
   const snoozeUntil = status === "REVOIR" ? nextFriday() : status === "IGNORE" && snoozeUntilRaw ? new Date(snoozeUntilRaw) : null;
 
   await setAlertDecision(key, user.id, { status, snoozeUntil, comment, assignedToId });
+  if (assignedToId && assignedToId !== user.id) {
+    await notify(assignedToId, {
+      type: "alert-assigned",
+      title: `${user.name} t'a assigné une alerte`,
+      body: alertTitle,
+      href: "/alertes",
+    });
+  }
   revalidatePath("/alertes");
   revalidatePath("/");
 }

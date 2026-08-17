@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CreateMenu } from "@/components/CreateMenu";
 import { CommandPalette } from "@/components/CommandPalette";
+import { NotificationBell } from "@/components/NotificationBell";
 
 const TITLES: [RegExp, string][] = [
   [/^\/$/, "Cockpit"],
@@ -56,6 +57,7 @@ export function Header({ todayLabel }: { todayLabel: string }) {
       </button>
       <div className="flex-1" />
       <div className="font-mono text-[11px] text-muted tracking-[0.04em]">{todayLabel}</div>
+      <NotificationBell />
       <CreateMenu />
       {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
     </header>
