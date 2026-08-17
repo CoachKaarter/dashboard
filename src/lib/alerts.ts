@@ -233,6 +233,114 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
     });
 
   playerStats
+    .filter((p) => p.status === "Actif" && p.matchsJoues > 0 && p.ecart > settings.ecartTdj)
+    .sort((a, b) => b.ecart - a.ecart)
+    .slice(0, 3)
+    .forEach((p) => {
+      const key = `surutilise:${p.id}`;
+      const pctVsAvg = p.teamAvgMinutes ? Math.round((100 * p.ecart) / p.teamAvgMinutes) : 0;
+      surveiller.push({
+        key,
+        tag: p.teamCode,
+        title: `${p.firstName} — temps de jeu très au-dessus de la moyenne`,
+        detail: `${p.minutes} minutes sur la saison, soit +${pctVsAvg}% par rapport à la moyenne ${p.teamCode}. Pense à faire tourner.`,
+        meta: `${p.matchsJoues} matchs`,
+        action: "Voir le joueur",
+        href: `/joueurs/${p.id}`,
+        treated: treatedSet.has(key),
+        decision: decisionFor(key),
+      });
+    });
+
+  playerStats
+    .filter((p) => p.status === "Actif" && p.trend === "décroche")
+    .slice(0, 3)
+    .forEach((p) => {
+      const key = `decroche:${p.id}`;
+      traiter.push({
+        key,
+        tag: p.teamCode,
+        title: `${p.firstName} — décroche`,
+        detail: `Temps de jeu récent nettement inférieur à son total saison — signe de perte de rythme ou de motivation à surveiller.`,
+        meta: "Tendance",
+        action: "Voir le joueur",
+        href: `/joueurs/${p.id}`,
+        treated: treatedSet.has(key),
+        decision: decisionFor(key),
+      });
+    });
+
+  const teamsForRoster = await prisma.team.findMany({
+    where: scope === "ALL" ? {} : { id: { in: scope } },
+    include: {
+      players: { where: { archived: false, status: "Actif" }, select: { position: true } },
+      matches: { where: { status: "Planifié" }, orderBy: { date: "asc" }, take: 1 },
+    },
+  });
+  for (const t of teamsForRoster) {
+    const filled = t.players.filter((p) => p.position !== "Non renseigné");
+    if (filled.length >= 5 && !filled.some((p) => p.position === "Gardien")) {
+      const key = `no-keeper:${t.id}`;
+      information.push({
+        key,
+        tag: t.code,
+        title: `${t.code} — aucun gardien identifié dans l'effectif`,
+        detail: "Aucun joueur de cette équipe n'a le poste « Gardien » renseigné. Vérifie la répartition des postes.",
+        meta: "Postes",
+        action: "Voir l'équipe",
+        href: `/equipes/${t.id}`,
+        treated: treatedSet.has(key),
+        decision: decisionFor(key),
+      });
+    }
+
+    const next = t.matches[0];
+    if (next && t.players.length < next.needed) {
+      const key = `effectif-insuffisant:${t.id}`;
+      urgent.push({
+        key,
+        tag: t.code,
+        title: `${t.code} — effectif insuffisant pour le prochain match`,
+        detail: `${t.players.length} joueurs actifs disponibles pour ${next.needed} nécessaires face à ${next.opponent ?? "l'adversaire"} le ${formatDateShort(next.date)}.`,
+        meta: formatDateShort(next.date),
+        action: "Voir le match",
+        href: `/matchs/${next.id}`,
+        treated: treatedSet.has(key),
+        decision: decisionFor(key),
+      });
+    }
+  }
+
+  let allowedCategories: Set<string> | null = null;
+  if (scope !== "ALL") {
+    const scopedTeams = await prisma.team.findMany({ where: { id: { in: scope } }, select: { category: true } });
+    allowedCategories = new Set(scopedTeams.map((t) => t.category));
+  }
+  const unpointedSessionsAll = await prisma.trainingSession.findMany({
+    where: { status: "Prévue", date: { lt: now } },
+    include: { scopeTeam: true },
+    orderBy: { date: "desc" },
+    take: 30,
+  });
+  const unpointedSessions = unpointedSessionsAll
+    .filter((s) => (scope === "ALL" ? true : s.scopeTeamId ? scope.includes(s.scopeTeamId) : allowedCategories!.has(s.category)))
+    .slice(0, 5);
+  for (const s of unpointedSessions) {
+    const key = `unpointed-session:${s.id}`;
+    traiter.push({
+      key,
+      tag: s.scopeTeam?.code ?? s.category,
+      title: `Séance du ${formatDateShort(s.date)} non pointée`,
+      detail: `${s.label} — ${s.startTime} · ${s.location}. Le pointage n'a jamais été fait pour cette séance passée.`,
+      meta: "Pointage",
+      action: "Pointer",
+      href: `/seances/${s.id}`,
+      treated: treatedSet.has(key),
+      decision: decisionFor(key),
+    });
+  }
+
+  playerStats
     .filter((p) => p.status === "Actif" && (p.lastEvalDaysAgo === null || p.lastEvalDaysAgo > settings.delaiEval))
     .slice(0, 2)
     .forEach((p) => {
