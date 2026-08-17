@@ -104,7 +104,7 @@ export default async function ParentAccueilPage() {
               ) : (
                 <AvailabilityChoice
                   status={answer?.status as "AVAILABLE" | "UNAVAILABLE" | undefined}
-                  onSetStatus={(status) => setSessionAvailability(s.id, status)}
+                  onSetStatus={setSessionAvailability.bind(null, s.id)}
                   locked={isLocked}
                   reasons={REASONS}
                   currentReason={answer?.absenceReason}
@@ -130,7 +130,7 @@ export default async function ParentAccueilPage() {
           ) : (
             <AvailabilityChoice
               status={weekendAnswer?.status as "AVAILABLE" | "UNAVAILABLE" | undefined}
-              onSetStatus={(status) => setWeekendAvailability(weekStartIso, status)}
+              onSetStatus={setWeekendAvailability.bind(null, weekStartIso)}
               presentLabel="Disponible"
               absentLabel="Indisponible"
               locked={isLocked}
