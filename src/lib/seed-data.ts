@@ -1,20 +1,19 @@
 /**
- * Seed logic — realistic French U12/U13 football club demo data.
- * Deterministic (fixed RNG seed) so re-seeding an empty database reproduces
- * the same dataset. Shared between the CLI script (prisma/seed.ts) and the
+ * Seed logic — real Saint-Sébastien FC U12/U13 data for the 2026-2027
+ * season, extracted from the club's own Excel export
+ * (project/xl_dump/09_JOUEURS_U12.tsv, 10_JOUEURS_U13.tsv, 15_MATCHS.tsv).
+ *
+ * Only facts actually present in that export are imported: player names,
+ * category, and the real upcoming fixture list. Everything the export
+ * doesn't contain (position, strong foot, team assignment within a
+ * category, attendance history, notes, evaluations, jerseys...) is left
+ * empty or set to an explicit "non renseigné" placeholder rather than
+ * invented, so nothing false is ever shown about a real child or a real
+ * fixture. Shared between the CLI script (prisma/seed.ts) and the
  * one-time `/api/seed` route used for first-time production setup.
  */
 import type { PrismaClient } from "@/generated/prisma/client";
 import bcrypt from "bcryptjs";
-
-let seed = 20262027;
-function rnd() {
-  seed = (seed * 1664525 + 1013904223) % 4294967296;
-  return seed / 4294967296;
-}
-function int(a: number, b: number) {
-  return a + Math.floor(rnd() * (b - a + 1));
-}
 
 function addDays(base: Date, days: number) {
   const d = new Date(base);
@@ -22,38 +21,129 @@ function addDays(base: Date, days: number) {
   d.setHours(0, 0, 0, 0);
   return d;
 }
-function nextSaturday(base: Date) {
-  const d = new Date(base);
-  const diff = (6 - d.getDay() + 7) % 7;
-  return addDays(d, diff === 0 ? 0 : diff);
+
+// Next occurrence (today or later) of the given weekday (0=Sun..6=Sat),
+// then offset by `weeksAhead` additional weeks — used to generate the real
+// recurring training schedule going forward from today.
+function nextWeekday(base: Date, weekday: number, weeksAhead: number) {
+  const diff = (weekday - base.getDay() + 7) % 7;
+  return addDays(base, diff + weeksAhead * 7);
 }
 
-const PRENOMS = [
-  "Rayane", "Isaac", "Arthur", "Clément", "Ilies", "Soriba", "Malo", "Ethan", "Naël", "Yanis",
-  "Timéo", "Marius", "Adam", "Noah", "Sacha", "Enzo", "Gabin", "Amine", "Théo", "Jules",
-  "Aaron", "Mattéo", "Ibrahim", "Louka", "Nolan", "Tiago", "Élio", "Maxence", "Wassim", "Djibril",
-  "Baptiste", "Younes", "Robin", "Léandre", "Anass", "Milan", "Ruben", "Nathan", "Samy", "Eliott",
-  "Idriss", "Corentin", "Swann", "Océan", "Kaïs", "Ayoub", "Lenny",
-];
-const NOMS = [
-  "Berthier", "Cauchy", "Lemoine", "Traoré", "Guillard", "Ferreira", "Bonneau", "Rousselle", "Camara", "Perrichon",
-  "Vasseur", "Hamon", "Diaby", "Moriceau", "Barré", "Cissé", "Guérin", "Pichon", "Tessier", "Marchand",
-  "Nguyen", "Bouhali", "Renaudin", "Lecomte", "Sylla", "Chevalier", "Aubry", "Da Silva", "Merlet", "Bricaud",
-  "Kaba", "Ollivier", "Fresneau", "Loiseau", "Terrien", "Bahri", "Jouanneau", "Grégoire", "Mendy", "Ravaud",
-  "Coulibaly", "Blandin", "Pasquier", "Rialland", "Douaud", "Ndiaye", "Halgand", "Guitton",
-];
-const POSTES = [
-  "Gardien", "Défenseur central", "Latéral", "Milieu défensif", "Milieu relayeur",
-  "Milieu offensif", "Ailier", "Attaquant", "Polyvalent",
+// ---------- Real roster (club Excel export, saison 2026-2027) ----------
+// Only Nom/Prénom/Catégorie are populated in the source file — no position,
+// foot, or team-within-category data exists yet.
+
+const REAL_U12: { nom: string; prenom: string }[] = [
+  { nom: "ABDELMOUMENE", prenom: "Naël" },
+  { nom: "AFFI", prenom: "Timothé" },
+  { nom: "AHMED YOUSFI", prenom: "Sofiane" },
+  { nom: "AHMED YOUSFI", prenom: "El Amine" },
+  { nom: "AL HAMKA", prenom: "Suhail" },
+  { nom: "ALZI", prenom: "Léandro" },
+  { nom: "BARRY", prenom: "Djibril" },
+  { nom: "BENAYADA", prenom: "Ahmed" },
+  { nom: "BOUZID", prenom: "Zaki" },
+  { nom: "BUCA", prenom: "Idriss" },
+  { nom: "CONDE", prenom: "Balamoussa" },
+  { nom: "DE BASCHER", prenom: "Alexis" },
+  { nom: "DERVOUT", prenom: "Lohan" },
+  { nom: "ERMENIER", prenom: "Charly" },
+  { nom: "FERRE", prenom: "Arthur" },
+  { nom: "FORNIER", prenom: "Gabriel" },
+  { nom: "GOMET", prenom: "Antoine" },
+  { nom: "GOMET", prenom: "Valentin" },
+  { nom: "GUILLEMOIS", prenom: "Gaetan" },
+  { nom: "HAMO", prenom: "Zenal" },
+  { nom: "JUHEL DELLE CASE", prenom: "Jessy" },
+  { nom: "KHIZRIEV", prenom: "Aboubakar" },
+  { nom: "LAVENETTE", prenom: "Kayden" },
+  { nom: "LE HIR", prenom: "Arthur" },
+  { nom: "LE PAGE", prenom: "Nolan" },
+  { nom: "LUMPE", prenom: "Axel" },
+  { nom: "MACEDO", prenom: "Ruben" },
+  { nom: "MANAI", prenom: "Bédis" },
+  { nom: "MBOW", prenom: "Moussa" },
+  { nom: "MENEZ", prenom: "Liam" },
+  { nom: "MOUZI", prenom: "Wael" },
+  { nom: "PECOT", prenom: "Pablo" },
+  { nom: "PERRIER", prenom: "Marius" },
+  { nom: "PICHON", prenom: "Loïs" },
+  { nom: "R de LINARES", prenom: "Victor" },
+  { nom: "SAFARIAN", prenom: "Alex" },
+  { nom: "SAULNIER", prenom: "Victor" },
+  { nom: "SERTKAYA", prenom: "Sami" },
+  { nom: "SGHAIER", prenom: "Bilel" },
+  { nom: "SIDIBE", prenom: "El Hadj" },
+  { nom: "SYALA", prenom: "Mohamed" },
+  { nom: "THESSARD", prenom: "Raphael" },
 ];
 
+const REAL_U13: { nom: string; prenom: string }[] = [
+  { nom: "ABERKANE", prenom: "Aymen" },
+  { nom: "AIT L HAJ", prenom: "Wissam" },
+  { nom: "ALOMARI", prenom: "Hamzah" },
+  { nom: "BERISHA", prenom: "Ensar" },
+  { nom: "BLANDIN BOISSEAU", prenom: "Isaac" },
+  { nom: "BOISNE", prenom: "Anthoni" },
+  { nom: "BONNEAU", prenom: "Nathan" },
+  { nom: "BROSSARD", prenom: "Maxence" },
+  { nom: "BURAN", prenom: "Ata" },
+  { nom: "CHEVALLIER", prenom: "Esteban" },
+  { nom: "DAMECHE", prenom: "Yazid" },
+  { nom: "DEROUIN", prenom: "Derouin" },
+  { nom: "DESCATOIRE MARC", prenom: "Naël" },
+  { nom: "DIA", prenom: "Thierno Souleymane" },
+  { nom: "DIABY", prenom: "Souareba" },
+  { nom: "DIALLO", prenom: "Saikou Yaya" },
+  { nom: "FISSON LAMBERT", prenom: "Lubin" },
+  { nom: "FORTINEAU", prenom: "Liam" },
+  { nom: "FOUCHER", prenom: "Thomas" },
+  { nom: "FURTADO CADETE", prenom: "Anibal" },
+  { nom: "GALLARD", prenom: "Theo" },
+  { nom: "GOULOU", prenom: "Quentin" },
+  { nom: "GOURAUD ABDOU", prenom: "Adan" },
+  { nom: "GOURBIL", prenom: "Colin" },
+  { nom: "GUIRASSY", prenom: "Soriba" },
+  { nom: "HAOUZANE", prenom: "Eden" },
+  { nom: "IBRAHIM SAMBO", prenom: "Abel" },
+  { nom: "JABBOUR", prenom: "Elijah" },
+  { nom: "KEITA", prenom: "Ilan" },
+  { nom: "LALANDE", prenom: "Manoe" },
+  { nom: "MABOTO KINTSETSE", prenom: "Rayane" },
+  { nom: "MANSOUR", prenom: "Aziz" },
+  { nom: "MDAHOMA", prenom: "Aïman" },
+  { nom: "MORNACCO", prenom: "Tyemo" },
+  { nom: "MOUZI", prenom: "Ilies" },
+  { nom: "NDOUTOUME LEFEU", prenom: "Armand" },
+  { nom: "NOEL", prenom: "Mathis" },
+  { nom: "NOURY LEDUC", prenom: "Nolan" },
+  { nom: "PROU", prenom: "Emile" },
+  { nom: "RICHARD", prenom: "Clement" },
+  { nom: "ROUGERON", prenom: "Rafael" },
+  { nom: "ROY", prenom: "Bastien" },
+  { nom: "STRICKLAND", prenom: "Youn" },
+  { nom: "TRAORE", prenom: "Yamoussa" },
+  { nom: "TRIGUIEROS ANDRE", prenom: "Victor" },
+];
+
+// The Excel export lists players per category (U12/U13) only — it does not
+// say which of the 3 groups (A/B/C) each player belongs to. Until the club
+// confirms the real split, players are assigned provisionally in
+// alphabetical thirds; use the team selector on the Joueurs screen to
+// correct any player's group.
+function splitThirds<T>(arr: T[]): [T[], T[], T[]] {
+  const n = Math.ceil(arr.length / 3);
+  return [arr.slice(0, n), arr.slice(n, 2 * n), arr.slice(2 * n)];
+}
+
 const TEAM_DEFS = [
-  { code: "U13A", category: "U13", n: 9, coachUsername: "marvyn" },
-  { code: "U13B", category: "U13", n: 8, coachUsername: "marina" },
-  { code: "U13C", category: "U13", n: 8, coachUsername: "davy" },
-  { code: "U12A", category: "U12", n: 8, coachUsername: "sofiane" },
-  { code: "U12B", category: "U12", n: 8, coachUsername: "karim" },
-  { code: "U12C", category: "U12", n: 7, coachUsername: "elodie" },
+  { code: "U13A", category: "U13", coachUsername: "marvyn" },
+  { code: "U13B", category: "U13", coachUsername: "marina" },
+  { code: "U13C", category: "U13", coachUsername: "davy" },
+  { code: "U12A", category: "U12", coachUsername: "sofiane" },
+  { code: "U12B", category: "U12", coachUsername: "karim" },
+  { code: "U12C", category: "U12", coachUsername: "elodie" },
 ];
 
 const STAFF_DEFS = [
@@ -67,10 +157,56 @@ const STAFF_DEFS = [
 
 export const DEMO_PASSWORD = "motdepasse";
 
+// ---------- Real recurring weekly training schedule ----------
+// From the club's PARAMETRES sheet — used automatically by the SEANCES tab.
+const RECURRING_SESSIONS: {
+  category: string;
+  weekday: number; // 0=dim .. 6=sam
+  start: string;
+  end: string;
+  location: string;
+  scopeTeam?: string;
+}[] = [
+  { category: "U12", weekday: 1, start: "18:15", end: "19:45", location: "Gripots 2" }, // Lundi
+  { category: "U12", weekday: 3, start: "17:00", end: "18:30", location: "Gripots 2" }, // Mercredi
+  { category: "U13", weekday: 1, start: "18:15", end: "19:45", location: "Gripots 1" }, // Lundi
+  { category: "U13", weekday: 3, start: "17:00", end: "18:30", location: "Gripots 1" }, // Mercredi
+  { category: "U13", weekday: 5, start: "18:15", end: "19:30", location: "Gripots 2", scopeTeam: "U13A" }, // Vendredi
+];
+const WEEKS_AHEAD = 6;
+
+// ---------- Real upcoming fixtures (club MATCHS sheet) ----------
+// M006's "adversaire" cell in the source spreadsheet contains a stray
+// lookup-table artifact ("1233") instead of an opponent name — left as
+// opponent: null ("adversaire à définir"), matching its own "A définir"
+// status in that same row.
+const REAL_MATCHES: {
+  team: string;
+  date: string; // ISO
+  competition: string;
+  opponent: string | null;
+  time: string | null;
+  status: string; // "Confirme" | "A definir"
+}[] = [
+  { team: "U13A", date: "2026-08-22", competition: "Amical", opponent: "SC Nantes", time: "10:00", status: "Confirme" },
+  { team: "U13A", date: "2026-08-26", competition: "Amical", opponent: "Voltigeurs de Châteaubriant", time: "17:15", status: "Confirme" },
+  { team: "U13A", date: "2026-08-29", competition: "Amical", opponent: "Plateau Toutes Aides + SC Nantes", time: "10:00", status: "Confirme" },
+  { team: "U12A", date: "2026-08-29", competition: "Amical", opponent: "U12 B", time: null, status: "A definir" },
+  { team: "U13B", date: "2026-08-29", competition: "Amical", opponent: "JGE Sucé s/Erdre", time: null, status: "Confirme" },
+  { team: "U12B", date: "2026-08-29", competition: "Amical", opponent: null, time: null, status: "A definir" },
+  { team: "U13A", date: "2026-09-02", competition: "Amical", opponent: "Coueron Football Club", time: "17:15", status: "Confirme" },
+  { team: "U12A", date: "2026-09-02", competition: "Amical", opponent: "Coueron Football Club", time: "17:15", status: "Confirme" },
+  { team: "U13A", date: "2026-09-05", competition: "Tournoi", opponent: "Multiple", time: "15:30", status: "Confirme" },
+  { team: "U12B", date: "2026-09-05", competition: "Amical", opponent: "FC Saint Julien 2", time: null, status: "Confirme" },
+  { team: "U12C", date: "2026-09-05", competition: "Amical", opponent: "FC Saint Julien 3", time: null, status: "Confirme" },
+  { team: "U12A", date: "2026-09-05", competition: "Amical", opponent: "SC Nantes", time: "10:00", status: "Confirme" },
+  { team: "U13B", date: "2026-09-05", competition: "Tournoi", opponent: "AS Sautron", time: null, status: "Confirme" },
+  { team: "U13C", date: "2026-09-05", competition: "Tournoi", opponent: "ES Vertou", time: null, status: "Confirme" },
+];
+
 export async function seedDatabase(prisma: PrismaClient) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const matchDay = nextSaturday(today);
 
   // ---------- staff / users ----------
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
@@ -107,318 +243,84 @@ export async function seedDatabase(prisma: PrismaClient) {
     teamByCode.set(t.code, team);
   }
 
-  // ---------- players ----------
-  type SeedPlayer = {
-    id: string;
-    idx: number;
-    team: string;
-    category: string;
-    status: string;
-    prenom: string;
-  };
-  const players: SeedPlayer[] = [];
-  let idx = 0;
-  for (const t of TEAM_DEFS) {
-    for (let i = 0; i < t.n; i++) {
-      const prenom = PRENOMS[(idx * 7 + 3) % PRENOMS.length];
-      const nom = NOMS[(idx * 11 + 5) % NOMS.length];
-      const poste = POSTES[(idx * 5 + 2) % POSTES.length];
-      const posteAlt = POSTES[(idx * 3 + 6) % POSTES.length];
-      const foot = idx % 4 === 0 ? "Gauche" : idx % 9 === 3 ? "Les deux" : "Droit";
-      const status = idx % 17 === 4 ? "Blessé" : idx % 23 === 7 ? "Malade" : "Actif";
-      const birthYear = t.category === "U13" ? 2014 : 2015;
-      const joinedLabel = "Août " + (2020 + (idx % 5));
+  // ---------- players (real roster, provisional group split) ----------
+  const [u12a, u12b, u12c] = splitThirds(REAL_U12);
+  const [u13a, u13b, u13c] = splitThirds(REAL_U13);
+  const groups = [
+    { code: "U13A", category: "U13", list: u13a },
+    { code: "U13B", category: "U13", list: u13b },
+    { code: "U13C", category: "U13", list: u13c },
+    { code: "U12A", category: "U12", list: u12a },
+    { code: "U12B", category: "U12", list: u12b },
+    { code: "U12C", category: "U12", list: u12c },
+  ];
 
+  const players: { id: string; team: string; category: string }[] = [];
+  const marvynId = userByUsername.get("marvyn")!.id;
+  for (const g of groups) {
+    for (const person of g.list) {
       const p = await prisma.player.create({
         data: {
-          firstName: prenom,
-          lastName: nom.toUpperCase(),
-          birthYear,
-          teamId: teamByCode.get(t.code)!.id,
-          position: poste,
-          positionAlt: poste === posteAlt ? POSTES[(idx + 2) % POSTES.length] : posteAlt,
-          foot,
-          status,
-          joinedLabel,
+          firstName: person.prenom,
+          lastName: person.nom,
+          birthYear: g.category === "U13" ? 2014 : 2015,
+          teamId: teamByCode.get(g.code)!.id,
+          position: "Non renseigné",
+          positionAlt: "Non renseigné",
+          foot: "Non renseigné",
+          status: "Actif",
+          joinedLabel: "Saison 2026/2027",
         },
       });
-      players.push({ id: p.id, idx, team: t.code, category: t.category, status, prenom });
-
       await prisma.teamHistoryEntry.create({
         data: {
           playerId: p.id,
-          toTeamId: teamByCode.get(t.code)!.id,
-          date: new Date(`${2020 + (idx % 5)}-08-15`),
+          toTeamId: teamByCode.get(g.code)!.id,
+          date: today,
           reason: "Arrivée au club",
-          decidedById: userByUsername.get("marvyn")!.id,
+          decidedById: marvynId,
         },
       });
-      idx++;
+      players.push({ id: p.id, team: g.code, category: g.category });
     }
   }
 
-  // A few realistic group changes (U13B -> U13A style progression)
-  const promo = players.find((p) => p.team === "U13B");
-  if (promo) {
-    await prisma.teamHistoryEntry.create({
-      data: {
-        playerId: promo.id,
-        fromTeamId: teamByCode.get("U13B")!.id,
-        toTeamId: teamByCode.get("U13A")!.id,
-        date: addDays(today, -8),
-        reason: "Progression — renfort groupe A",
-        decidedById: userByUsername.get("marvyn")!.id,
-      },
-    });
-    await prisma.player.update({ where: { id: promo.id }, data: { teamId: teamByCode.get("U13A")!.id } });
-    promo.team = "U13A";
-  }
-
-  // ---------- staff notes ----------
-  const noteTargets = players.filter((_, i) => i % 8 === 1).slice(0, 6);
-  const NOTE_TEXTS = [
-    "Très bonne prise d'information entre les lignes. À confirmer sur le rythme d'un match complet.",
-    "Retard de 15 minutes lundi, prévenu par le parent. Sans conséquence.",
-    "Bonne progression défensive depuis la reprise, continue à travailler le pied faible.",
-    "A besoin d'être rassuré à l'oral avant les matchs à enjeu.",
-    "Très bon état d'esprit à l'entraînement, capitaine naturel du groupe.",
-    "Reprise après blessure à surveiller, ne pas forcer les charges cette semaine.",
-  ];
-  for (let i = 0; i < noteTargets.length; i++) {
-    await prisma.playerNote.create({
-      data: {
-        playerId: noteTargets[i].id,
-        authorId: userByUsername.get("marvyn")!.id,
-        text: NOTE_TEXTS[i % NOTE_TEXTS.length],
-        createdAt: addDays(today, -int(1, 20)),
-      },
-    });
-  }
-
-  // ---------- training sessions + attendance ----------
-  const TERRAIN_BY_CAT: Record<string, string> = { U12: "Gripots 2", U13: "Gripots 1" };
-  const sessionDefs: {
-    offset: number;
-    category: string;
-    scopeTeam?: string;
-    label: string;
-    start: string;
-    end: string;
-    location: string;
-    status: string;
-    pointed: boolean;
-  }[] = [];
-  // three past weeks, Monday + Wednesday, per category
-  const pastMondays = [-17, -10, -3];
-  const pastWednesdays = [-19, -12, -5];
-  for (const cat of ["U12", "U13"]) {
-    pastMondays.forEach((o, i) =>
-      sessionDefs.push({
-        offset: o, category: cat, label: "Séance commune", start: "18:15", end: "19:45",
-        location: TERRAIN_BY_CAT[cat], status: "Réalisée", pointed: i > 0,
-      })
-    );
-    pastWednesdays.forEach((o) =>
-      sessionDefs.push({
-        offset: o, category: cat, label: "Technique", start: "17:00", end: "18:30",
-        location: "Profondine", status: "Réalisée", pointed: true,
-      })
-    );
-    // upcoming
-    [2, 9].forEach((o) =>
-      sessionDefs.push({
-        offset: o, category: cat, label: "Séance commune", start: "18:15", end: "19:45",
-        location: TERRAIN_BY_CAT[cat], status: "Prévue", pointed: false,
-      })
-    );
-  }
-  sessionDefs.push({
-    offset: 4, category: "U13", scopeTeam: "U13A", label: "Spécifique U13A",
-    start: "18:15", end: "19:30", location: "Gripots 2", status: "Prévue", pointed: false,
-  });
-
-  for (const sd of sessionDefs) {
-    const session = await prisma.trainingSession.create({
-      data: {
-        date: addDays(today, sd.offset),
-        startTime: sd.start,
-        endTime: sd.end,
-        location: sd.location,
-        status: sd.status,
-        category: sd.category,
-        scopeTeamId: sd.scopeTeam ? teamByCode.get(sd.scopeTeam)!.id : null,
-        label: sd.label,
-      },
-    });
-    if (!sd.pointed) continue;
-    const scope = players.filter((p) =>
-      sd.scopeTeam ? p.team === sd.scopeTeam : p.category === sd.category
-    );
-    for (const p of scope) {
-      const r = rnd();
-      let code = "P";
-      if (p.status !== "Actif" && sd.offset > -6) code = "B";
-      else if (r > 0.9) code = "ANJ";
-      else if (r > 0.82) code = "AJ";
-      else if (r > 0.74) code = "R";
-      await prisma.attendance.create({
-        data: { sessionId: session.id, playerId: p.id, code },
-      });
-    }
-  }
-
-  // ---------- matches ----------
-  const UPCOMING = [
-    { team: "U13A", opp: "SC Nantes", comp: "Championnat", home: true, place: "Gripots 1", time: "10:30", convoc: 12, need: 12 },
-    { team: "U13B", opp: "ASB Rezé", comp: "Championnat", home: false, place: "Rezé — Ragon", time: "10:30", convoc: 9, need: 12 },
-    { team: "U13C", opp: null, comp: "Championnat", home: true, place: null, time: null, convoc: 0, need: 12 },
-    { team: "U12A", opp: "Vertou US", comp: "Plateau", home: true, place: "Profondine", time: "10:00", convoc: 11, need: 11 },
-    { team: "U12B", opp: "Basse-Goulaine", comp: "Plateau", home: false, place: "Basse-Goulaine", time: "10:00", convoc: 11, need: 11 },
-    { team: "U12C", opp: "La Haie-Fouassière", comp: "Amical", home: true, place: "Gripots 2", time: "14:00", convoc: 6, need: 11 },
-  ];
-  for (const m of UPCOMING) {
-    const teamId = teamByCode.get(m.team)!.id;
-    const match = await prisma.match.create({
-      data: {
-        teamId,
-        opponent: m.opp,
-        competition: m.comp,
-        date: matchDay,
-        time: m.time,
-        meetTime: m.time ? "09:30" : null,
-        isHome: m.home,
-        location: m.place,
-        status: "Planifié",
-        needed: m.need,
-      },
-    });
-    const squad = players.filter((p) => p.team === m.team && p.status === "Actif").slice(0, m.convoc);
-    for (const p of squad) {
-      await prisma.matchConvocation.create({ data: { matchId: match.id, playerId: p.id } });
-    }
-  }
-
-  const PLAYED = [
-    { team: "U13A", opp: "SC Nantes", comp: "Championnat", home: true, lieu: "Gripots 1", offset: -7, pour: 3, contre: 1 },
-    { team: "U13B", opp: "ASB Rezé", comp: "Championnat", home: false, lieu: "Rezé — Ragon", offset: -7, pour: 1, contre: 1 },
-    { team: "U13C", opp: "Vertou US", comp: "Championnat", home: true, lieu: "Gripots 2", offset: -7, pour: 0, contre: 4 },
-    { team: "U13A", opp: "Voltigeurs Châteaubriant", comp: "Amical", home: false, lieu: "Châteaubriant", offset: -14, pour: 2, contre: 2 },
-    { team: "U12A", opp: "Basse-Goulaine", comp: "Plateau", home: true, lieu: "Profondine", offset: -14, pour: 4, contre: 2 },
-    { team: "U12B", opp: "La Haie-Fouassière", comp: "Plateau", home: false, lieu: "La Haie-Fouassière", offset: -14, pour: 1, contre: 3 },
-  ];
-  for (const m of PLAYED) {
-    const teamId = teamByCode.get(m.team)!.id;
-    const match = await prisma.match.create({
-      data: {
-        teamId,
-        opponent: m.opp,
-        competition: m.comp,
-        date: addDays(matchDay, m.offset),
-        time: "10:30",
-        meetTime: "09:30",
-        isHome: m.home,
-        location: m.lieu,
-        status: "Joué",
-        needed: m.team.startsWith("U13") ? 12 : 11,
-        scoreFor: m.pour,
-        scoreAgainst: m.contre,
-      },
-    });
-    const squad = players.filter((p) => p.team === m.team);
-    const playing = squad.slice(0, Math.min(squad.length, 12));
-    for (let i = 0; i < playing.length; i++) {
-      const p = playing[i];
-      const mins = i < 8 ? 50 - i * 3 : 20;
-      await prisma.matchConvocation.create({ data: { matchId: match.id, playerId: p.id } });
-      await prisma.matchPlayerStat.create({
+  // ---------- training sessions (real recurring schedule, upcoming, non pointées) ----------
+  for (let week = 0; week < WEEKS_AHEAD; week++) {
+    for (const r of RECURRING_SESSIONS) {
+      await prisma.trainingSession.create({
         data: {
-          matchId: match.id,
-          playerId: p.id,
-          role: i < 8 ? "Titulaire" : "Remplaçant",
-          minutes: mins,
-          goals: i === 1 ? 1 : i === 4 ? 1 : 0,
-          assists: i === 2 ? 1 : 0,
-          note: Math.round((2.8 + (i % 5) * 0.4) * 10) / 10,
+          date: nextWeekday(today, r.weekday, week),
+          startTime: r.start,
+          endTime: r.end,
+          location: r.location,
+          status: "Prévue",
+          category: r.category,
+          scopeTeamId: r.scopeTeam ? teamByCode.get(r.scopeTeam)!.id : null,
+          label: r.scopeTeam ? `Spécifique ${r.scopeTeam}` : "Séance commune",
         },
       });
     }
   }
 
-  // ---------- evaluations (Juin = baseline, Septembre = current) ----------
-  for (const p of players) {
-    const base = Math.round((2.4 + rnd() * 2.2) * 10) / 10;
-    const prev = Math.round((2.2 + rnd() * 2.2) * 10) / 10;
-    const clamp = (v: number) => Math.max(1, Math.min(5, Math.round(v * 10) / 10));
-    await prisma.evaluationScore.upsert({
-      where: { playerId_period: { playerId: p.id, period: "Juin" } },
-      update: {},
-      create: {
-        playerId: p.id, period: "Juin",
-        technique: clamp(prev), tactique: clamp(prev + 0.2), physique: clamp(prev - 0.3), comportement: clamp(prev + 0.4),
-        evaluatorId: userByUsername.get("marvyn")!.id,
-        createdAt: addDays(today, -70),
-      },
-    });
-    const stale = p.idx % 11 === 0; // a few players not yet evaluated this period
-    if (!stale) {
-      await prisma.evaluationScore.upsert({
-        where: { playerId_period: { playerId: p.id, period: "Septembre" } },
-        update: {},
-        create: {
-          playerId: p.id, period: "Septembre",
-          technique: clamp(base), tactique: clamp(base + 0.3), physique: clamp(base - 0.4), comportement: clamp(base + 0.6),
-          evaluatorId: userByUsername.get("marvyn")!.id,
-          createdAt: addDays(today, -int(2, 18)),
-        },
-      });
-    }
-  }
-
-  // ---------- jerseys / matériel ----------
-  const JERSEYS = [
-    { code: "SAC012", team: "U13A", resp: "Famille Berthier", issued: -7, due: -3, ret: null, etat: "À laver" },
-    { code: "SAC013", team: "U13B", resp: "Famille Camara", issued: -7, due: -3, ret: null, etat: "À laver" },
-    { code: "SAC014", team: "U13C", resp: "Famille Guérin", issued: -7, due: -3, ret: -4, etat: "Bon" },
-    { code: "SAC015", team: "U12A", resp: "Famille Vasseur", issued: -14, due: -11, ret: -12, etat: "Abîmé" },
-    { code: "SAC016", team: "U12B", resp: "Famille Diaby", issued: -14, due: -11, ret: -11, etat: "Bon" },
-  ];
-  for (const j of JERSEYS) {
-    const squad = players.filter((p) => p.team === j.team);
-    await prisma.jersey.upsert({
-      where: { code: j.code },
-      update: {},
-      create: {
-        code: j.code,
-        teamId: teamByCode.get(j.team)!.id,
-        playerId: squad.length ? squad[0].id : null,
-        responsible: j.resp,
-        issuedDate: addDays(today, j.issued),
-        dueDate: addDays(today, j.due),
-        returnedDate: j.ret !== null ? addDays(today, j.ret) : null,
-        condition: j.etat,
+  // ---------- matches (real fixture list) ----------
+  for (const m of REAL_MATCHES) {
+    const teamId = teamByCode.get(m.team)!.id;
+    await prisma.match.create({
+      data: {
+        teamId,
+        opponent: m.opponent,
+        competition: m.competition,
+        date: new Date(`${m.date}T00:00:00`),
+        time: m.time,
+        meetTime: null,
+        isHome: true,
+        location: null,
+        status: "Planifié",
+        needed: m.team.startsWith("U13") ? 12 : 11,
       },
     });
   }
-
-  // ---------- calendar events ----------
-  await prisma.calendarEvent.create({
-    data: {
-      title: "Réunion staff", kind: "reunion", date: addDays(matchDay, -2),
-      startTime: "19:00", endTime: "20:00", location: "Club-house", teamLabel: "Toutes",
-    },
-  });
-  await prisma.calendarEvent.create({
-    data: {
-      title: "Tournoi U12 — Vertou", kind: "tournoi", date: addDays(matchDay, 14),
-      startTime: "09:00", endTime: "17:00", location: "Vertou", teamLabel: "U12",
-    },
-  });
-  await prisma.calendarEvent.create({
-    data: {
-      title: "Réunion parents", kind: "reunion", date: addDays(matchDay, 19),
-      startTime: "18:30", endTime: "19:30", location: "Club-house", teamLabel: "Toutes",
-    },
-  });
 
   // ---------- settings ----------
   await prisma.settings.upsert({
@@ -427,5 +329,5 @@ export async function seedDatabase(prisma: PrismaClient) {
     create: { id: 1 },
   });
 
-  return { players: players.length, teams: TEAM_DEFS.length, staff: STAFF_DEFS.map((s) => s.username) };
+  return { players: players.length, teams: groups.length, staff: STAFF_DEFS.map((s) => s.username) };
 }
