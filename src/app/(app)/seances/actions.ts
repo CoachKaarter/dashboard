@@ -31,16 +31,26 @@ function isPastOrToday(date: Date) {
 }
 
 export async function setAttendance(sessionId: string, playerId: string, code: string) {
-  const { session } = await assertSessionAccess(sessionId);
+  const { user, session } = await assertSessionAccess(sessionId);
   const existing = await prisma.attendance.findUnique({
     where: { sessionId_playerId: { sessionId, playerId } },
   });
+  const now = new Date();
+  // arrivalTime is the real instant of THIS tap — only meaningful for "R"
+  // (used to compute the delay against TrainingSession.startTime), cleared
+  // for every other code so switching a player away from "R" doesn't leave
+  // a stale arrival time behind.
   if (existing?.code === code) {
     await prisma.attendance.delete({ where: { id: existing.id } });
   } else if (existing) {
-    await prisma.attendance.update({ where: { id: existing.id }, data: { code } });
+    await prisma.attendance.update({
+      where: { id: existing.id },
+      data: { code, arrivalTime: code === "R" ? now : null, updatedById: user.id, updatedAt: now },
+    });
   } else {
-    await prisma.attendance.create({ data: { sessionId, playerId, code } });
+    await prisma.attendance.create({
+      data: { sessionId, playerId, code, arrivalTime: code === "R" ? now : null, updatedById: user.id, updatedAt: now },
+    });
   }
   if (isPastOrToday(session.date)) {
     await prisma.trainingSession.update({ where: { id: sessionId }, data: { status: "Réalisée" } });
@@ -48,27 +58,35 @@ export async function setAttendance(sessionId: string, playerId: string, code: s
   revalidatePath(`/seances/${sessionId}`);
   revalidatePath("/seances");
   revalidatePath("/");
+  revalidatePath(`/coach/seances/${sessionId}`);
+  revalidatePath("/coach/seances");
+  revalidatePath("/coach");
 }
 
 export async function setAttendanceNote(sessionId: string, playerId: string, formData: FormData) {
-  await assertSessionAccess(sessionId);
+  const { user } = await assertSessionAccess(sessionId);
   const note = String(formData.get("note") || "").trim() || null;
+  const now = new Date();
   await prisma.attendance.upsert({
     where: { sessionId_playerId: { sessionId, playerId } },
-    update: { note },
-    create: { sessionId, playerId, code: "AJ", note },
+    update: { note, updatedById: user.id, updatedAt: now },
+    create: { sessionId, playerId, code: "AJ", note, updatedById: user.id, updatedAt: now },
   });
   revalidatePath(`/seances/${sessionId}`);
+  revalidatePath(`/coach/seances/${sessionId}`);
 }
 
 export async function markAllPresent(sessionId: string) {
-  const { session } = await assertSessionAccess(sessionId);
+  const { user, session } = await assertSessionAccess(sessionId);
   const players = await scopePlayers(sessionId);
   const existing = await prisma.attendance.findMany({ where: { sessionId }, select: { playerId: true } });
   const done = new Set(existing.map((e) => e.playerId));
+  // Only players with NO existing Attendance row get "P" — never overwrites
+  // an AJ/ANJ/R/B a coach already recorded (§11 of the coach mobile spec).
   const toCreate = players.filter((p) => !done.has(p.id));
+  const now = new Date();
   await prisma.attendance.createMany({
-    data: toCreate.map((p) => ({ sessionId, playerId: p.id, code: "P" })),
+    data: toCreate.map((p) => ({ sessionId, playerId: p.id, code: "P", updatedById: user.id, updatedAt: now })),
   });
   if (isPastOrToday(session.date)) {
     await prisma.trainingSession.update({ where: { id: sessionId }, data: { status: "Réalisée" } });
@@ -76,6 +94,9 @@ export async function markAllPresent(sessionId: string) {
   revalidatePath(`/seances/${sessionId}`);
   revalidatePath("/seances");
   revalidatePath("/");
+  revalidatePath(`/coach/seances/${sessionId}`);
+  revalidatePath("/coach/seances");
+  revalidatePath("/coach");
 }
 
 export async function resetPresence(sessionId: string) {
@@ -84,6 +105,9 @@ export async function resetPresence(sessionId: string) {
   revalidatePath(`/seances/${sessionId}`);
   revalidatePath("/seances");
   revalidatePath("/");
+  revalidatePath(`/coach/seances/${sessionId}`);
+  revalidatePath("/coach/seances");
+  revalidatePath("/coach");
 }
 
 export async function createSession(formData: FormData) {
