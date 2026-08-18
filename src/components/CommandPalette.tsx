@@ -58,9 +58,13 @@ export function CommandPalette({ onClose, initialQuery = "" }: { onClose: () => 
   const flat = trimmed.length >= 2 && results ? GROUPS.flatMap((g) => results[g.key].map((r) => ({ ...r, group: g.title }))) : [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[14vh] bg-black/25" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[14vh] bg-black/25 animate-fadein"
+      style={{ animationDuration: "0.12s" }}
+      onClick={onClose}
+    >
       <div
-        className="w-full max-w-[560px] bg-surface border border-line rounded-lg shadow-2xl overflow-hidden"
+        className="w-full max-w-[560px] bg-surface border border-line rounded-lg shadow-2xl overflow-hidden animate-scalein"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 px-3.5 h-12 border-b border-line-soft">
@@ -90,7 +94,7 @@ export function CommandPalette({ onClose, initialQuery = "" }: { onClose: () => 
                     <button
                       key={r.id}
                       onClick={() => go(r.href)}
-                      className="w-full text-left flex items-center gap-2.5 px-3.5 py-2 hover:bg-[#FAFAF8] cursor-pointer"
+                      className="w-full text-left flex items-center gap-2.5 px-3.5 py-2 hover:bg-[#FAFAF8] cursor-pointer transition-colors duration-100"
                     >
                       <span className="text-[12.5px] font-semibold flex-1 truncate">{r.label}</span>
                       <span className="text-[11px] text-muted-2">{r.sub}</span>

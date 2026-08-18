@@ -30,7 +30,7 @@ export default async function ParentSuiviPage() {
   ]);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 animate-fadein">
       <ParentPageHeader title={`Suivi de ${player.firstName}`} />
 
       <div>

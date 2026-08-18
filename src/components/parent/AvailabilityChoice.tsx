@@ -36,7 +36,7 @@ export function AvailabilityChoice({
     startTransition(() => {
       onSetStatus(next).then(() => {
         setShowToast(true);
-        setTimeout(() => setShowToast(false), 1400);
+        setTimeout(() => setShowToast(false), 2000);
       });
     });
   }
@@ -53,23 +53,27 @@ export function AvailabilityChoice({
 
   if (!editing && optimisticStatus) {
     return (
-      <div>
+      <div className="animate-fadein">
         <div className="flex items-center gap-2.5">
           <span
-            className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-[13.5px] font-bold ${
+            className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-[13.5px] font-bold transition-colors duration-150 ${
               optimisticStatus === "AVAILABLE" ? "bg-green-bg text-green" : "bg-red-bg text-red"
             }`}
           >
             {optimisticStatus === "AVAILABLE" ? <CheckIcon size={15} /> : <XIcon size={15} />}
             {optimisticStatus === "AVAILABLE" ? presentLabel : absentLabel}
           </span>
-          <button type="button" onClick={() => setEditing(true)} className="text-[12.5px] font-semibold text-[#8A8D93] underline underline-offset-2">
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="text-[12.5px] font-semibold text-[#8A8D93] underline underline-offset-2 active:opacity-60 transition-opacity duration-100"
+          >
             Modifier
           </button>
           <ParentToast show={showToast} />
         </div>
         {optimisticStatus === "UNAVAILABLE" && reasons && onSetReason && (
-          <div className="mt-3 pt-3 border-t border-[#EFEFEC]">
+          <div className="mt-3 pt-3 border-t border-[#EFEFEC] animate-fadein">
             <div className="text-[11.5px] font-semibold text-[#8A8D93] mb-1.5">Motif (facultatif)</div>
             <div className="flex gap-1.5 flex-wrap">
               {reasons.map((r) => (
@@ -77,7 +81,7 @@ export function AvailabilityChoice({
                   <input type="hidden" name="absenceReason" value={r} />
                   <button
                     type="submit"
-                    className={`h-8 px-3 rounded-full text-[12.5px] font-semibold border ${
+                    className={`h-8 px-3 rounded-full text-[12.5px] font-semibold border transition-colors duration-150 active:scale-[0.96] ${
                       currentReason === r ? "bg-ink text-white border-ink" : "bg-white border-[#E7E7E2] text-[#6E7178]"
                     }`}
                   >
@@ -97,7 +101,7 @@ export function AvailabilityChoice({
       <button
         type="button"
         onClick={() => choose("AVAILABLE")}
-        className={`flex-1 h-12 rounded-xl text-[14px] font-bold border-2 active:scale-[0.98] transition-transform ${
+        className={`flex-1 h-12 rounded-xl text-[14px] font-bold border-2 active:scale-[0.98] transition-all duration-150 ${
           optimisticStatus === "AVAILABLE" ? "bg-green border-green text-white" : "bg-white border-[#E7E7E2] text-green"
         }`}
       >
@@ -106,7 +110,7 @@ export function AvailabilityChoice({
       <button
         type="button"
         onClick={() => choose("UNAVAILABLE")}
-        className={`flex-1 h-12 rounded-xl text-[14px] font-bold border-2 active:scale-[0.98] transition-transform ${
+        className={`flex-1 h-12 rounded-xl text-[14px] font-bold border-2 active:scale-[0.98] transition-all duration-150 ${
           optimisticStatus === "UNAVAILABLE" ? "bg-red border-red text-white" : "bg-white border-[#E7E7E2] text-red"
         }`}
       >

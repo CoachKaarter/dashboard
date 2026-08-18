@@ -59,6 +59,15 @@ body {
   background: transparent;
 }
 
+/**
+ * Motion system — shared by the Cockpit staff app and the Espace Parents.
+ * Kept deliberately CSS-only: no animation library, nothing here forces a
+ * Server Component to become a Client Component. Three rough durations
+ * cover everything asked for — interaction (~150ms, Tailwind's
+ * duration-150), card/section (~200-220ms, duration-200), modal/success
+ * (~300ms, duration-300) — used directly as Tailwind utilities rather than
+ * reinvented as custom tokens.
+ */
 @keyframes fadein {
   from {
     opacity: 0;
@@ -70,7 +79,66 @@ body {
   }
 }
 .animate-fadein {
-  animation: fadein 0.18s ease;
+  animation: fadein 0.18s ease-out;
+}
+
+/* Banners (pointage ouvert, statuts) — fade + slight slide-down on mount. */
+@keyframes slidedown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-slidedown {
+  animation: slidedown 0.2s ease-out;
+}
+
+/* Modals/drawers/command palette content. */
+@keyframes scalein {
+  from {
+    opacity: 0;
+    transform: scale(0.98) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-scalein {
+  animation: scalein 0.2s ease-out;
+}
+
+/* Success confirmations (questionnaire envoyé, plan validé…) — never more than 500ms. */
+@keyframes checkpop {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.animate-checkpop {
+  animation: checkpop 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* A user asking for less motion must still be able to use the app normally —
+   every animation above (and Tailwind's transition-* utilities) collapses
+   to effectively-instant, never removed outright. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 @media print {

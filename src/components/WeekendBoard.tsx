@@ -42,6 +42,7 @@ export function WeekendBoard({
   editable: boolean;
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
+  const [dragOverTeamId, setDragOverTeamId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const router = useRouter();
 
@@ -52,6 +53,7 @@ export function WeekendBoard({
     if (!dragging) return;
     assignPlayerToTeam(weekStartIso, dragging, teamId).then(refresh);
     setDragging(null);
+    setDragOverTeamId(null);
   }
 
   const rows = [teamCards.slice(0, 3), teamCards.slice(3, 6)];
@@ -66,21 +68,30 @@ export function WeekendBoard({
                 const count = c.assigned.length;
                 const tone = count === c.needed ? "green" : count > c.needed ? "blue" : count >= c.needed - 1 ? "orange" : "red";
                 const toneColor = { green: "#3F8F5B", blue: "#3C6E9F", orange: "#C97A17", red: "#C4362C" }[tone];
+                const isDropTarget = editable && dragOverTeamId === c.team.id && dragging;
                 return (
                   <div
                     key={c.team.id}
+                    onDragEnter={(e) => {
+                      if (!editable) return;
+                      e.preventDefault();
+                      setDragOverTeamId(c.team.id);
+                    }}
                     onDragOver={(e) => editable && e.preventDefault()}
+                    onDragLeave={() => editable && setDragOverTeamId((id) => (id === c.team.id ? null : id))}
                     onDrop={(e) => {
                       e.preventDefault();
                       if (editable) drop(c.team.id);
                     }}
-                    className="bg-surface border border-line rounded-lg overflow-hidden"
-                    style={{ borderTop: `3px solid ${toneColor}` }}
+                    className={`bg-surface border rounded-lg overflow-hidden transition-all duration-150 ${
+                      isDropTarget ? "border-blue bg-blue-bg/40 scale-[1.01] shadow-md" : "border-line"
+                    }`}
+                    style={{ borderTop: `3px solid ${toneColor}`, transitionProperty: "border-color, background-color, transform, box-shadow" }}
                   >
                     <div className="px-3.5 py-2.5 border-b border-line-soft">
                       <div className="flex items-center gap-2">
                         <TeamChip code={c.team.code} />
-                        <span className="font-mono text-[13px] font-bold" style={{ color: toneColor }}>
+                        <span className="font-mono text-[13px] font-bold transition-colors duration-300" style={{ color: toneColor }}>
                           {count} / {c.needed}
                         </span>
                         <span className="flex-1" />
@@ -138,7 +149,12 @@ export function WeekendBoard({
                               <option key={r} value={r}>{r}</option>
                             ))}
                           </select>
-                          <button type="submit" className="h-6 px-2 text-[10.5px] border border-line rounded hover:border-ink">+</button>
+                          <button
+                            type="submit"
+                            className="h-6 px-2 text-[10.5px] border border-line rounded hover:border-ink active:scale-90 transition-all duration-100"
+                          >
+                            +
+                          </button>
                         </form>
                       )}
                     </div>
@@ -147,9 +163,17 @@ export function WeekendBoard({
                         <div
                           key={a.player.id}
                           draggable={editable}
-                          onDragStart={() => setDragging(a.player.id)}
-                          onDragEnd={() => setDragging(null)}
-                          className={`flex items-center gap-2 px-3.5 py-1.5 border-b border-line-soft-2 last:border-b-0 ${editable ? "cursor-grab" : ""}`}
+                          onDragStart={(e) => {
+                            setDragging(a.player.id);
+                            e.dataTransfer.effectAllowed = "move";
+                          }}
+                          onDragEnd={() => {
+                            setDragging(null);
+                            setDragOverTeamId(null);
+                          }}
+                          className={`flex items-center gap-2 px-3.5 py-1.5 border-b border-line-soft-2 last:border-b-0 animate-fadein transition-all duration-150 ${
+                            editable ? "cursor-grab" : ""
+                          } ${dragging === a.player.id ? "opacity-40 scale-[1.02] shadow-md bg-surface" : ""}`}
                         >
                           <Avatar initials={`${a.player.firstName[0]}${a.player.lastName[0]}`} size={22} />
                           <span className="text-[12px] font-semibold flex-1 truncate">
@@ -158,7 +182,12 @@ export function WeekendBoard({
                           {a.player.teamCode !== c.team.code && <Badge tone="blue">{a.player.teamCode}</Badge>}
                           {editable && (
                             <form action={unassignPlayer.bind(null, weekStartIso, a.player.id)}>
-                              <button type="submit" className="text-muted-2 hover:text-red text-[13px] px-1">×</button>
+                              <button
+                                type="submit"
+                                className="text-muted-2 hover:text-red text-[13px] px-1 transition-all duration-100 active:scale-75"
+                              >
+                                ×
+                              </button>
                             </form>
                           )}
                         </div>
@@ -184,9 +213,17 @@ export function WeekendBoard({
             <div
               key={p.id}
               draggable={editable}
-              onDragStart={() => setDragging(p.id)}
-              onDragEnd={() => setDragging(null)}
-              className={`flex items-center gap-2 px-2.5 py-1.5 border border-line rounded-md bg-[#FAFAF8] ${editable ? "cursor-grab" : ""}`}
+              onDragStart={(e) => {
+                setDragging(p.id);
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              onDragEnd={() => {
+                setDragging(null);
+                setDragOverTeamId(null);
+              }}
+              className={`flex items-center gap-2 px-2.5 py-1.5 border border-line rounded-md bg-[#FAFAF8] animate-fadein transition-all duration-150 ${
+                editable ? "cursor-grab" : ""
+              } ${dragging === p.id ? "opacity-40 scale-[1.02] shadow-md" : ""}`}
             >
               <Avatar initials={`${p.firstName[0]}${p.lastName[0]}`} size={22} />
               <div>

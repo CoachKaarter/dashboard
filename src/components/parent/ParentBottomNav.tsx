@@ -23,16 +23,18 @@ export function ParentBottomNav() {
             <Link
               key={item.href}
               href={item.href}
-              className="flex-1 flex flex-col items-center gap-1 py-2.5 min-h-[56px] justify-center active:opacity-70"
+              className="flex-1 flex flex-col items-center gap-1 py-2.5 min-h-[56px] justify-center active:opacity-70 active:scale-[0.96] transition-transform duration-100"
             >
               <span
-                className={`w-9 h-7 rounded-full flex items-center justify-center transition-colors ${
-                  active ? "bg-green-bg text-green" : "text-[#9A9DA3]"
+                className={`w-9 h-7 rounded-full flex items-center justify-center transition-all duration-150 ${
+                  active ? "bg-green-bg text-green scale-105" : "text-[#9A9DA3] scale-100"
                 }`}
               >
                 <item.Icon size={20} />
               </span>
-              <span className={`text-[10.5px] font-semibold ${active ? "text-green" : "text-[#9A9DA3]"}`}>{item.label}</span>
+              <span className={`text-[10.5px] font-semibold transition-colors duration-150 ${active ? "text-green" : "text-[#9A9DA3]"}`}>
+                {item.label}
+              </span>
             </Link>
           );
         })}

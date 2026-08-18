@@ -5,6 +5,7 @@ import { getWeekendBoard } from "@/lib/weekend";
 import { toQueryString } from "@/lib/query";
 import { Badge } from "@/components/ui/Badge";
 import { WeekendBoard } from "@/components/WeekendBoard";
+import { SubmitButton } from "@/components/SubmitButton";
 import { validateWeekendPlan, reopenWeekendPlan, generateWeekendConvocations } from "./actions";
 
 export default async function WeekEndPage({
@@ -99,39 +100,45 @@ export default async function WeekEndPage({
         {status === "DRAFT" && <Badge tone="orange">Brouillon</Badge>}
         {status === "VALIDATED" && <Badge tone="blue">Validé</Badge>}
         {status === "PUBLISHED" && <Badge tone="green">Convocations publiées</Badge>}
-        <a href={toQueryString({ week: addDays(baseWeek, -7).toISOString().slice(0, 10) })} className="h-8 px-3 border border-line rounded-md text-xs font-semibold text-ink-soft hover:border-ink flex items-center">
+        <a
+          href={toQueryString({ week: addDays(baseWeek, -7).toISOString().slice(0, 10) })}
+          className="h-8 px-3 border border-line rounded-md text-xs font-semibold text-ink-soft hover:border-ink flex items-center transition-all duration-100 active:scale-95"
+        >
           ← Semaine précédente
         </a>
-        <a href={toQueryString({ week: addDays(baseWeek, 7).toISOString().slice(0, 10) })} className="h-8 px-3 border border-line rounded-md text-xs font-semibold text-ink-soft hover:border-ink flex items-center">
+        <a
+          href={toQueryString({ week: addDays(baseWeek, 7).toISOString().slice(0, 10) })}
+          className="h-8 px-3 border border-line rounded-md text-xs font-semibold text-ink-soft hover:border-ink flex items-center transition-all duration-100 active:scale-95"
+        >
           Semaine suivante →
         </a>
 
         {status === "DRAFT" && (
           <form action={validateWeekendPlan.bind(null, weekStartIso)}>
-            <button type="submit" className="h-9 px-3.5 rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36]">
+            <SubmitButton pendingLabel="Validation…" className="h-9 px-3.5 rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36]">
               Valider le plan
-            </button>
+            </SubmitButton>
           </form>
         )}
         {status === "VALIDATED" && (
           <>
             <form action={reopenWeekendPlan.bind(null, weekStartIso)}>
-              <button type="submit" className="h-9 px-3.5 rounded-md border border-line text-[12.5px] font-semibold text-ink-soft hover:border-ink">
+              <SubmitButton className="h-9 px-3.5 rounded-md border border-line text-[12.5px] font-semibold text-ink-soft hover:border-ink">
                 Rouvrir
-              </button>
+              </SubmitButton>
             </form>
             <form action={generateWeekendConvocations.bind(null, weekStartIso)}>
-              <button type="submit" className="h-9 px-3.5 rounded-md bg-green text-white text-[12.5px] font-semibold hover:opacity-90">
+              <SubmitButton pendingLabel="Génération…" className="h-9 px-3.5 rounded-md bg-green text-white text-[12.5px] font-semibold hover:opacity-90">
                 Générer les convocations
-              </button>
+              </SubmitButton>
             </form>
           </>
         )}
         {status === "PUBLISHED" && (
           <form action={reopenWeekendPlan.bind(null, weekStartIso)}>
-            <button type="submit" className="h-9 px-3.5 rounded-md border border-line text-[12.5px] font-semibold text-ink-soft hover:border-ink">
+            <SubmitButton className="h-9 px-3.5 rounded-md border border-line text-[12.5px] font-semibold text-ink-soft hover:border-ink">
               Rouvrir (des convocations sont déjà publiées)
-            </button>
+            </SubmitButton>
           </form>
         )}
       </div>
@@ -147,21 +154,21 @@ export default async function WeekEndPage({
           ["Affectés", counts.assigned],
           ["Disponibles non affectés", counts.unassigned],
         ].map(([label, val]) => (
-          <div key={label as string} className="px-3 py-1.5 bg-surface border border-line rounded-md">
-            <span className="font-mono text-[15px] font-bold mr-1.5">{val}</span>
+          <div key={label as string} className="px-3 py-1.5 bg-surface border border-line rounded-md transition-colors duration-200">
+            <span className="font-mono text-[15px] font-bold mr-1.5 transition-colors duration-200">{val}</span>
             <span className="text-[11px] text-muted">{label}</span>
           </div>
         ))}
       </div>
 
       {anomalies.length > 0 && (
-        <div className="bg-surface border border-line rounded-lg px-3.5 py-2.5 mb-3.5">
+        <div className="bg-surface border border-line rounded-lg px-3.5 py-2.5 mb-3.5 animate-slidedown">
           <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted mb-1.5">
             Points à vérifier avant validation ({anomalies.length})
           </div>
           <ul className="flex flex-col gap-1">
             {anomalies.map((a, i) => (
-              <li key={i} className={`text-[12px] ${a.tone === "red" ? "text-red" : "text-orange"}`}>
+              <li key={i} className={`text-[12px] animate-fadein ${a.tone === "red" ? "text-red" : "text-orange"}`}>
                 {a.tone === "red" ? "🔴" : "⚠"} {a.text}
               </li>
             ))}

@@ -61,7 +61,7 @@ export default async function ParentAccueilPage() {
   });
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 animate-fadein">
       <ParentHeader
         firstName={player.firstName}
         category={player.team.category}

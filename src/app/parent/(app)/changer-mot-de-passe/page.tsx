@@ -1,5 +1,6 @@
 import { requireParent } from "@/lib/parent-session";
 import { changeParentPassword } from "./actions";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export default async function ChangerMotDePassePage({
   searchParams,
@@ -10,7 +11,7 @@ export default async function ChangerMotDePassePage({
   const { error } = await searchParams;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 animate-fadein">
       {parent.mustChangePassword && (
         <div className="bg-blue-bg text-blue rounded-xl px-3.5 py-3 text-[13px] font-medium">
           Pour ta première connexion, choisis ton propre mot de passe.
@@ -44,9 +45,12 @@ export default async function ChangerMotDePassePage({
               className="h-12 border border-[#E7E7E2] rounded-xl px-3.5 text-[15px] bg-[#FCFCFB] outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
             />
           </label>
-          <button type="submit" className="h-12 border-none rounded-xl bg-ink text-white text-[15px] font-semibold cursor-pointer mt-1.5 active:opacity-80">
+          <SubmitButton
+            pendingLabel="Enregistrement…"
+            className="h-12 border-none rounded-xl bg-ink text-white text-[15px] font-semibold cursor-pointer mt-1.5 active:opacity-80"
+          >
             Enregistrer
-          </button>
+          </SubmitButton>
         </form>
       </div>
     </div>

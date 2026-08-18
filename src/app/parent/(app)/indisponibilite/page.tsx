@@ -2,6 +2,7 @@ import { requireParentReady } from "@/lib/parent-guard";
 import { declareUnavailabilityByParent } from "./actions";
 import { ParentPageHeader } from "@/components/parent/ParentPageHeader";
 import { ParentCard } from "@/components/parent/ParentCard";
+import { SubmitButton } from "@/components/SubmitButton";
 
 const TYPES = ["Blessure", "Maladie", "Absence longue", "Autre"];
 
@@ -12,7 +13,7 @@ export default async function IndisponibilitePage() {
   await requireParentReady();
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 animate-fadein">
       <ParentPageHeader
         title="Signaler une indisponibilité"
         subtitle="Utilisez ce formulaire pour une blessure, une maladie ou une absence de plusieurs jours."
@@ -28,7 +29,7 @@ export default async function IndisponibilitePage() {
               {TYPES.map((t) => (
                 <label key={t}>
                   <input type="radio" name="type" value={t} required className="peer sr-only" />
-                  <div className="h-14 rounded-xl border-2 border-[#E7E7E2] bg-white text-[13.5px] font-semibold flex items-center justify-center text-center px-2 peer-checked:bg-green-bg peer-checked:border-green peer-checked:text-green">
+                  <div className="h-14 rounded-xl border-2 border-[#E7E7E2] bg-white text-[13.5px] font-semibold flex items-center justify-center text-center px-2 peer-checked:bg-green-bg peer-checked:border-green peer-checked:text-green peer-checked:scale-[1.02] transition-all duration-150">
                     {t}
                   </div>
                 </label>
@@ -52,9 +53,12 @@ export default async function IndisponibilitePage() {
               className="border border-[#E7E7E2] rounded-xl px-3.5 py-3 text-[15px] bg-[#FCFCFB] outline-none resize-y focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
             />
           </label>
-          <button type="submit" className="h-12 border-none rounded-xl bg-ink text-white text-[15px] font-semibold cursor-pointer mt-1 active:opacity-80">
+          <SubmitButton
+            pendingLabel="Envoi…"
+            className="h-12 border-none rounded-xl bg-ink text-white text-[15px] font-semibold cursor-pointer mt-1 active:opacity-80"
+          >
             Envoyer au staff
-          </button>
+          </SubmitButton>
         </ParentCard>
       </form>
     </div>

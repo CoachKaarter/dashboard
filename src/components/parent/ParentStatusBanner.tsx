@@ -28,7 +28,7 @@ export function ParentStatusBanner({
   const pct = progress && progress.total > 0 ? Math.round((100 * progress.done) / progress.total) : 0;
 
   return (
-    <div className="rounded-2xl px-4 py-3.5" style={{ backgroundColor: s.bg, border: `1px solid ${s.border}` }}>
+    <div className="rounded-2xl px-4 py-3.5 animate-slidedown" style={{ backgroundColor: s.bg, border: `1px solid ${s.border}` }}>
       <div className="flex items-center gap-2">
         <span className="shrink-0" style={{ color: s.fg }}>
           <Icon size={18} />
@@ -48,7 +48,7 @@ export function ParentStatusBanner({
             {progress.done} / {progress.total} réponses
           </div>
           <div className="h-2 rounded-full bg-black/[0.06] overflow-hidden">
-            <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: s.fg }} />
+            <div className="h-full rounded-full transition-[width] duration-300 ease-out" style={{ width: `${pct}%`, backgroundColor: s.fg }} />
           </div>
         </div>
       )}

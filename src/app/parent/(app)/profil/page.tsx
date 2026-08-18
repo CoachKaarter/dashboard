@@ -12,7 +12,7 @@ export default async function ParentProfilPage({ searchParams }: { searchParams:
   const { declared } = await searchParams;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 animate-fadein">
       {declared === "1" && (
         <ParentStatusBanner tone="success" title="Information envoyée" detail="Le staff va vérifier la déclaration." />
       )}
@@ -61,9 +61,9 @@ function ProfilGroup({ title, children }: { title: string; children: React.React
 
 function ProfilRow({ href, label }: { href: string; label: string }) {
   return (
-    <Link href={href} className="flex items-center justify-between px-4 py-3.5 border-t border-[#EFEFEC] active:bg-[#FAFAF8]">
+    <Link href={href} className="group flex items-center justify-between px-4 py-3.5 border-t border-[#EFEFEC] active:bg-[#FAFAF8] transition-colors duration-100">
       <span className="text-[14px] font-semibold">{label}</span>
-      <ChevronRightIcon size={16} className="text-[#B3B5B9]" />
+      <ChevronRightIcon size={16} className="text-[#B3B5B9] transition-transform duration-150 group-active:translate-x-0.5" />
     </Link>
   );
 }

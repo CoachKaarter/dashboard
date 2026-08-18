@@ -1,5 +1,6 @@
 import { parentLoginAction } from "./actions";
 import { PasswordField } from "@/components/parent/PasswordField";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export default async function ParentLoginPage({
   searchParams,
@@ -42,12 +43,12 @@ export default async function ParentLoginPage({
               />
             </label>
             <PasswordField name="password" label="Mot de passe" autoComplete="current-password" />
-            <button
-              type="submit"
+            <SubmitButton
+              pendingLabel="Connexion…"
               className="h-12 border-none rounded-xl bg-ink text-white text-[15px] font-semibold cursor-pointer mt-1.5 active:opacity-80"
             >
               Se connecter
-            </button>
+            </SubmitButton>
           </div>
         </form>
         <div className="text-[12.5px] text-[#8A8D93] text-center mt-4">

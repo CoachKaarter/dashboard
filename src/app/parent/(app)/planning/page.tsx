@@ -116,17 +116,17 @@ export default async function ParentPlanningPage({ searchParams }: { searchParam
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 animate-fadein">
       <ParentPageHeader title="Planning" />
 
       <div className="flex items-center justify-between bg-white rounded-2xl border border-[#E7E7E2] px-2 py-1.5">
-        <Link href={`/parent/planning?month=${monthParam(prevMonth)}`} className="w-10 h-10 rounded-xl flex items-center justify-center text-[#6E7178] active:bg-[#F6F6F4]" aria-label="Mois précédent">
+        <Link href={`/parent/planning?month=${monthParam(prevMonth)}`} className="w-10 h-10 rounded-xl flex items-center justify-center text-[#6E7178] active:bg-[#F6F6F4] active:scale-90 transition-all duration-100" aria-label="Mois précédent">
           <ChevronLeftIcon size={19} />
         </Link>
         <div className="text-[14.5px] font-bold">
           {MONTHS[viewedMonth.getMonth()]} {viewedMonth.getFullYear()}
         </div>
-        <Link href={`/parent/planning?month=${monthParam(nextMonth)}`} className="w-10 h-10 rounded-xl flex items-center justify-center text-[#6E7178] active:bg-[#F6F6F4]" aria-label="Mois suivant">
+        <Link href={`/parent/planning?month=${monthParam(nextMonth)}`} className="w-10 h-10 rounded-xl flex items-center justify-center text-[#6E7178] active:bg-[#F6F6F4] active:scale-90 transition-all duration-100" aria-label="Mois suivant">
           <ChevronRightIcon size={19} />
         </Link>
       </div>
@@ -162,7 +162,7 @@ export default async function ParentPlanningPage({ searchParams }: { searchParam
                   <form action={confirmMyConvocation.bind(null, item.convocation.matchId, true)} className="flex-1 sm:flex-none">
                     <button
                       type="submit"
-                      className={`w-full h-9 px-3 rounded-lg text-[12px] font-bold border-2 inline-flex items-center justify-center gap-1 ${
+                      className={`w-full h-9 px-3 rounded-lg text-[12px] font-bold border-2 inline-flex items-center justify-center gap-1 active:scale-95 transition-all duration-150 ${
                         item.convocation.confirmed === true ? "bg-green border-green text-white" : "bg-white border-[#E7E7E2] text-green"
                       }`}
                     >
@@ -172,7 +172,7 @@ export default async function ParentPlanningPage({ searchParams }: { searchParam
                   <form action={confirmMyConvocation.bind(null, item.convocation.matchId, false)} className="flex-1 sm:flex-none">
                     <button
                       type="submit"
-                      className={`w-full h-9 px-3 rounded-lg text-[12px] font-bold border-2 inline-flex items-center justify-center gap-1 ${
+                      className={`w-full h-9 px-3 rounded-lg text-[12px] font-bold border-2 inline-flex items-center justify-center gap-1 active:scale-95 transition-all duration-150 ${
                         item.convocation.confirmed === false ? "bg-red border-red text-white" : "bg-white border-[#E7E7E2] text-red"
                       }`}
                     >

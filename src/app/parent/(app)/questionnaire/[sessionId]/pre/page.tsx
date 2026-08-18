@@ -7,6 +7,7 @@ import { isPreOpen } from "@/lib/session-feedback";
 import { submitPreFeedback } from "../../actions";
 import { ParentPageHeader } from "@/components/parent/ParentPageHeader";
 import { ParentCard } from "@/components/parent/ParentCard";
+import { SubmitButton } from "@/components/SubmitButton";
 
 const FEELINGS = ["😩", "😕", "😐", "🙂", "😄"];
 const FATIGUE = ["Pas du tout", "Un peu", "Beaucoup"];
@@ -26,7 +27,7 @@ export default async function PreQuestionnairePage({ params }: { params: Promise
   const open = isPreOpen(session);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-5 animate-fadein">
       <ParentPageHeader
         title="Ressenti avant séance"
         subtitle={`${DAY_NAMES[session.date.getDay()]} ${session.date.getDate()} ${MONTHS[session.date.getMonth()]} · ${session.startTime}`}
@@ -36,7 +37,7 @@ export default async function PreQuestionnairePage({ params }: { params: Promise
 
       {done ? (
         <ParentCard className="text-center py-8">
-          <div className="text-[34px]" aria-hidden>✓</div>
+          <div className="text-[34px] animate-checkpop" aria-hidden>✓</div>
           <div className="text-[18px] font-bold mt-2">Merci {parent.player.firstName} !</div>
           <div className="text-[14px] text-[#6E7178] mt-1">Bonne séance 👊</div>
           <Link href="/parent" className="inline-block mt-5 h-11 px-5 rounded-xl bg-ink text-white text-[14px] font-bold leading-[44px]">
@@ -56,7 +57,7 @@ export default async function PreQuestionnairePage({ params }: { params: Promise
                 {FEELINGS.map((e, i) => (
                   <label key={e} className="flex-1">
                     <input type="radio" name="preFeeling" value={i + 1} required className="peer sr-only" />
-                    <div className="h-12 rounded-xl border-2 border-[#E7E7E2] bg-white text-[22px] flex items-center justify-center peer-checked:bg-green-bg peer-checked:border-green">
+                    <div className="h-12 rounded-xl border-2 border-[#E7E7E2] bg-white text-[22px] flex items-center justify-center peer-checked:bg-green-bg peer-checked:border-green peer-checked:scale-105 transition-all duration-150">
                       {e}
                     </div>
                   </label>
@@ -70,7 +71,7 @@ export default async function PreQuestionnairePage({ params }: { params: Promise
                 {FATIGUE.map((f) => (
                   <label key={f} className="flex-1">
                     <input type="radio" name="fatigue" value={f} required className="peer sr-only" />
-                    <div className="h-11 rounded-xl border-2 border-[#E7E7E2] bg-white text-[12.5px] font-semibold flex items-center justify-center text-center px-1 peer-checked:bg-green-bg peer-checked:border-green">
+                    <div className="h-11 rounded-xl border-2 border-[#E7E7E2] bg-white text-[12.5px] font-semibold flex items-center justify-center text-center px-1 peer-checked:bg-green-bg peer-checked:border-green peer-checked:scale-105 transition-all duration-150">
                       {f}
                     </div>
                   </label>
@@ -84,7 +85,7 @@ export default async function PreQuestionnairePage({ params }: { params: Promise
                 {[["non", "Non"], ["oui", "Oui"]].map(([v, label]) => (
                   <label key={v} className="flex-1">
                     <input type="radio" name="pain" value={v} required className="peer sr-only" />
-                    <div className="h-11 rounded-xl border-2 border-[#E7E7E2] bg-white text-[14px] font-semibold flex items-center justify-center peer-checked:bg-green-bg peer-checked:border-green">
+                    <div className="h-11 rounded-xl border-2 border-[#E7E7E2] bg-white text-[14px] font-semibold flex items-center justify-center peer-checked:bg-green-bg peer-checked:border-green peer-checked:scale-105 transition-all duration-150">
                       {label}
                     </div>
                   </label>
@@ -97,9 +98,9 @@ export default async function PreQuestionnairePage({ params }: { params: Promise
               />
             </div>
 
-            <button type="submit" className="h-12 rounded-xl bg-ink text-white text-[15px] font-bold">
+            <SubmitButton pendingLabel="Envoi…" className="h-12 rounded-xl bg-ink text-white text-[15px] font-bold">
               Envoyer
-            </button>
+            </SubmitButton>
           </ParentCard>
         </form>
       )}
