@@ -38,7 +38,7 @@ export default async function ParentAccueilPage() {
     // question "disponible ce week-end" n'a plus lieu d'être — la réponse
     // qui compte devient "je viens / je ne viens pas" à CE match, gérée
     // dans Planning (§18). Réutilise MatchConvocation, rien de nouveau.
-    prisma.matchConvocation.findFirst({ where: { playerId: parent.playerId, match: { date: weekend } }, include: { match: true } }),
+    prisma.matchConvocation.findFirst({ where: { playerId: parent.playerId, match: { date: weekend } }, include: { match: { include: { team: true } } } }),
   ]);
   const feedbacks = sessions.length
     ? await prisma.sessionFeedback.findMany({ where: { playerId: parent.playerId, sessionId: { in: sessions.map((s) => s.id) } } })
@@ -118,13 +118,19 @@ export default async function ParentAccueilPage() {
       })}
 
       {weekendConvocation ? (
-        <ParentTaskCard kicker={fmtDay(weekend)} title="Match" detail={`vs ${weekendConvocation.match.opponent ?? "adversaire à définir"}`}>
+        <ParentTaskCard
+          kicker={fmtDay(weekend)}
+          title={`${weekendConvocation.match.team.code} — ${weekendConvocation.match.competition}`}
+          detail={`${weekendConvocation.match.isHome ? "Saint-Sébastien FC" : (weekendConvocation.match.opponent ?? "Adversaire")} vs ${
+            weekendConvocation.match.isHome ? (weekendConvocation.match.opponent ?? "Adversaire") : "Saint-Sébastien FC"
+          }${weekendConvocation.match.time ? ` · Coup d'envoi ${weekendConvocation.match.time}` : ""}`}
+        >
           <Link href="/parent/planning" className="text-[13.5px] font-bold text-blue">
-            Voir les détails et confirmer →
+            Voir ma convocation →
           </Link>
         </ParentTaskCard>
       ) : (
-        <ParentTaskCard kicker={fmtDay(weekend)} title="⚽ Week-end football" detail="Ton enfant est-il disponible pour jouer ce week-end ?">
+        <ParentTaskCard kicker={fmtDay(weekend)} title="Disponibilité du samedi" detail="Ton enfant est-il disponible pour jouer ce week-end ?">
           {isBeforeOpen ? (
             <div className="text-[13px] text-[#8A8D93] italic">Réponse pas encore possible.</div>
           ) : (

@@ -63,3 +63,10 @@ export function minuteTone(m: number): "none" | "low" | "mid" | "good" | "great"
 export function pct(n: number): string {
   return `${Math.round(n * 100)}%`;
 }
+
+// Formation keys carry a "1-" prefix (the goalkeeper) to stay consistent
+// with FORMATIONS (positions include the GK) — the display follows the
+// usual pitch convention without that prefix: "3-3-1", not "1-3-3-1".
+export function formationLabel(key: string): string {
+  return key.replace(/^1-/, "").replace(/-losange$/, " losange");
+}

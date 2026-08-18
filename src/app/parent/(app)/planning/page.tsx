@@ -95,7 +95,7 @@ export default async function ParentPlanningPage({ searchParams }: { searchParam
           convocation: conv,
         };
       }
-      return { date: d, kind: "weekend" as const, label: "Week-end football", answer: availByDateKey.get(d.toISOString().slice(0, 10))?.status };
+      return { date: d, kind: "weekend" as const, label: "Disponibilité du samedi", answer: availByDateKey.get(d.toISOString().slice(0, 10))?.status };
     }),
   ].sort((a, b) => a.date.getTime() - b.date.getTime());
 

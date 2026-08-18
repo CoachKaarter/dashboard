@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, canAccessTeam } from "@/lib/authz";
 import { logActivity } from "@/lib/activity";
 import { getWeekendDate } from "@/lib/availability";
+import { convocationsToCreate } from "@/lib/weekend-convocations";
 import { revalidatePath } from "next/cache";
 
 async function getPlanWeekendDate(weekStartDate: Date) {
@@ -116,25 +117,26 @@ export async function generateWeekendConvocations(weekStartIso: string) {
   const weekStartDate = new Date(weekStartIso);
   const weekendDate = await getPlanWeekendDate(weekStartDate);
 
-  const assignments = await prisma.weekendAssignment.findMany({
-    where: { weekendDate, matchId: { not: null } },
-  });
+  const [assignments, existingConvocations] = await Promise.all([
+    prisma.weekendAssignment.findMany({ where: { weekendDate, matchId: { not: null } } }),
+    prisma.matchConvocation.findMany({
+      where: { match: { date: weekendDate } },
+      select: { matchId: true, playerId: true },
+    }),
+  ]);
 
   // Sync, never silently drop: only add missing convocations for currently
   // assigned players. A player removed from the répartition after
   // publication keeps their MatchConvocation row (and any confirmation
   // already recorded) until the staff explicitly removes it from the fiche
-  // match — this function only ever adds, per §13/§14.
-  let created = 0;
-  for (const a of assignments) {
-    if (!a.matchId) continue;
-    const existing = await prisma.matchConvocation.findUnique({
-      where: { matchId_playerId: { matchId: a.matchId, playerId: a.playerId } },
-    });
-    if (existing) continue;
-    await prisma.matchConvocation.create({ data: { matchId: a.matchId, playerId: a.playerId } });
-    created++;
+  // match — this function only ever adds, per §13/§14. convocationsToCreate
+  // is the pure, testable rule that makes clicking "Publier" twice a no-op.
+  const existingKeys = new Set(existingConvocations.map((c) => `${c.matchId}:${c.playerId}`));
+  const toCreate = convocationsToCreate(assignments, existingKeys);
+  for (const { matchId, playerId } of toCreate) {
+    await prisma.matchConvocation.create({ data: { matchId, playerId } });
   }
+  const created = toCreate.length;
 
   await prisma.weekendPlan.upsert({
     where: { weekStartDate },

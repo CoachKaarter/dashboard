@@ -11,6 +11,7 @@ import { NumField } from "@/components/ui/NumField";
 import { formatDateFull } from "@/lib/format";
 import { requireUser, canAccessTeam } from "@/lib/authz";
 import { recommendConvocations } from "@/lib/recommend";
+import { computeBench } from "@/lib/composition-pool";
 import { Badge } from "@/components/ui/Badge";
 import {
   toggleConvocation,
@@ -326,14 +327,16 @@ export default async function MatchDetailPage({
               { id: s.player.id, name: `${s.player.firstName} ${s.player.lastName}`, initials: `${s.player.firstName[0]}${s.player.lastName[0]}`, poste: s.player.position },
             ])
           )}
-          bench={match.convocations
-            .filter((c) => !match.slots.some((s) => s.playerId === c.playerId))
+          bench={computeBench(match.convocations, match.slots)
             .map((c) => ({
               id: c.player.id,
               name: `${c.player.firstName} ${c.player.lastName}`,
               initials: `${c.player.firstName[0]}${c.player.lastName[0]}`,
               poste: c.player.position,
             }))}
+          nonConvoqued={squad
+            .filter((p) => !convocatedIds.has(p.id))
+            .map((p) => ({ id: p.id, name: p.name, initials: p.initials, poste: p.position }))}
         />
       )}
 
