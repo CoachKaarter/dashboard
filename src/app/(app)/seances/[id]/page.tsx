@@ -16,6 +16,7 @@ import {
   terminerSeance,
 } from "../actions";
 import { SessionBlocksSection } from "./SessionBlocksSection";
+import { DuplicateSessionButton } from "./DuplicateSessionButton";
 
 const CODES: { code: string; label: string }[] = [
   { code: "P", label: "Présent" },
@@ -99,6 +100,9 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
           )}
         </div>
         <div className="flex-1" />
+        <Link href={`/seances/${id}/studio`} className="h-8 px-3 border border-line rounded-md bg-[#FCFCFB] text-xs font-semibold text-ink-soft flex items-center hover:border-ink hover:text-ink">
+          Session Studio
+        </Link>
         {session.status !== "Réalisée" && session.status !== "Annulée" && (
           <form action={terminerSeance.bind(null, id)}>
             <button
@@ -146,6 +150,7 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
             </button>
           </form>
           <div className="flex gap-2.5 pt-2 border-t border-line-soft">
+            <DuplicateSessionButton sessionId={id} />
             {session.status !== "Annulée" && (
               <form action={cancelSession.bind(null, id)}>
                 <button type="submit" className="h-9 px-3 border border-line rounded-md text-xs font-semibold text-orange hover:border-orange">

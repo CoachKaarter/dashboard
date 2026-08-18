@@ -121,6 +121,12 @@ export default async function BibliothequePage({
         <span className="flex-1" />
         <div className="font-mono text-[11.5px] text-muted">{total} procédé{total > 1 ? "s" : ""}</div>
         <Link
+          href="/bibliotheque/modeles"
+          className="h-8 px-3 border border-line rounded-md bg-[#FCFCFB] text-xs font-semibold text-ink-soft flex items-center hover:border-ink hover:text-ink"
+        >
+          Modèles de séance
+        </Link>
+        <Link
           href="/bibliotheque/nouveau"
           className="h-8 px-3 border-none rounded-md bg-ink text-white text-xs font-semibold flex items-center hover:bg-[#2A2E36]"
         >

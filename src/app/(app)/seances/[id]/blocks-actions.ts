@@ -6,6 +6,7 @@ import { sessionBlockTypeSchema, durationMinutesSchema, computeSwapPair } from "
 import { assertBlockBelongsToSession } from "@/lib/session-scope";
 import { canViewContentItem } from "@/lib/training-content-scope";
 import { buildSessionBlockSnapshot } from "@/lib/training-content-snapshot";
+import { shouldCopyThemeObjective } from "@/lib/session-duplication";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -116,6 +117,27 @@ export async function moveBlockDown(sessionId: string, blockId: string) {
   await swapBlocks(sessionId, blockId, 1);
 }
 
+// Réordonnancement complet (Session Studio §40/§41 — drag & drop de la
+// timeline). orderedBlockIds doit être exactement l'ensemble des blocs de la
+// séance, dans le nouvel ordre voulu ; sinon la fonction ne fait rien
+// (défense contre un payload tronqué/altéré). Passe par des valeurs
+// temporaires négatives pour ne jamais violer sessionId+order en cours de
+// transaction, comme swapBlocks.
+export async function reorderBlocks(sessionId: string, orderedBlockIds: string[]) {
+  await assertAccess(sessionId);
+  const blocks = await prisma.sessionBlock.findMany({ where: { sessionId }, select: { id: true } });
+  const currentIds = new Set(blocks.map((b) => b.id));
+  const requestedIds = new Set(orderedBlockIds);
+  if (orderedBlockIds.length !== blocks.length || currentIds.size !== requestedIds.size) return;
+  for (const id of orderedBlockIds) if (!currentIds.has(id)) return;
+
+  await prisma.$transaction(async (tx) => {
+    await Promise.all(orderedBlockIds.map((id, i) => tx.sessionBlock.update({ where: { id }, data: { order: -(i + 1) } })));
+    await Promise.all(orderedBlockIds.map((id, i) => tx.sessionBlock.update({ where: { id }, data: { order: i } })));
+  });
+  revalidateBlockPaths(sessionId);
+}
+
 // V5.1 §33 — la séance reçoit une COPIE du contenu ("Bibliothèque ↓ Ajouter
 // à la séance ↓ SessionBlock créé"). sourceLibraryItemId ne sert qu'à
 // connaître l'origine — modifier l'item bibliothèque plus tard ne doit
@@ -167,9 +189,55 @@ export async function saveBlockAsLibraryItem(sessionId: string, blockId: string)
   redirect(`/bibliotheque/${item.id}`);
 }
 
+// V5.1 §58/§59 — duplique le CONTENU pédagogique (thème/objectif/blocs)
+// d'une séance vers une autre. N'écrase jamais ce qui existe déjà côté
+// cible : le thème/objectif ne sont copiés que s'ils sont vides côté cible,
+// et les blocs sont ajoutés à la suite (jamais un remplacement silencieux).
+// Ce qui n'est JAMAIS copié : Attendance, PlayerAvailability,
+// SessionFeedback, le statut terrain — chaque SessionBlock créé repart à
+// status=PENDING/startedAt=null/endedAt=null/actualDurationMinutes=null
+// (valeurs par défaut, non recopiées depuis la source).
+export async function duplicateSessionContent(sourceSessionId: string, targetSessionId: string) {
+  await assertAccess(sourceSessionId);
+  const { session: target } = await assertAccess(targetSessionId);
+  const [sourceBlocks, source] = await Promise.all([
+    prisma.sessionBlock.findMany({ where: { sessionId: sourceSessionId }, orderBy: { order: "asc" } }),
+    prisma.trainingSession.findUniqueOrThrow({ where: { id: sourceSessionId } }),
+  ]);
+
+  await prisma.$transaction(async (tx) => {
+    if (shouldCopyThemeObjective(target, source)) {
+      await tx.trainingSession.update({ where: { id: targetSessionId }, data: { theme: source.theme, objective: source.objective } });
+    }
+    const last = await tx.sessionBlock.findFirst({ where: { sessionId: targetSessionId }, orderBy: { order: "desc" } });
+    let order = (last?.order ?? -1) + 1;
+    for (const b of sourceBlocks) {
+      await tx.sessionBlock.create({
+        data: {
+          sessionId: targetSessionId,
+          order: order++,
+          type: b.type,
+          title: b.title,
+          durationMinutes: b.durationMinutes,
+          objective: b.objective,
+          organization: b.organization,
+          instructions: b.instructions,
+          coachingPoints: b.coachingPoints,
+          variations: b.variations,
+          space: b.space,
+          equipment: b.equipment,
+          imageUrl: b.imageUrl,
+          sourceLibraryItemId: b.sourceLibraryItemId,
+        },
+      });
+    }
+  });
+  revalidateBlockPaths(targetSessionId);
+}
+
 // Renvoie les séances accessibles au coach, groupées pour le sélecteur
 // "Ajouter à une séance" (§32) — aujourd'hui / cette semaine / à venir.
-export async function listAddableSessions() {
+export async function listAddableSessions(excludeSessionId?: string) {
   const user = await requireUser();
   const scope = scopedTeamIds(user);
   const now = new Date();
@@ -182,7 +250,11 @@ export async function listAddableSessions() {
     scope === "ALL" ? null : new Set((await prisma.team.findMany({ where: { id: { in: scope } } })).map((t) => t.category));
 
   const sessions = await prisma.trainingSession.findMany({
-    where: { date: { gte: today, lte: inThreeWeeks }, status: { not: "Annulée" } },
+    where: {
+      date: { gte: today, lte: inThreeWeeks },
+      status: { not: "Annulée" },
+      ...(excludeSessionId ? { id: { not: excludeSessionId } } : {}),
+    },
     include: { scopeTeam: true },
     orderBy: { date: "asc" },
     take: 30,

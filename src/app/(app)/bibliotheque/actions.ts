@@ -183,6 +183,24 @@ export async function duplicateContentItem(id: string) {
   redirect(`/bibliotheque/${copy.id}`);
 }
 
+// Recherche rapide pour la colonne bibliothèque du Session Studio (§39).
+export async function searchLibraryItems(query: string) {
+  const user = await requireUser();
+  const q = query.trim();
+  const scopeWhere = user.role === "ADMIN" ? {} : { OR: [{ visibility: "SHARED" }, { createdById: user.id }] };
+  const items = await prisma.trainingContentItem.findMany({
+    where: {
+      archived: false,
+      ...scopeWhere,
+      ...(q ? { title: { contains: q, mode: "insensitive" as const } } : {}),
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 20,
+    select: { id: true, title: true, type: true, defaultDurationMinutes: true, minPlayers: true },
+  });
+  return items;
+}
+
 export async function toggleFavorite(contentItemId: string) {
   const user = await requireUser();
   const existing = await prisma.trainingContentFavorite.findUnique({
