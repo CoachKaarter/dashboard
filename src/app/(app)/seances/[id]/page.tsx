@@ -14,6 +14,7 @@ import {
   cancelSession,
   deleteSession,
 } from "../actions";
+import { SessionBlocksSection } from "./SessionBlocksSection";
 
 const CODES: { code: string; label: string }[] = [
   { code: "P", label: "Présent" },
@@ -31,11 +32,14 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
   if (!session) notFound();
   if (!(await canAccessSession(user, session))) notFound();
 
-  const players = await prisma.player.findMany({
-    where: session.scopeTeamId ? { teamId: session.scopeTeamId } : { team: { category: session.category } },
-    include: { team: true, attendances: { where: { sessionId: id } } },
-    orderBy: { lastName: "asc" },
-  });
+  const [players, blocks] = await Promise.all([
+    prisma.player.findMany({
+      where: session.scopeTeamId ? { teamId: session.scopeTeamId } : { team: { category: session.category } },
+      include: { team: true, attendances: { where: { sessionId: id } } },
+      orderBy: { lastName: "asc" },
+    }),
+    prisma.sessionBlock.findMany({ where: { sessionId: id }, orderBy: { order: "asc" } }),
+  ]);
 
   const counts: Record<string, number> = { P: 0, R: 0, AJ: 0, ANJ: 0, B: 0 };
   let pointed = 0;
@@ -134,6 +138,8 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
           </div>
         </div>
       </details>
+
+      <SessionBlocksSection sessionId={id} blocks={blocks} />
 
       {previsionnel && (
         <div className="mt-3.5 px-3.5 py-2.5 rounded-lg border border-blue/30 bg-blue-bg text-blue text-[12.5px] font-medium">
