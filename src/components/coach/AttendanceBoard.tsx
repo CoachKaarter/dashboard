@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AttendancePlayerRow } from "./AttendancePlayerRow";
 import { AttendanceSummary } from "./AttendanceSummary";
 import { SearchIcon, AlertIcon } from "./icons";
+import { useWakeLock } from "@/lib/useWakeLock";
 
 export type BoardPlayer = {
   id: string;
@@ -46,6 +47,7 @@ export function AttendanceBoard({
   const [query, setQuery] = useState("");
   const [, startTransition] = useTransition();
   const router = useRouter();
+  useWakeLock(true);
 
   // Reconciles with the server's truth after every refresh — including
   // changes made concurrently by a second coach pointing the same session.
