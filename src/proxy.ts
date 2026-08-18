@@ -7,6 +7,16 @@ import { NextResponse } from "next/server";
 // still valid) happens server-side on every /parent/* request via
 // requireParent() in src/lib/parent-session.ts — never trust middleware
 // alone for an area handling minors' data.
+//
+// Presence of this cookie must NEVER be read as "the parent is logged in" —
+// a stale/expired/corrupted cookie is still "present". Redirecting away from
+// /parent/login just because the cookie exists caused an infinite loop for
+// exactly that case: requireParent() finds the session invalid and sends the
+// browser to /parent/login, middleware sees the (stale) cookie and bounces
+// it straight back to /parent, forever — Safari surfaces this as "too many
+// redirects". /parent/login must always be reachable; the real validation
+// (and, on success, a fresh cookie that overwrites any stale one) happens
+// server-side via requireParent()/getAuthedParent() and parentSignIn().
 const PARENT_COOKIE = "parent-session-token";
 
 export default auth((req) => {
@@ -17,9 +27,6 @@ export default auth((req) => {
     const hasParentCookie = req.cookies.has(PARENT_COOKIE);
     if (!hasParentCookie && !isParentLogin) {
       return NextResponse.redirect(new URL("/parent/login", req.nextUrl));
-    }
-    if (hasParentCookie && isParentLogin) {
-      return NextResponse.redirect(new URL("/parent", req.nextUrl));
     }
     return NextResponse.next();
   }
