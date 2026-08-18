@@ -10,7 +10,6 @@ import { CompositionBoard } from "@/components/CompositionBoard";
 import { NumField } from "@/components/ui/NumField";
 import { formatDateFull } from "@/lib/format";
 import { requireUser, canAccessTeam } from "@/lib/authz";
-import { recommendConvocations } from "@/lib/recommend";
 import { computeBench } from "@/lib/composition-pool";
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -56,15 +55,7 @@ export default async function MatchDetailPage({
   const defaultTab = match.status === "Joué" ? "feuille" : "convocation";
   const tab = TABS.some((t) => t.key === rawTab) ? rawTab! : defaultTab;
 
-  const [squad, weekendAvail, hdrs] = await Promise.all([
-    getPlayerStatsByTeam(match.team.code),
-    prisma.playerAvailability.findMany({
-      where: { type: "WEEKEND", eventDate: match.date, player: { teamId: match.teamId } },
-      select: { playerId: true, status: true },
-    }),
-    headers(),
-  ]);
-  const weekendAvailability = new Map(weekendAvail.map((a) => [a.playerId, a.status as "AVAILABLE" | "UNAVAILABLE"]));
+  const [squad, hdrs] = await Promise.all([getPlayerStatsByTeam(match.team.code), headers()]);
   const convocatedIds = new Set(match.convocations.map((c) => c.playerId));
   const host = hdrs.get("host");
   const proto = hdrs.get("x-forwarded-proto") ?? "https";
@@ -87,12 +78,6 @@ export default async function MatchDetailPage({
   const steps = ["Créé", "Convocation", "Composition", "Joué", "Statistiques", "Évaluation"];
 
   const cancelled = match.status === "Annulé";
-  const suggestions = !played && !cancelled
-    ? recommendConvocations(squad, convocatedIds, match.needed, weekendAvailability).slice(
-        0,
-        Math.max(0, match.needed - convocatedIds.size) || 4
-      )
-    : [];
 
   return (
     <div className="max-w-[1500px] mx-auto animate-fadein">
@@ -230,89 +215,91 @@ export default async function MatchDetailPage({
         <div className="grid grid-cols-[minmax(0,1fr)_330px] gap-4 items-start">
           <section className="bg-surface border border-line rounded-lg overflow-auto">
             <div className="flex items-center gap-2 px-3.5 py-[11px] border-b border-line-soft">
-              <span className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Effectif disponible</span>
+              <span className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Convoqués</span>
               <span className="flex-1" />
-              <span className="text-[11.5px] text-muted-2">Cliquer pour convoquer ou retirer</span>
+              <span className="text-[11.5px] text-muted-2">
+                Vient de la répartition du week-end — modifiable ici pour les exceptions
+              </span>
             </div>
-            {squad.map((p) => {
-              const on = convocatedIds.has(p.id);
-              const blocked = p.status !== "Actif";
-              return (
-                <form key={p.id} action={blocked ? undefined : toggleConvocation.bind(null, match.id, p.id)}>
-                  <button
-                    type="submit"
-                    disabled={blocked}
-                    className={`w-full flex items-center gap-2.5 px-3.5 py-2 border-b border-line-soft-2 last:border-b-0 text-left ${
-                      blocked ? "cursor-not-allowed opacity-55" : "cursor-pointer"
-                    }`}
-                    style={{ background: on ? "#F4F8F5" : "#FFFFFF" }}
-                  >
-                    <div
-                      className="w-[17px] h-[17px] rounded-[4px] shrink-0 flex items-center justify-center text-[11px] text-white border"
-                      style={{ borderColor: on ? "#3F8F5B" : "#D2D2CB", background: on ? "#3F8F5B" : "#FFFFFF" }}
-                    >
-                      {on ? "✓" : ""}
-                    </div>
-                    <Avatar initials={p.initials} size={26} />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[12.5px] font-semibold">{p.name}</div>
-                      <div className={`text-[11.5px] mt-px ${blocked ? "text-red" : "text-muted"}`}>
-                        {blocked ? p.status : `${Math.round(p.attendanceRate * 100)}% de présence · ${p.minutes} min cette saison`}
-                      </div>
-                    </div>
-                    <div className="text-xs text-muted">{p.position}</div>
+            {match.convocations.length === 0 && (
+              <div className="px-4 py-8 text-center text-muted text-[13px]">
+                Aucun joueur convoqué pour l&apos;instant. Publiez la répartition depuis{" "}
+                <Link href="/week-end" className="text-blue font-semibold hover:underline">
+                  Week-end
+                </Link>
+                , ou ajoutez un joueur ci-dessous.
+              </div>
+            )}
+            {match.convocations.map((c) => (
+              <div key={c.id} className="w-full flex items-center gap-2.5 px-3.5 py-2 border-b border-line-soft-2 last:border-b-0">
+                <Avatar initials={`${c.player.firstName[0]}${c.player.lastName[0]}`} size={26} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12.5px] font-semibold">
+                    {c.player.firstName} {c.player.lastName}
+                  </div>
+                  <div className="text-[11.5px] mt-px text-muted">
+                    {c.confirmed === true ? "✓ Confirmé" : c.confirmed === false ? "✕ Décliné" : "En attente de réponse"}
+                  </div>
+                </div>
+                <div className="text-xs text-muted">{c.player.position}</div>
+                <form action={toggleConvocation.bind(null, match.id, c.playerId)}>
+                  <button type="submit" className="h-7 px-2 border border-line rounded-md text-[11px] font-semibold text-red hover:border-red">
+                    Retirer
                   </button>
                 </form>
-              );
-            })}
+              </div>
+            ))}
+            {squad.some((p) => !convocatedIds.has(p.id)) && (
+              <details className="px-3.5 py-2.5">
+                <summary className="cursor-pointer text-[12px] font-semibold text-muted hover:text-ink select-none">
+                  + Ajouter un joueur (exception)
+                </summary>
+                <div className="mt-2 flex flex-col gap-1">
+                  {squad
+                    .filter((p) => !convocatedIds.has(p.id))
+                    .map((p) => {
+                      const blocked = p.status !== "Actif";
+                      return (
+                        <form key={p.id} action={blocked ? undefined : toggleConvocation.bind(null, match.id, p.id)}>
+                          <button
+                            type="submit"
+                            disabled={blocked}
+                            className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-left ${blocked ? "cursor-not-allowed opacity-55" : "cursor-pointer hover:bg-bg"}`}
+                          >
+                            <Avatar initials={p.initials} size={22} />
+                            <span className="text-[12px] font-semibold flex-1 truncate">{p.name}</span>
+                            <span className={`text-[11px] ${blocked ? "text-red" : "text-muted"}`}>{blocked ? p.status : p.position}</span>
+                          </button>
+                        </form>
+                      );
+                    })}
+                </div>
+              </details>
+            )}
           </section>
 
-          <div className="flex flex-col gap-3.5">
-            <section className="bg-surface border border-line rounded-lg p-3.5">
-              <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Convocation</div>
-              <div className="font-mono text-[32px] font-bold tracking-[-0.03em] mt-2">
-                {convocatedIds.size} <span className="text-base text-muted-2">/ {match.needed}</span>
+          <section className="bg-surface border border-line rounded-lg p-3.5">
+            <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Convocation</div>
+            <div className="font-mono text-[32px] font-bold tracking-[-0.03em] mt-2">
+              {convocatedIds.size} <span className="text-base text-muted-2">/ {match.needed}</span>
+            </div>
+            {convocatedIds.size > 0 && (
+              <div className="text-[11.5px] text-muted mt-1.5">
+                {confirmedCount} confirmé{confirmedCount > 1 ? "s" : ""} · {declinedCount} décliné{declinedCount > 1 ? "s" : ""} ·{" "}
+                {convocatedIds.size - confirmedCount - declinedCount} en attente
               </div>
-              <div className="text-[12.5px] text-muted mt-1">joueurs sélectionnés sur {squad.length} de l&apos;effectif</div>
-              {convocatedIds.size > 0 && (
-                <div className="text-[11.5px] text-muted mt-1.5">
-                  {confirmedCount} confirmé{confirmedCount > 1 ? "s" : ""} · {declinedCount} décliné{declinedCount > 1 ? "s" : ""} ·{" "}
-                  {convocatedIds.size - confirmedCount - declinedCount} en attente
-                </div>
-              )}
-              <CopyButton
-                text={whatsappText}
-                label="Copier le message WhatsApp"
-                className="mt-3.5 w-full h-[34px] rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36] cursor-pointer"
-              />
-              <CopyButton
-                text={shareUrl}
-                label="Copier le lien de convocation"
-                className="mt-2 w-full h-8 border border-line rounded-md bg-surface text-[12.5px] font-semibold text-ink-soft hover:border-ink cursor-pointer"
-              />
-            </section>
-            {suggestions.length > 0 && (
-              <section className="bg-surface border border-line rounded-lg p-3.5">
-                <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted mb-2">Sélection assistée</div>
-                <div className="flex flex-col gap-2">
-                  {suggestions.map((s) => (
-                    <form key={s.playerId} action={toggleConvocation.bind(null, match.id, s.playerId)}>
-                      <button type="submit" className="w-full text-left p-2 rounded-md border border-line-soft hover:border-ink hover:bg-[#FAFAF8]">
-                        <div className="flex items-center gap-2">
-                          <Avatar initials={s.initials} size={22} />
-                          <span className="text-[12.5px] font-semibold flex-1 truncate">{s.name}</span>
-                          <span className="text-[10.5px] text-muted-2">{s.position}</span>
-                        </div>
-                        {s.reasons.length > 0 && (
-                          <div className="text-[11px] text-muted mt-1 pl-[30px] leading-snug">{s.reasons.join(" · ")}</div>
-                        )}
-                      </button>
-                    </form>
-                  ))}
-                </div>
-              </section>
             )}
-          </div>
+            <CopyButton
+              text={whatsappText}
+              label="Copier le message WhatsApp"
+              className="mt-3.5 w-full h-[34px] rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36] cursor-pointer"
+            />
+            <CopyButton
+              text={shareUrl}
+              label="Copier le lien de convocation"
+              className="mt-2 w-full h-8 border border-line rounded-md bg-surface text-[12.5px] font-semibold text-ink-soft hover:border-ink cursor-pointer"
+            />
+          </section>
         </div>
       )}
 
