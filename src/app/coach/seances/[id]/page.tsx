@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser, canAccessSession } from "@/lib/authz";
 import { parisDateAtTime } from "@/lib/timezone";
+import { computeDelayMinutes } from "@/lib/attendance-delay";
 import { setAttendance, setAttendanceNote, markAllPresent } from "@/app/(app)/seances/actions";
 import { AttendanceBoard, type BoardPlayer } from "@/components/coach/AttendanceBoard";
 import { ArrowLeftIcon } from "@/components/coach/icons";
@@ -50,8 +51,7 @@ export default async function CoachSeanceDetailPage({
 
   const boardPlayers: BoardPlayer[] = players.map((p) => {
     const att = p.attendances[0];
-    const delayMinutes =
-      att?.code === "R" && att.arrivalTime ? Math.max(0, Math.round((att.arrivalTime.getTime() - plannedStart.getTime()) / 60000)) : null;
+    const delayMinutes = att?.code === "R" && att.arrivalTime ? computeDelayMinutes(att.arrivalTime, plannedStart) : null;
     const avail = availByPlayer.get(p.id);
     return {
       id: p.id,
