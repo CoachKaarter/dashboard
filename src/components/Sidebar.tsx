@@ -21,6 +21,7 @@ export async function Sidebar() {
     { href: "/joueurs", label: "Joueurs", badge: String(playerCount) },
     { href: "/equipes", label: "Équipes" },
     { href: "/seances", label: "Séances" },
+    { href: "/bibliotheque", label: "Bibliothèque" },
     { href: "/matchs", label: "Matchs", badge: String(upcomingMatches) },
     { href: "/temps-de-jeu", label: "Temps de jeu" },
     { href: "/evaluations", label: "Évaluations" },

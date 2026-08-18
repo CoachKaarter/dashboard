@@ -41,6 +41,9 @@ model User {
   interviews             PlayerInterview[]
   objectivesCreated      PlayerObjective[]
   attendanceUpdates      Attendance[]
+  contentItemsCreated    TrainingContentItem[]
+  contentFavorites       TrainingContentFavorite[]
+  templatesCreated       SessionTemplate[]
 
   createdAt DateTime @default(now())
 }
@@ -320,10 +323,19 @@ model SessionBlock {
   objective       String?
   organization    String?
   instructions    String?
+  coachingPoints  String? // points de coaching — copiés depuis la bibliothèque puis librement adaptés pour cette séance
+  variations      String? // variantes — idem
   space           String?
   equipment       String?
   imageUrl        String?
   coachNote       String? // jamais exposé côté parent/joueur
+
+  // Provenance uniquement — SessionBlock reçoit une COPIE au moment de
+  // l'ajout (voir TrainingContentItem). Modifier la bibliothèque plus tard
+  // ne doit jamais changer rétroactivement une séance déjà préparée/jouée ;
+  // SetNull si l'item source est supprimé, le snapshot ci-dessus survit.
+  sourceLibraryItem   TrainingContentItem? @relation("SessionBlockSource", fields: [sourceLibraryItemId], references: [id], onDelete: SetNull)
+  sourceLibraryItemId String?
 
   status                String    @default("PENDING") // "PENDING" | "IN_PROGRESS" | "DONE" | "SKIPPED"
   startedAt             DateTime?
@@ -335,6 +347,123 @@ model SessionBlock {
 
   @@unique([sessionId, order])
   @@index([sessionId])
+  @@index([sourceLibraryItemId])
+}
+
+// ---------- Bibliothèque de procédés (V5.1) ----------
+// LibraryItem = modèle réutilisable. SessionBlock/SessionTemplateBlock =
+// snapshot copié au moment de l'ajout. Modifier un TrainingContentItem ne
+// doit JAMAIS changer rétroactivement une séance ou un template déjà
+// préparés — voir le principe d'historisation dans le cahier des charges V5.1.
+model TrainingContentItem {
+  id    String @id @default(cuid())
+  title String
+  type  String // même référentiel que SessionBlock.type — "ACCUEIL" | "ACTIVATION" | "TECHNIQUE" | "EXERCICE" | "SITUATION" | "JEU" | "PHYSIQUE" | "RETOUR_AU_CALME" | "AUTRE"
+
+  description    String?
+  objective      String?
+  organization   String?
+  instructions   String?
+  coachingPoints String?
+  variations     String?
+  space          String?
+  equipment      String?
+  imageUrl       String?
+
+  defaultDurationMinutes Int?
+  minPlayers             Int?
+  maxPlayers             Int?
+  format                 String? // "Foot à 5" | "Foot à 8" | "Foot à 11" | "Tous"
+  categories             String[] @default([]) // indicatif seulement, ex. ["U12", "U13"] — jamais bloquant
+
+  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdById String
+  visibility  String  @default("PERSONAL") // "PERSONAL" | "SHARED"
+  archived    Boolean @default(false)
+
+  tags           TrainingContentTag[]      @relation("ContentItemTags")
+  favoritedBy    TrainingContentFavorite[]
+  sessionBlocks  SessionBlock[]            @relation("SessionBlockSource")
+  templateBlocks SessionTemplateBlock[]    @relation("TemplateBlockSource")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdById])
+  @@index([type])
+  @@index([archived])
+  @@index([visibility])
+}
+
+model TrainingContentTag {
+  id       String  @id @default(cuid())
+  name     String  @unique
+  slug     String  @unique
+  category String?
+
+  items TrainingContentItem[] @relation("ContentItemTags")
+
+  createdAt DateTime @default(now())
+}
+
+// Favoris individuels — un procédé peut être favori pour un coach et pas pour un autre.
+model TrainingContentFavorite {
+  id            String              @id @default(cuid())
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+  contentItem   TrainingContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  contentItemId String
+  createdAt     DateTime            @default(now())
+
+  @@unique([userId, contentItemId])
+  @@index([contentItemId])
+}
+
+// Modèle de séance réutilisable — même principe de snapshot que SessionBlock
+// vis-à-vis de la bibliothèque : modifier un TrainingContentItem après coup
+// ne doit jamais changer un template déjà sauvegardé.
+model SessionTemplate {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  createdBy   User    @relation(fields: [createdById], references: [id])
+  createdById String
+  visibility  String  @default("PERSONAL") // "PERSONAL" | "SHARED"
+  archived    Boolean @default(false)
+
+  blocks SessionTemplateBlock[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdById])
+  @@index([archived])
+}
+
+model SessionTemplateBlock {
+  id         String          @id @default(cuid())
+  template   SessionTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  templateId String
+  order      Int
+
+  type            String
+  title           String
+  durationMinutes Int
+  objective       String?
+  organization    String?
+  instructions    String?
+  coachingPoints  String?
+  variations      String?
+  space           String?
+  equipment       String?
+  imageUrl        String?
+
+  sourceLibraryItem   TrainingContentItem? @relation("TemplateBlockSource", fields: [sourceLibraryItemId], references: [id], onDelete: SetNull)
+  sourceLibraryItemId String?
+
+  @@unique([templateId, order])
+  @@index([templateId])
+  @@index([sourceLibraryItemId])
 }
 
 // ---------- Matches ----------

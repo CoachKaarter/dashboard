@@ -1,5 +1,5 @@
 import { SESSION_BLOCK_TYPE_LABELS } from "@/lib/constants";
-import { createBlock, updateBlock, deleteBlock, moveBlockUp, moveBlockDown } from "./blocks-actions";
+import { createBlock, updateBlock, deleteBlock, moveBlockUp, moveBlockDown, saveBlockAsLibraryItem } from "./blocks-actions";
 import type { SessionBlock } from "@/generated/prisma/client";
 
 const inputClass =
@@ -50,6 +50,16 @@ function BlockFields({ block }: { block?: SessionBlock }) {
         <span className="text-[10.5px] text-muted">Consignes</span>
         <textarea name="instructions" rows={3} defaultValue={block?.instructions ?? ""} className={textareaClass} />
       </label>
+      <div className="grid grid-cols-2 gap-2.5 mt-2.5">
+        <label className="flex flex-col gap-1">
+          <span className="text-[10.5px] text-muted">Points de coaching</span>
+          <textarea name="coachingPoints" rows={2} defaultValue={block?.coachingPoints ?? ""} className={textareaClass} />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[10.5px] text-muted">Variantes</span>
+          <textarea name="variations" rows={2} defaultValue={block?.variations ?? ""} className={textareaClass} />
+        </label>
+      </div>
       <label className="flex flex-col gap-1 mt-2.5">
         <span className="text-[10.5px] text-muted">Schéma (URL image)</span>
         <input name="imageUrl" defaultValue={block?.imageUrl ?? ""} placeholder="https://…" className={inputClass} />
@@ -81,7 +91,8 @@ export function SessionBlocksSection({ sessionId, blocks }: { sessionId: string;
               <span className="font-mono text-[11.5px] text-muted">{b.durationMinutes}&apos;</span>
             </summary>
             <div className="px-3 pb-3 pt-1 border-t border-line-soft-2">
-              <div className="flex gap-1.5 mb-2.5">
+              <div className="flex gap-1.5 mb-2.5 items-center">
+                <span className="text-[10.5px] text-muted-2">{b.sourceLibraryItemId ? "Issu de la bibliothèque" : "Bloc libre"}</span>
                 <form action={moveBlockUp.bind(null, sessionId, b.id)}>
                   <button type="submit" disabled={i === 0} className="h-7 px-2 border border-line rounded-md text-[11px] font-semibold text-muted hover:border-ink disabled:opacity-30">
                     ↑
@@ -93,6 +104,13 @@ export function SessionBlocksSection({ sessionId, blocks }: { sessionId: string;
                   </button>
                 </form>
                 <span className="flex-1" />
+                {!b.sourceLibraryItemId && (
+                  <form action={saveBlockAsLibraryItem.bind(null, sessionId, b.id)}>
+                    <button type="submit" className="h-7 px-2 border border-line rounded-md text-[11px] font-semibold text-muted hover:border-ink">
+                      Ajouter à ma bibliothèque
+                    </button>
+                  </form>
+                )}
                 <form action={deleteBlock.bind(null, sessionId, b.id)}>
                   <button type="submit" className="h-7 px-2 border border-line rounded-md text-[11px] font-semibold text-red hover:border-red">
                     Supprimer

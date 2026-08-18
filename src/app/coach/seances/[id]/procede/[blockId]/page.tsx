@@ -69,6 +69,8 @@ export default async function ProcedeDetailPage({
       {block.space && <InfoBlock label="Espace" text={block.space} />}
       {block.equipment && <InfoBlock label="Matériel" text={block.equipment} />}
       {block.instructions && <InfoBlock label="Consignes" text={block.instructions} multiline />}
+      {block.coachingPoints && <InfoBlock label="Points de coaching" text={block.coachingPoints} multiline />}
+      {block.variations && <InfoBlock label="Variantes" text={block.variations} multiline />}
 
       {block.imageUrl && (
         <details className="bg-white rounded-2xl border border-[#E7E7E2] overflow-hidden">

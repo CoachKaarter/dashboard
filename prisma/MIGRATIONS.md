@@ -92,6 +92,16 @@ query inside the same transaction as the insert, reducing (though, per
 Partie E's own "don't over-engineer, this is an internal tool" caveat,
 not exhaustively eliminating under extreme concurrency) the race window.
 
+## Third migration: `20260818140000_v51_library_templates`
+
+V5.1 (Session Studio & bibliothèque pédagogique) data layer — purely
+additive: new tables (`TrainingContentItem`, `TrainingContentTag`,
+`TrainingContentFavorite`, `SessionTemplate`, `SessionTemplateBlock`, the
+implicit `_ContentItemTags` join table) plus 3 nullable columns on
+`SessionBlock` (`sourceLibraryItemId`, `coachingPoints`, `variations`). No
+backfill needed, existing rows unaffected. A real, new change — apply with
+`prisma migrate deploy`, same as the previous one.
+
 ## From now on: applying a new migration
 
 Once the outstanding step above is done, this project works like any
