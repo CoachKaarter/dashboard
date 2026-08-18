@@ -333,6 +333,7 @@ model SessionBlock {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([sessionId, order])
   @@index([sessionId])
 }
 

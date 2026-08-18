@@ -12,6 +12,7 @@ import { ParentAccountPanel } from "@/components/ParentAccountPanel";
 import { updateObjectives } from "../../evaluations/actions";
 import { requireUser, canAccessTeam, scopedTeamIds } from "@/lib/authz";
 import { getInterviewPrep } from "@/lib/interview-prep";
+import { computeEvaluationDelta } from "@/lib/evaluation";
 import {
   addPlayerNote,
   changeTeam,
@@ -166,8 +167,7 @@ export default async function FichePage({
                 {stats.currentEval ? (
                   (["technique", "tactique", "physique", "comportement"] as const).map((k) => {
                     const v = stats.currentEval![k];
-                    const prevV = stats.previousEval?.moyenne ?? v;
-                    const delta = Math.round((v - prevV) * 10) / 10;
+                    const delta = computeEvaluationDelta(stats.currentEval!, stats.previousEval, k);
                     return (
                       <Row
                         key={k}

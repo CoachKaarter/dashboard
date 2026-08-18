@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser, canAccessSession, canAccessTeam } from "@/lib/authz";
 import { logActivity } from "@/lib/activity";
+import { assertPlayerInSessionScope } from "@/lib/session-scope";
+import { isAttendanceCode, ensureSessionInProgress, canTerminateSession, playersNeedingDefaultPresence } from "@/lib/session-lifecycle";
 
 async function assertSessionAccess(sessionId: string) {
   const user = await requireUser();
@@ -16,22 +18,17 @@ async function assertSessionAccess(sessionId: string) {
 async function scopePlayers(sessionId: string) {
   const session = await prisma.trainingSession.findUniqueOrThrow({ where: { id: sessionId } });
   return prisma.player.findMany({
-    where: session.scopeTeamId ? { teamId: session.scopeTeamId } : { team: { category: session.category } },
+    where: {
+      archived: false,
+      ...(session.scopeTeamId ? { teamId: session.scopeTeamId } : { team: { category: session.category } }),
+    },
   });
-}
-
-// Marking attendance on a session that hasn't happened yet is "présence
-// prévisionnelle" — anticipated absences a coach already knows about — and
-// must not flip the session to "Réalisée" the way real post-séance pointage
-// does. Only sessions dated today or earlier count as actually pointed.
-function isPastOrToday(date: Date) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return date <= today;
 }
 
 export async function setAttendance(sessionId: string, playerId: string, code: string) {
   const { user, session } = await assertSessionAccess(sessionId);
+  if (!isAttendanceCode(code)) throw new Error("Code de pointage invalide.");
+  await assertPlayerInSessionScope(sessionId, playerId);
   const existing = await prisma.attendance.findUnique({
     where: { sessionId_playerId: { sessionId, playerId } },
   });
@@ -52,9 +49,7 @@ export async function setAttendance(sessionId: string, playerId: string, code: s
       data: { sessionId, playerId, code, arrivalTime: code === "R" ? now : null, updatedById: user.id, updatedAt: now },
     });
   }
-  if (isPastOrToday(session.date)) {
-    await prisma.trainingSession.update({ where: { id: sessionId }, data: { status: "Réalisée" } });
-  }
+  await ensureSessionInProgress(session);
   revalidatePath(`/seances/${sessionId}`);
   revalidatePath("/seances");
   revalidatePath("/");
@@ -65,6 +60,7 @@ export async function setAttendance(sessionId: string, playerId: string, code: s
 
 export async function setAttendanceNote(sessionId: string, playerId: string, formData: FormData) {
   const { user } = await assertSessionAccess(sessionId);
+  await assertPlayerInSessionScope(sessionId, playerId);
   const note = String(formData.get("note") || "").trim() || null;
   const now = new Date();
   await prisma.attendance.upsert({
@@ -83,14 +79,12 @@ export async function markAllPresent(sessionId: string) {
   const done = new Set(existing.map((e) => e.playerId));
   // Only players with NO existing Attendance row get "P" — never overwrites
   // an AJ/ANJ/R/B a coach already recorded (§11 of the coach mobile spec).
-  const toCreate = players.filter((p) => !done.has(p.id));
+  const toCreate = playersNeedingDefaultPresence(players, done);
   const now = new Date();
   await prisma.attendance.createMany({
     data: toCreate.map((p) => ({ sessionId, playerId: p.id, code: "P", updatedById: user.id, updatedAt: now })),
   });
-  if (isPastOrToday(session.date)) {
-    await prisma.trainingSession.update({ where: { id: sessionId }, data: { status: "Réalisée" } });
-  }
+  await ensureSessionInProgress(session);
   revalidatePath(`/seances/${sessionId}`);
   revalidatePath("/seances");
   revalidatePath("/");
@@ -150,6 +144,37 @@ export async function updateSession(sessionId: string, formData: FormData) {
   revalidatePath(`/seances/${sessionId}`);
   revalidatePath("/seances");
   revalidatePath("/planning");
+  revalidatePath("/");
+}
+
+const RATINGS = ["Très difficile", "Difficile", "Correcte", "Bonne", "Très bonne"];
+
+// The only door to "Réalisée" — a simple Attendance pointage no longer gets
+// a session there on its own (see src/lib/session-lifecycle.ts). Blocked on
+// an "Annulée" session so a stray/duplicate submit can't resurrect it.
+export async function terminerSeance(sessionId: string, formData: FormData) {
+  const { user, session } = await assertSessionAccess(sessionId);
+  if (!canTerminateSession(session.status)) throw new Error("Cette séance est annulée.");
+  const rating = String(formData.get("rating") || "");
+  const comment = String(formData.get("comment") || "").trim();
+
+  await prisma.trainingSession.update({ where: { id: sessionId }, data: { status: "Réalisée" } });
+
+  const bilanParts = [rating && RATINGS.includes(rating) ? `ressenti : ${rating}` : null, comment || null].filter(Boolean);
+  await logActivity({
+    actorId: user.id,
+    summary: `a terminé la séance ${session.category} du ${session.date.toLocaleDateString("fr-FR")}${
+      bilanParts.length ? ` — ${bilanParts.join(" · ")}` : ""
+    }`,
+    entityType: "TrainingSession",
+    entityId: sessionId,
+  });
+
+  revalidatePath(`/seances/${sessionId}`);
+  revalidatePath("/seances");
+  revalidatePath(`/coach/seances/${sessionId}`);
+  revalidatePath("/coach/seances");
+  revalidatePath("/coach");
   revalidatePath("/");
 }
 

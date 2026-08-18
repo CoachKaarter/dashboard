@@ -66,7 +66,9 @@ export default async function SeancesPage() {
               </div>
               <div className="text-ink-soft">{s.location}</div>
               <div>
-                <Badge tone={s.status === "Réalisée" ? "green" : "blue"}>{s.status}</Badge>
+                <Badge tone={s.status === "Réalisée" ? "green" : s.status === "Annulée" ? "red" : s.status === "En cours" ? "orange" : "blue"}>
+                  {s.status}
+                </Badge>
               </div>
               <div>
                 {late ? (

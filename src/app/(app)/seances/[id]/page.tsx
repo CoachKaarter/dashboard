@@ -13,6 +13,7 @@ import {
   updateSession,
   cancelSession,
   deleteSession,
+  terminerSeance,
 } from "../actions";
 import { SessionBlocksSection } from "./SessionBlocksSection";
 
@@ -69,7 +70,19 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
             <div className="text-[19px] font-bold tracking-[-0.01em]">
               {label} — {dayLabel} {session.date.getDate()}
             </div>
-            <Badge tone={session.status === "Réalisée" ? "green" : session.status === "Annulée" ? "red" : "blue"}>{session.status}</Badge>
+            <Badge
+              tone={
+                session.status === "Réalisée"
+                  ? "green"
+                  : session.status === "Annulée"
+                    ? "red"
+                    : session.status === "En cours"
+                      ? "orange"
+                      : "blue"
+              }
+            >
+              {session.status}
+            </Badge>
           </div>
           <div className="text-muted text-[12.5px] mt-1">
             {session.startTime} › {session.endTime} · {session.location} · {players.length} joueurs attendus
@@ -86,6 +99,16 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
           )}
         </div>
         <div className="flex-1" />
+        {session.status !== "Réalisée" && session.status !== "Annulée" && (
+          <form action={terminerSeance.bind(null, id)}>
+            <button
+              type="submit"
+              className="h-8 px-3 border border-green bg-green-bg text-green rounded-md text-xs font-semibold cursor-pointer hover:brightness-95"
+            >
+              Terminer la séance
+            </button>
+          </form>
+        )}
         <div className="flex gap-5 flex-wrap">
           {[
             ["Présents", counts.P, "text-green"],
