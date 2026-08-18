@@ -44,6 +44,18 @@ export const OBJECTIVE_STATUS_LABELS: Record<string, string> = {
   ABANDONNE: "Abandonné",
 };
 
+export const SESSION_BLOCK_TYPE_LABELS: Record<string, string> = {
+  ACCUEIL: "Accueil",
+  ACTIVATION: "Activation",
+  TECHNIQUE: "Technique",
+  EXERCICE: "Exercice",
+  SITUATION: "Situation",
+  JEU: "Jeu",
+  PHYSIQUE: "Physique",
+  RETOUR_AU_CALME: "Retour au calme",
+  AUTRE: "Autre",
+};
+
 // 8 postes (dont GB) = Foot à 8 ; 11 postes (dont GB) = Foot à 11.
 export const FORMATIONS: Record<string, [number, number, string][]> = {
   "1-3-3-1": [

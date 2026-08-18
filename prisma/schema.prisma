@@ -40,6 +40,7 @@ model User {
   weekendPlansValidated  WeekendPlan[]
   interviews             PlayerInterview[]
   objectivesCreated      PlayerObjective[]
+  attendanceUpdates      Attendance[]
 
   createdAt DateTime @default(now())
 }
@@ -279,6 +280,7 @@ model TrainingSession {
   attendances     Attendance[]
   availabilities  PlayerAvailability[]
   sessionFeedback SessionFeedback[]
+  blocks          SessionBlock[]
 
   @@index([date])
 }
@@ -292,8 +294,46 @@ model Attendance {
   code      String // "P" | "R" | "AJ" | "ANJ" | "B"
   note      String? // motif — ex. raison d'une absence justifiée (AJ)
 
+  arrivalTime DateTime? // instant réel du tap "R" — sert à calculer le retard vs TrainingSession.startTime
+  updatedBy   User?     @relation(fields: [updatedById], references: [id])
+  updatedById String?
+  updatedAt   DateTime? // renseigné manuellement à chaque écriture (pas @updatedAt : pas de valeur par défaut nécessaire sur les lignes historiques)
+
   @@unique([sessionId, playerId])
   @@index([playerId])
+}
+
+// Procédé d'une séance, préparé côté Cockpit desktop et consulté/piloté
+// depuis l'Espace Coach mobile sur le terrain. Le contenu pédagogique
+// (organisation, consignes, matériel...) est distinct du pointage
+// (Attendance) et de la disponibilité familiale (PlayerAvailability) — ne
+// jamais fusionner ces concepts.
+model SessionBlock {
+  id        String          @id @default(cuid())
+  session   TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String
+  order     Int
+
+  type            String // "ACCUEIL" | "ACTIVATION" | "TECHNIQUE" | "EXERCICE" | "SITUATION" | "JEU" | "PHYSIQUE" | "RETOUR_AU_CALME" | "AUTRE"
+  title           String
+  durationMinutes Int
+  objective       String?
+  organization    String?
+  instructions    String?
+  space           String?
+  equipment       String?
+  imageUrl        String?
+  coachNote       String? // jamais exposé côté parent/joueur
+
+  status                String    @default("PENDING") // "PENDING" | "IN_PROGRESS" | "DONE" | "SKIPPED"
+  startedAt             DateTime?
+  endedAt               DateTime?
+  actualDurationMinutes Int? // temps réellement actif (pauses exclues) — durationMinutes prévue reste intacte
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sessionId])
 }
 
 // ---------- Matches ----------
