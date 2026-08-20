@@ -102,6 +102,12 @@ implicit `_ContentItemTags` join table) plus 3 nullable columns on
 backfill needed, existing rows unaffected. A real, new change — apply with
 `prisma migrate deploy`, same as the previous one.
 
+## Fourth migration: `20260820140000_staff_announcements`
+
+Espace Parents redesign — one new table, `StaffAnnouncement` (the "Infos"
+tab feed, authored from a new Cockpit page). Purely additive, no existing
+table touched. A real, new change — apply with `prisma migrate deploy`.
+
 ## From now on: applying a new migration
 
 Once the outstanding step above is done, this project works like any

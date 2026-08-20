@@ -3,13 +3,16 @@ import { requireParentReady } from "@/lib/parent-guard";
 import { prisma } from "@/lib/prisma";
 import { getWeekStart, getWeekendDate, getWindowForWeek, getPlayerWeekSessions } from "@/lib/availability";
 import { isPreOpen, isPostOpen } from "@/lib/session-feedback";
+import { computeWeekendTimeline } from "@/lib/parent-status-timeline";
+import { ANNOUNCEMENT_CATEGORY_LABELS } from "@/lib/announcement-validation";
 import { setSessionAvailability, setSessionAbsenceReason, setWeekendAvailability, setWeekendAbsenceReason } from "./actions";
 import { ParentHeader } from "@/components/parent/ParentHeader";
 import { ParentStatusBanner } from "@/components/parent/ParentStatusBanner";
 import { ParentTaskCard } from "@/components/parent/ParentTaskCard";
+import { ParentCard } from "@/components/parent/ParentCard";
 import { AvailabilityChoice } from "@/components/parent/AvailabilityChoice";
 import { QuestionnaireCard } from "@/components/parent/QuestionnaireCard";
-import { CheckIcon } from "@/components/parent/icons";
+import { CheckIcon, ChevronRightIcon } from "@/components/parent/icons";
 import type { SessionFeedback } from "@/generated/prisma/client";
 
 const REASONS = ["Maladie", "Famille", "École", "Autre"];
@@ -26,11 +29,13 @@ function fmtTime(d: Date) {
 export default async function ParentAccueilPage() {
   const parent = await requireParentReady();
   const today = new Date();
+  const todayMidnight = new Date(today);
+  todayMidnight.setHours(0, 0, 0, 0);
   const weekStart = getWeekStart(today);
   const weekend = getWeekendDate(weekStart);
   const weekStartIso = weekStart.toISOString();
 
-  const [window, { player, sessions }, answers, weekendConvocation] = await Promise.all([
+  const [window, { player, sessions }, answers, weekendConvocation, weekendMatch, weekendAssignment, weekendPlan, announcementsPreview] = await Promise.all([
     getWindowForWeek(weekStart),
     getPlayerWeekSessions(parent.playerId, weekStart),
     prisma.playerAvailability.findMany({ where: { playerId: parent.playerId, weekStartDate: weekStart } }),
@@ -39,6 +44,15 @@ export default async function ParentAccueilPage() {
     // qui compte devient "je viens / je ne viens pas" à CE match, gérée
     // dans Planning (§18). Réutilise MatchConvocation, rien de nouveau.
     prisma.matchConvocation.findFirst({ where: { playerId: parent.playerId, match: { date: weekend } }, include: { match: { include: { team: true } } } }),
+    prisma.match.findFirst({ where: { teamId: parent.player.teamId, date: weekend, status: { not: "Annulé" } } }),
+    prisma.weekendAssignment.findUnique({ where: { weekendDate_playerId: { weekendDate: weekend, playerId: parent.playerId } } }),
+    prisma.weekendPlan.findUnique({ where: { weekStartDate: weekStart } }),
+    prisma.staffAnnouncement.findMany({
+      where: { OR: [{ scopeTeamId: parent.player.teamId }, { scopeTeamId: null, targetCategory: parent.player.teamCategory }] },
+      include: { author: true },
+      orderBy: { createdAt: "desc" },
+      take: 2,
+    }),
   ]);
   const feedbacks = sessions.length
     ? await prisma.sessionFeedback.findMany({ where: { playerId: parent.playerId, sessionId: { in: sessions.map((s) => s.id) } } })
@@ -59,6 +73,32 @@ export default async function ParentAccueilPage() {
     const fb = feedbackBySession.get(s.id);
     return (isPreOpen(s) && !fb?.preAnsweredAt) || (isPostOpen(s) && !fb?.postAnsweredAt);
   });
+
+  const weekendSteps = weekendMatch
+    ? computeWeekendTimeline({
+        answered: (weekendAnswer?.status as "AVAILABLE" | "UNAVAILABLE" | undefined) ?? null,
+        selectionStarted: !!weekendAssignment || (weekendPlan ? weekendPlan.status !== "DRAFT" : false),
+        convoked: !!weekendConvocation,
+        convokedTeamCode: weekendConvocation?.match.team.code ?? null,
+      })
+    : null;
+
+  const upcoming = [
+    ...sessions.map((s) => ({ kind: "session" as const, date: s.date, label: "Entraînement", detail: `${s.startTime} · ${s.location}` })),
+    ...(weekendMatch
+      ? [
+          {
+            kind: "match" as const,
+            date: weekendMatch.date,
+            label: weekendMatch.opponent ?? "Match à définir",
+            detail: `${weekendMatch.time ? `Coup d'envoi ${weekendMatch.time}` : "Horaire à confirmer"}${weekendMatch.isHome ? "" : " · extérieur"}`,
+          },
+        ]
+      : []),
+  ]
+    .filter((e) => e.date >= todayMidnight)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+  const nextEvent = upcoming[0] ?? null;
 
   return (
     <div className="flex flex-col gap-4 animate-fadein">
@@ -86,6 +126,44 @@ export default async function ParentAccueilPage() {
       )}
 
       {isLocked && <ParentStatusBanner tone="warning" title="Présences clôturées" detail="Pour un changement, contacte le staff." />}
+
+      {nextEvent && (
+        <ParentCard>
+          <div className="text-[11px] font-bold tracking-[0.08em] uppercase text-[#8A8D93]">Prochain événement</div>
+          <div className="text-[15px] font-bold mt-0.5">
+            {fmtDay(nextEvent.date)} · {nextEvent.label}
+          </div>
+          <div className="text-[13px] text-[#6E7178] mt-0.5">{nextEvent.detail}</div>
+        </ParentCard>
+      )}
+
+      {weekendSteps && (
+        <ParentCard>
+          <div className="text-[11px] font-bold tracking-[0.08em] uppercase text-[#8A8D93]">
+            Où en est {player.firstName} pour {fmtDay(weekend).toLowerCase()} ?
+          </div>
+          <div className="mt-3 flex flex-col gap-3.5">
+            {weekendSteps.map((step, i) => (
+              <div key={step.key} className="flex items-start gap-3">
+                <div className="flex flex-col items-center shrink-0">
+                  <span
+                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                      step.done ? "bg-green border-green" : "border-[#D5D6D9]"
+                    } ${step.current ? "ring-4 ring-green-bg" : ""}`}
+                  >
+                    {step.done && <CheckIcon size={9} className="text-white" strokeWidth={3} />}
+                  </span>
+                  {i < weekendSteps.length - 1 && <span className={`w-0.5 h-6 mt-0.5 ${step.done ? "bg-green" : "bg-[#E7E7E2]"}`} />}
+                </div>
+                <div className="pt-0">
+                  <div className={`text-[13.5px] font-bold ${step.done ? "text-[#16181C]" : "text-[#9A9DA3]"}`}>{step.title}</div>
+                  <div className="text-[12px] text-[#9A9DA3] mt-0.5">{step.detail}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </ParentCard>
+      )}
 
       {(isOpen ? !allDone : true) && (sessions.length > 0 || !weekendConvocation || playerTasks.length > 0) && (
         <div className="text-[11px] font-bold tracking-[0.09em] uppercase text-[#9A9DA3] mt-1">
@@ -162,6 +240,26 @@ export default async function ParentAccueilPage() {
           />
         );
       })}
+
+      {announcementsPreview.length > 0 && (
+        <div className="flex flex-col gap-2.5">
+          <div className="flex items-center justify-between mt-1">
+            <div className="text-[11px] font-bold tracking-[0.09em] uppercase text-[#9A9DA3]">Informations du staff</div>
+            <Link href="/parent/infos" className="flex items-center gap-0.5 text-[12.5px] font-bold text-green">
+              Tout voir <ChevronRightIcon size={14} />
+            </Link>
+          </div>
+          {announcementsPreview.map((a) => (
+            <ParentCard key={a.id}>
+              <div className="text-[10.5px] font-bold tracking-[0.08em] uppercase text-[#9A9DA3]">
+                {ANNOUNCEMENT_CATEGORY_LABELS[a.category as keyof typeof ANNOUNCEMENT_CATEGORY_LABELS] ?? a.category}
+              </div>
+              <div className="text-[14.5px] font-bold mt-1">{a.title}</div>
+              <div className="text-[13px] text-[#6E7178] mt-0.5 line-clamp-2">{a.body}</div>
+            </ParentCard>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

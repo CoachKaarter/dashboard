@@ -44,6 +44,7 @@ model User {
   contentItemsCreated    TrainingContentItem[]
   contentFavorites       TrainingContentFavorite[]
   templatesCreated       SessionTemplate[]
+  announcementsPosted    StaffAnnouncement[]
 
   createdAt DateTime @default(now())
 }
@@ -66,6 +67,7 @@ model Team {
   matches            Match[]
   jerseys            Jersey[]
   calendarEvents     CalendarEvent[]
+  announcements      StaffAnnouncement[]
   historyFrom        TeamHistoryEntry[]  @relation("HistoryFromTeam")
   historyTo          TeamHistoryEntry[]  @relation("HistoryToTeam")
   weekendAssignments WeekendAssignment[]
@@ -715,6 +717,34 @@ model CalendarEvent {
   teamLabel String // display label when not tied to one Team row, e.g. "Toutes"
 
   @@index([date])
+}
+
+// Annonce du staff diffusée dans l'Espace Parents (onglet "Infos") — un
+// message court, catégorisé, jamais une notification interne au staff
+// (voir Notification ci-dessous, complètement distinct) et jamais un
+// événement de planning (CalendarEvent) : une annonce n'a pas de date/heure
+// propre, elle informe à propos d'autre chose (un entraînement déplacé, une
+// séance annulée...).
+model StaffAnnouncement {
+  id       String @id @default(cuid())
+  title    String
+  body     String
+  category String // "TERRAIN" | "ANNULATION" | "WEEKEND" | "MESSAGE"
+
+  // Cible soit toute une catégorie (U12/U13), soit une équipe précise —
+  // même convention de ciblage que TrainingSession (scopeTeamId).
+  targetCategory String // "U12" | "U13"
+  scopeTeam      Team?   @relation(fields: [scopeTeamId], references: [id])
+  scopeTeamId    String?
+
+  author   User   @relation(fields: [authorId], references: [id])
+  authorId String
+
+  createdAt DateTime @default(now())
+
+  @@index([targetCategory])
+  @@index([scopeTeamId])
+  @@index([createdAt])
 }
 
 // ---------- Notifications internes ----------

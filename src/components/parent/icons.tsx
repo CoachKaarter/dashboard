@@ -140,3 +140,22 @@ export function AlertIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function FlagIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <line x1="5" y1="3" x2="5" y2="21" />
+      <path d="M5 4.5c2-1.3 4-1.3 6 0s4 1.3 6 0v9c-2 1.3-4 1.3-6 0s-4-1.3-6 0Z" />
+    </svg>
+  );
+}
+
+export function MegaphoneIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M3 10v4a1 1 0 0 0 1 1h2l4 4V5L6 9H4a1 1 0 0 0-1 1Z" />
+      <path d="M14 8a4 4 0 0 1 0 8" />
+      <path d="M17.5 5.5a8 8 0 0 1 0 13" />
+    </svg>
+  );
+}
