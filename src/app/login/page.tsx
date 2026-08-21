@@ -44,7 +44,6 @@ export default async function LoginPage({
               <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-muted">Identifiant</span>
               <input
                 name="username"
-                defaultValue="marvyn"
                 className="h-[38px] border border-line rounded-md px-[11px] text-[13px] bg-[#FCFCFB] outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
               />
             </label>
@@ -53,7 +52,6 @@ export default async function LoginPage({
               <input
                 type="password"
                 name="password"
-                defaultValue="motdepasse"
                 className="h-[38px] border border-line rounded-md px-[11px] text-[13px] bg-[#FCFCFB] outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
               />
             </label>
