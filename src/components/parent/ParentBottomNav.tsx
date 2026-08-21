@@ -17,7 +17,7 @@ export function ParentBottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E7E7E2] pb-[env(safe-area-inset-bottom)] z-20">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[#E7E7E2] pb-[env(safe-area-inset-bottom)] z-20">
       <div className="max-w-[560px] mx-auto flex">
         {NAV.map((item) => {
           const active = item.href === "/parent" ? pathname === "/parent" : pathname.startsWith(item.href);

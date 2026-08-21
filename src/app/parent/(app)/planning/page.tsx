@@ -7,6 +7,21 @@ import { ParentCard } from "@/components/parent/ParentCard";
 import { ChevronLeftIcon, ChevronRightIcon, CheckIcon, XIcon } from "@/components/parent/icons";
 import { confirmMyConvocation } from "./actions";
 
+const STATUS_STYLE: Record<string, { borderColor: string; chip: string; label: string }> = {
+  entrainement: { borderColor: "#3A3D43", chip: "text-[#6E7178] bg-[#F1F1EE]", label: "ENTRAÎNEMENT" },
+  annule: { borderColor: "#C4362C", chip: "text-red bg-red-bg", label: "ANNULÉ" },
+  aRepondre: { borderColor: "#C4362C", chip: "text-red bg-red-bg", label: "À RÉPONDRE" },
+  dispoAVenir: { borderColor: "#3C6E9F", chip: "text-blue bg-blue-bg", label: "DISPO À VENIR" },
+  convoque: { borderColor: "#3F8F5B", chip: "text-green bg-green-bg", label: "CONVOQUÉ" },
+  neutral: { borderColor: "#3A3D43", chip: "text-[#6E7178] bg-[#F1F1EE]", label: "" },
+};
+
+function StatusChip({ status }: { status: keyof typeof STATUS_STYLE }) {
+  const s = STATUS_STYLE[status];
+  if (!s.label) return null;
+  return <span className={`shrink-0 text-[10px] font-bold tracking-[0.05em] px-2 h-[19px] rounded-full flex items-center ${s.chip}`}>{s.label}</span>;
+}
+
 const MONTHS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 const DAY_NAMES = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
 
@@ -33,10 +48,12 @@ export default async function ParentPlanningPage({ searchParams }: { searchParam
   const nextMonth = new Date(viewedMonth.getFullYear(), viewedMonth.getMonth() + 1, 1);
 
   const [sessions, myConvocations, myAvailability] = await Promise.all([
+    // Contrairement à avant, les séances annulées ne sont plus masquées :
+    // le design montre explicitement une entrée barrée "ANNULÉ" — une
+    // information utile pour la famille, pas un bruit à cacher.
     prisma.trainingSession.findMany({
       where: {
         date: { gte: monthStart, lt: monthEnd },
-        status: { not: "Annulée" },
         OR: [{ scopeTeamId: player.teamId }, { scopeTeamId: null, category: player.team.category }],
       },
       orderBy: { date: "asc" },
@@ -65,6 +82,10 @@ export default async function ParentPlanningPage({ searchParams }: { searchParam
   for (let d = new Date(monthStart); d < monthEnd; d.setDate(d.getDate() + 1)) {
     if (d.getDay() === 6) saturdays.push(new Date(d));
   }
+  const weekendWindows = await prisma.weeklyAvailabilityWindow.findMany({
+    where: { weekStartDate: { in: saturdays.map((d) => getWeekStart(d)) } },
+  });
+  const windowByWeekStart = new Map(weekendWindows.map((w) => [w.weekStartDate.toISOString(), w]));
 
   type Item = {
     date: Date;
@@ -73,6 +94,7 @@ export default async function ParentPlanningPage({ searchParams }: { searchParam
     sub?: string;
     convocation?: (typeof myConvocations)[number];
     answer?: string;
+    status: keyof typeof STATUS_STYLE;
   };
   const items: Item[] = [
     ...sessions.map((s) => ({
@@ -81,6 +103,7 @@ export default async function ParentPlanningPage({ searchParams }: { searchParam
       label: "Entraînement",
       sub: `${s.startTime} · ${s.location}`,
       answer: availBySession.get(s.id)?.status,
+      status: (s.status === "Annulée" ? "annule" : "entrainement") as keyof typeof STATUS_STYLE,
     })),
     ...saturdays.map((d) => {
       const conv = convocByDateKey.get(d.toISOString().slice(0, 10));
@@ -93,9 +116,13 @@ export default async function ParentPlanningPage({ searchParams }: { searchParam
             .filter(Boolean)
             .join(" · "),
           convocation: conv,
+          status: "convoque" as keyof typeof STATUS_STYLE,
         };
       }
-      return { date: d, kind: "weekend" as const, label: "Disponibilité du samedi", answer: availByDateKey.get(d.toISOString().slice(0, 10))?.status };
+      const answer = availByDateKey.get(d.toISOString().slice(0, 10))?.status;
+      const weekWindow = windowByWeekStart.get(getWeekStart(d).toISOString());
+      const status: keyof typeof STATUS_STYLE = answer ? "neutral" : weekWindow?.status === "OPEN" ? "aRepondre" : "dispoAVenir";
+      return { date: d, kind: "weekend" as const, label: "Disponibilité du samedi", answer, status };
     }),
   ].sort((a, b) => a.date.getTime() - b.date.getTime());
 
@@ -141,14 +168,20 @@ export default async function ParentPlanningPage({ searchParams }: { searchParam
         <div key={key} className="flex flex-col gap-2.5">
           <div className="text-[11px] font-bold tracking-[0.09em] uppercase text-[#9A9DA3] mt-1">{groupLabel(key)}</div>
           {groups.get(key)!.map((item, i) => (
-            <ParentCard key={i} className="flex items-center gap-3 flex-wrap">
+            <ParentCard
+              key={i}
+              className="flex items-center gap-3 flex-wrap"
+              style={{ borderLeftWidth: 4, borderLeftColor: STATUS_STYLE[item.status].borderColor }}
+            >
               <div className="w-12 text-center shrink-0">
                 <div className="text-[10px] uppercase tracking-[0.06em] text-[#8A8D93]">{DAY_NAMES[item.date.getDay()]}</div>
                 <div className="text-[19px] font-bold">{item.date.getDate()}</div>
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[14.5px] font-bold">{item.label}</div>
-                {item.sub && <div className="text-[12.5px] text-[#6E7178] mt-0.5">{item.sub}</div>}
+                <div className={`text-[14.5px] font-bold ${item.status === "annule" ? "line-through text-[#9A9DA3]" : ""}`}>{item.label}</div>
+                {item.sub && (
+                  <div className={`text-[12.5px] mt-0.5 ${item.status === "annule" ? "line-through text-[#B5B7BB]" : "text-[#6E7178]"}`}>{item.sub}</div>
+                )}
                 {item.kind !== "convocation" && item.answer && (
                   <div className={`text-[12px] font-semibold mt-1 ${item.answer === "AVAILABLE" ? "text-green" : "text-red"}`}>
                     {item.answer === "AVAILABLE" ? "✓ " : "✕ "}
@@ -156,7 +189,7 @@ export default async function ParentPlanningPage({ searchParams }: { searchParam
                   </div>
                 )}
               </div>
-              {item.kind === "weekend" && !item.answer && <span className="text-[18px]" aria-hidden>⚽</span>}
+              <StatusChip status={item.status} />
               {item.kind === "convocation" && item.convocation && (
                 <div className="flex gap-1.5 w-full sm:w-auto">
                   <form action={confirmMyConvocation.bind(null, item.convocation.matchId, true)} className="flex-1 sm:flex-none">
