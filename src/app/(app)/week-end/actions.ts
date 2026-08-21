@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireUser, canAccessTeam } from "@/lib/authz";
+import { requireUser, requireAdmin, canAccessTeam } from "@/lib/authz";
 import { logActivity } from "@/lib/activity";
 import { getWeekendDate } from "@/lib/availability";
 import { convocationsToCreate } from "@/lib/weekend-convocations";
@@ -81,8 +81,14 @@ export async function removeMatchStaff(id: string) {
   revalidatePath("/week-end");
 }
 
+// Global, cross-team actions — not scoped to any one team's roster, so
+// canAccessTeam() has nothing to check against. A coach authorized on a
+// single team must not be able to validate/reopen/publish the whole
+// club's week-end plan; that's reserved for ADMIN, same as elsewhere in
+// the app (requireAdmin(), src/lib/authz.ts). Coaches keep their
+// per-team actions above (assignPlayerToTeam, unassignPlayer, ...).
 export async function validateWeekendPlan(weekStartIso: string) {
-  const user = await requireUser();
+  const user = await requireAdmin();
   const weekStartDate = new Date(weekStartIso);
   const weekendDate = await getPlanWeekendDate(weekStartDate);
 
@@ -96,7 +102,7 @@ export async function validateWeekendPlan(weekStartIso: string) {
 }
 
 export async function reopenWeekendPlan(weekStartIso: string) {
-  const user = await requireUser();
+  const user = await requireAdmin();
   const weekStartDate = new Date(weekStartIso);
   const weekendDate = await getPlanWeekendDate(weekStartDate);
   const plan = await prisma.weekendPlan.findUnique({ where: { weekStartDate } });
@@ -113,7 +119,7 @@ export async function reopenWeekendPlan(weekStartIso: string) {
 }
 
 export async function generateWeekendConvocations(weekStartIso: string) {
-  const user = await requireUser();
+  const user = await requireAdmin();
   const weekStartDate = new Date(weekStartIso);
   const weekendDate = await getPlanWeekendDate(weekStartDate);
 

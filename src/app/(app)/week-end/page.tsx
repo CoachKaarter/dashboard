@@ -113,14 +113,18 @@ export default async function WeekEndPage({
           Semaine suivante →
         </a>
 
-        {status === "DRAFT" && (
+        {/* Validation/publication is a global, cross-team action (see
+            src/app/(app)/week-end/actions.ts) — reserved for ADMIN there;
+            hidden here for anyone else so the UI doesn't offer a button
+            that would just bounce them server-side. */}
+        {user.role === "ADMIN" && status === "DRAFT" && (
           <form action={validateWeekendPlan.bind(null, weekStartIso)}>
             <SubmitButton pendingLabel="Validation…" className="h-9 px-3.5 rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36]">
               Valider le plan
             </SubmitButton>
           </form>
         )}
-        {status === "VALIDATED" && (
+        {user.role === "ADMIN" && status === "VALIDATED" && (
           <>
             <form action={reopenWeekendPlan.bind(null, weekStartIso)}>
               <SubmitButton className="h-9 px-3.5 rounded-md border border-line text-[12.5px] font-semibold text-ink-soft hover:border-ink">
@@ -134,7 +138,7 @@ export default async function WeekEndPage({
             </form>
           </>
         )}
-        {status === "PUBLISHED" && (
+        {user.role === "ADMIN" && status === "PUBLISHED" && (
           <form action={reopenWeekendPlan.bind(null, weekStartIso)}>
             <SubmitButton className="h-9 px-3.5 rounded-md border border-line text-[12.5px] font-semibold text-ink-soft hover:border-ink">
               Rouvrir (des convocations sont déjà publiées)

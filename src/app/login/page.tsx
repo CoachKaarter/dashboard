@@ -1,4 +1,7 @@
+import { redirect } from "next/navigation";
 import { loginAction } from "@/lib/actions/auth";
+import { getAuthedUser } from "@/lib/authz";
+import { decideLoginPageRedirect } from "@/lib/redirect-policy";
 
 export default async function LoginPage({
   searchParams,
@@ -6,6 +9,14 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
+
+  // Deliberately not done in src/proxy.ts: middleware only knows the JWT
+  // decodes, never that the account is still active in the DB (that check
+  // — and the resulting redirect loop it caused when done at the edge —
+  // belongs here, where getAuthedUser() re-reads the User row).
+  const user = await getAuthedUser();
+  const target = decideLoginPageRedirect(!!user);
+  if (target) redirect(target);
 
   return (
     <div className="grid grid-cols-[1.15fr_1fr] h-screen bg-bg text-ink font-sans">

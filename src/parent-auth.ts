@@ -8,18 +8,51 @@ import { prisma } from "@/lib/prisma";
 // parent session can never be mixed up or read by the wrong code path.
 // ParentAccount is intentionally not the User (staff) model: no team
 // permissions, no Cockpit access, nothing in common beyond "has a login".
+const secureCookies = process.env.NODE_ENV === "production";
+
 export const { handlers: parentHandlers, auth: parentAuth, signIn: parentSignIn, signOut: parentSignOut } = NextAuth({
   session: { strategy: "jwt" },
   pages: { signIn: "/parent/login" },
   trustHost: true,
+  // Matches the route this instance is actually mounted at
+  // (src/app/api/parent-auth/[...nextauth]/route.ts). Left unset, Auth.js
+  // falls back to "/api/auth" — the STAFF instance's real path — which
+  // would misroute any request this instance builds/parses internally
+  // (session refresh, callback handling).
+  basePath: "/api/parent-auth",
   cookies: {
+    // Auth.js's own defaults (authjs.session-token, authjs.callback-url,
+    // authjs.csrf-token) were shared with src/auth.ts (the staff instance,
+    // which never overrides them) — same names, same domain, same paths.
+    // Only sessionToken had a distinct name here; callbackUrl and
+    // csrfToken were silently colliding between the two instances, so a
+    // request to one could clobber the CSRF/callback cookie the other had
+    // just set. Every parent cookie now gets its own parent-* name.
     sessionToken: {
       name: "parent-session-token",
       options: {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
-        secure: process.env.NODE_ENV === "production",
+        secure: secureCookies,
+      },
+    },
+    callbackUrl: {
+      name: "parent-callback-url",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: secureCookies,
+      },
+    },
+    csrfToken: {
+      name: "parent-csrf-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: secureCookies,
       },
     },
   },

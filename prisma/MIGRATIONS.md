@@ -108,6 +108,46 @@ Espace Parents redesign — one new table, `StaffAnnouncement` (the "Infos"
 tab feed, authored from a new Cockpit page). Purely additive, no existing
 table touched. A real, new change — apply with `prisma migrate deploy`.
 
+## Supabase RLS & grants (2026-08-21 hardening)
+
+Every migration up to and including `20260820140000_staff_announcements`
+ended with `ALTER TABLE ... DISABLE ROW LEVEL SECURITY;` on its new
+table(s). That convention is reversed as of this hardening pass: Supabase
+exposes every `public` table to `anon`/`authenticated` through its Data
+API (PostgREST) by default — with RLS off, those roles had full
+`SELECT/INSERT/UPDATE/DELETE` on every business table, reachable with
+nothing but the project's public anon key. This app never uses that API
+(it talks to Postgres directly via Prisma), so that access was pure
+unnecessary exposure, not something the app relied on.
+
+The fix (see the hardening script given to the user, not stored in this
+repo since it must be reviewed and run once by hand in Supabase's SQL
+editor — a blind rerun would fail loudly and harmlessly on already-`ENABLE`d
+tables, but there's no reason to keep re-running it):
+
+1. `ALTER TABLE ... ENABLE ROW LEVEL SECURITY;` on every business table,
+   with zero policies defined — Postgres denies all rows to any role
+   that isn't the table owner or `BYPASSRLS`, by default. No app code or
+   Prisma query changes as a result.
+2. `REVOKE ALL ... FROM anon, authenticated;` on every business table —
+   belt-and-suspenders, so access is denied by grant as well as by RLS.
+3. `ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE
+   ALL ON TABLES FROM anon, authenticated;` so tables created by future
+   migrations don't silently regain the old exposure.
+
+**Why this doesn't break Prisma:** the app's Postgres connection uses the
+table-owning role (`postgres`, standard for the Supabase-Vercel
+integration), which bypasses RLS entirely by Postgres design — RLS only
+restricts non-owner, non-`BYPASSRLS` roles. Before running the hardening
+script in production, confirm this holds for this project's actual
+connection role with:
+```sql
+SELECT tableowner FROM pg_tables WHERE schemaname = 'public' AND tablename = 'User';
+SELECT rolname, rolbypassrls, rolsuper FROM pg_roles WHERE rolname = 'postgres';
+```
+If the app's `DATABASE_URL`/`POSTGRES_PRISMA_URL` role matches the table
+owner (or has `rolbypassrls = true`), the script is safe to run as-is.
+
 ## From now on: applying a new migration
 
 Once the outstanding step above is done, this project works like any
@@ -123,11 +163,18 @@ normal Prisma project:
    `String` fields standing in for enums, `String?` motif fields, and
    deliberately-named `@@unique` compound keys — always read the
    generated SQL before applying it.)
-3. Review `prisma/migrations/<timestamp>_<name>/migration.sql`. Add any
-   `ALTER TABLE ... DISABLE ROW LEVEL SECURITY;` for new tables while
-   you're in there — Supabase auto-enables RLS on table creation, and
-   this app connects via a private role, not the anon-key API. This has
-   bitten the project multiple times when forgotten.
+3. Review `prisma/migrations/<timestamp>_<name>/migration.sql`. **Do not
+   disable RLS on new tables** — see "Supabase RLS & grants" below for
+   why that convention was reversed. For a new table, instead add:
+   ```sql
+   ALTER TABLE "NewTable" ENABLE ROW LEVEL SECURITY;
+   REVOKE ALL ON TABLE "NewTable" FROM anon, authenticated;
+   ```
+   With no policies defined, `ENABLE ROW LEVEL SECURITY` alone already
+   denies every row to `anon`/`authenticated` (Supabase's Data API
+   roles); the `REVOKE` is belt-and-suspenders. Neither affects Prisma's
+   own connection, which uses the table-owning role and bypasses RLS —
+   confirmed safe for this project, see below.
 4. Apply it to production with:
    ```bash
    npx prisma migrate deploy

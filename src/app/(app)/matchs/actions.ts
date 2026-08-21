@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { requireUser, canAccessTeam } from "@/lib/authz";
 import { getSettings } from "@/lib/settings";
 import { logActivity } from "@/lib/activity";
+import { isValidFormation, isValidSlotIndex, scoreSchema, statRowSchema, neededSchema } from "@/lib/match-validation";
 
 function computeMeetTime(time: string | null, delaiRdv: number): string | null {
   if (!time) return null;
@@ -17,13 +18,27 @@ function computeMeetTime(time: string | null, delaiRdv: number): string | null {
 
 async function assertMatchAccess(matchId: string) {
   const user = await requireUser();
-  const match = await prisma.match.findUniqueOrThrow({ where: { id: matchId }, select: { teamId: true } });
+  const match = await prisma.match.findUniqueOrThrow({
+    where: { id: matchId },
+    select: { teamId: true, formation: true, team: { select: { format: true } } },
+  });
   if (!canAccessTeam(user, match.teamId)) throw new Error("Accès refusé.");
-  return user;
+  return { user, match };
+}
+
+// A player can only ever be convoked/placed/rated on THEIR OWN team's
+// matches — without this, a coach authorized on team A could pass any
+// playerId (including a player from an unrelated team B they have no
+// authorization over) into these actions, since none of the writes below
+// otherwise check where the player actually plays.
+async function assertPlayerOnMatchTeam(teamId: string, playerId: string) {
+  const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId }, select: { teamId: true } });
+  if (player.teamId !== teamId) throw new Error("Ce joueur ne fait pas partie de l'effectif de ce match.");
 }
 
 export async function toggleConvocation(matchId: string, playerId: string) {
-  await assertMatchAccess(matchId);
+  const { match } = await assertMatchAccess(matchId);
+  await assertPlayerOnMatchTeam(match.teamId, playerId);
   const existing = await prisma.matchConvocation.findUnique({
     where: { matchId_playerId: { matchId, playerId } },
   });
@@ -40,7 +55,11 @@ export async function toggleConvocation(matchId: string, playerId: string) {
 }
 
 export async function assignSlot(matchId: string, slotIndex: number, playerId: string) {
-  await assertMatchAccess(matchId);
+  const { match } = await assertMatchAccess(matchId);
+  await assertPlayerOnMatchTeam(match.teamId, playerId);
+  if (!isValidSlotIndex(match.formation, slotIndex)) throw new Error("Position invalide pour cette formation.");
+  const convoked = await prisma.matchConvocation.findUnique({ where: { matchId_playerId: { matchId, playerId } } });
+  if (!convoked) throw new Error("Le joueur doit être convoqué avant d'être placé dans la composition.");
   await prisma.compositionSlot.deleteMany({ where: { matchId, playerId } });
   await prisma.compositionSlot.deleteMany({ where: { matchId, slotIndex } });
   await prisma.compositionSlot.create({ data: { matchId, slotIndex, playerId } });
@@ -54,7 +73,8 @@ export async function clearSlot(matchId: string, slotIndex: number) {
 }
 
 export async function setFormation(matchId: string, formation: string) {
-  await assertMatchAccess(matchId);
+  const { match } = await assertMatchAccess(matchId);
+  if (!isValidFormation(match.team.format, formation)) return;
   await prisma.match.update({ where: { id: matchId }, data: { formation } });
   await prisma.compositionSlot.deleteMany({ where: { matchId } });
   revalidatePath(`/matchs/${matchId}`);
@@ -62,11 +82,14 @@ export async function setFormation(matchId: string, formation: string) {
 
 export async function recordScore(matchId: string, formData: FormData) {
   await assertMatchAccess(matchId);
-  const scoreFor = Number(formData.get("scoreFor"));
-  const scoreAgainst = Number(formData.get("scoreAgainst"));
+  const parsed = scoreSchema.safeParse({
+    scoreFor: Number(formData.get("scoreFor")),
+    scoreAgainst: Number(formData.get("scoreAgainst")),
+  });
+  if (!parsed.success) return;
   await prisma.match.update({
     where: { id: matchId },
-    data: { status: "Joué", scoreFor, scoreAgainst },
+    data: { status: "Joué", scoreFor: parsed.data.scoreFor, scoreAgainst: parsed.data.scoreAgainst },
   });
   revalidatePath(`/matchs/${matchId}`);
   revalidatePath("/matchs");
@@ -108,16 +131,20 @@ export async function generateFeuille(matchId: string) {
 }
 
 export async function updateStatRow(matchId: string, playerId: string, formData: FormData) {
-  await assertMatchAccess(matchId);
-  const minutes = Number(formData.get("minutes"));
-  const goals = Number(formData.get("goals"));
-  const assists = Number(formData.get("assists"));
+  const { match } = await assertMatchAccess(matchId);
+  await assertPlayerOnMatchTeam(match.teamId, playerId);
   const noteRaw = formData.get("note");
-  const note = noteRaw ? Number(noteRaw) : null;
-  const comment = String(formData.get("comment") || "").trim() || null;
+  const parsed = statRowSchema.safeParse({
+    minutes: Number(formData.get("minutes")),
+    goals: Number(formData.get("goals")),
+    assists: Number(formData.get("assists")),
+    note: noteRaw ? Number(noteRaw) : null,
+    comment: String(formData.get("comment") || "").trim() || null,
+  });
+  if (!parsed.success) return;
   await prisma.matchPlayerStat.update({
     where: { matchId_playerId: { matchId, playerId } },
-    data: { minutes, goals, assists, note, comment },
+    data: parsed.data,
   });
   revalidatePath(`/matchs/${matchId}`);
 }
@@ -139,9 +166,10 @@ export async function updateMatch(matchId: string, formData: FormData) {
   const time = String(formData.get("time") || "") || null;
   const isHome = formData.get("isHome") === "on";
   const location = String(formData.get("location") || "") || null;
-  const needed = Number(formData.get("needed")) || 12;
+  const neededParsed = neededSchema.safeParse(Number(formData.get("needed")));
   const preMatchObjective = String(formData.get("preMatchObjective") || "").trim() || null;
-  if (!competition || Number.isNaN(date.getTime())) return;
+  if (!competition || Number.isNaN(date.getTime()) || !neededParsed.success) return;
+  const needed = neededParsed.data;
   const settings = await getSettings();
 
   await prisma.match.update({
@@ -159,7 +187,7 @@ export async function updateMatch(matchId: string, formData: FormData) {
 }
 
 export async function cancelMatch(matchId: string) {
-  const user = await assertMatchAccess(matchId);
+  const { user } = await assertMatchAccess(matchId);
   const match = await prisma.match.update({ where: { id: matchId }, data: { status: "Annulé" }, include: { team: true } });
   await logActivity({
     actorId: user.id,
@@ -174,7 +202,7 @@ export async function cancelMatch(matchId: string) {
 }
 
 export async function deleteMatch(matchId: string) {
-  const user = await assertMatchAccess(matchId);
+  const { user } = await assertMatchAccess(matchId);
   const match = await prisma.match.delete({ where: { id: matchId }, include: { team: true } });
   await logActivity({
     actorId: user.id,
@@ -198,7 +226,9 @@ export async function createMatch(formData: FormData) {
   const time = String(formData.get("time") || "") || null;
   const isHome = formData.get("isHome") === "on";
   const location = String(formData.get("location") || "") || null;
-  const needed = Number(formData.get("needed")) || 12;
+  const neededParsed = neededSchema.safeParse(Number(formData.get("needed")));
+  if (!competition || Number.isNaN(date.getTime()) || !neededParsed.success) return;
+  const needed = neededParsed.data;
   const settings = await getSettings();
 
   const match = await prisma.match.create({

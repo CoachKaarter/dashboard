@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
+import { decideStaffMiddleware, decideParentMiddleware } from "@/lib/redirect-policy";
 
 // Cookie name must match src/parent-auth.ts's cookies.sessionToken.name —
 // this is only a fast redirect on cookie *presence*, not real verification.
@@ -23,34 +24,12 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
 
   if (pathname.startsWith("/parent")) {
-    const isParentLogin = pathname.startsWith("/parent/login");
-    const hasParentCookie = req.cookies.has(PARENT_COOKIE);
-    if (!hasParentCookie && !isParentLogin) {
-      return NextResponse.redirect(new URL("/parent/login", req.nextUrl));
-    }
-    return NextResponse.next();
+    const decision = decideParentMiddleware(pathname, req.cookies.has(PARENT_COOKIE));
+    return decision.type === "redirect" ? NextResponse.redirect(new URL(decision.to, req.nextUrl)) : NextResponse.next();
   }
 
-  const isLoggedIn = !!req.auth;
-  const isLoginPage = pathname.startsWith("/login");
-  // Convocation share links are handed to players/parents who have no
-  // account — deliberately public, gated only by the unguessable token.
-  const isPublicShare = pathname.startsWith("/convocation/");
-
-  if (!isLoggedIn && !isLoginPage && !isPublicShare) {
-    const loginUrl = new URL("/login", req.nextUrl);
-    return NextResponse.redirect(loginUrl);
-  }
-  // Deliberately NOT redirecting an already-"logged in" visitor away from
-  // /login — same reasoning as the /parent branch above. req.auth here only
-  // means the staff JWT decodes at the edge, never that the account is still
-  // active (that DB check happens in requireUser(), src/lib/authz.ts, on
-  // every protected page). A deactivated account or a stale-but-decodable
-  // cookie previously looped forever: requireUser() sends "/" → /login,
-  // middleware saw isLoggedIn=true on /login and bounced it straight back to
-  // "/", forever — the same "too many redirects" Safari reported for
-  // /parent. /login must always be reachable; a genuinely valid session
-  // visiting /login just sees the form again, which is harmless.
+  const decision = decideStaffMiddleware(pathname, !!req.auth);
+  return decision.type === "redirect" ? NextResponse.redirect(new URL(decision.to, req.nextUrl)) : NextResponse.next();
 });
 
 export const config = {
