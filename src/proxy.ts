@@ -41,9 +41,16 @@ export default auth((req) => {
     const loginUrl = new URL("/login", req.nextUrl);
     return NextResponse.redirect(loginUrl);
   }
-  if (isLoggedIn && isLoginPage) {
-    return NextResponse.redirect(new URL("/", req.nextUrl));
-  }
+  // Deliberately NOT redirecting an already-"logged in" visitor away from
+  // /login — same reasoning as the /parent branch above. req.auth here only
+  // means the staff JWT decodes at the edge, never that the account is still
+  // active (that DB check happens in requireUser(), src/lib/authz.ts, on
+  // every protected page). A deactivated account or a stale-but-decodable
+  // cookie previously looped forever: requireUser() sends "/" → /login,
+  // middleware saw isLoggedIn=true on /login and bounced it straight back to
+  // "/", forever — the same "too many redirects" Safari reported for
+  // /parent. /login must always be reachable; a genuinely valid session
+  // visiting /login just sees the form again, which is harmless.
 });
 
 export const config = {
