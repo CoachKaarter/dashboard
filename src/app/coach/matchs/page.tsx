@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, scopedTeamIds } from "@/lib/authz";
 import { parisStartOfDay } from "@/lib/timezone";
 import { FlagIcon } from "@/components/coach/icons";
+import { computeMatchPhase } from "@/lib/match-phase";
+import { FORMATIONS } from "@/lib/constants";
 
 const DAY_NAMES = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
 const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
@@ -16,13 +18,13 @@ export default async function CoachMatchsPage() {
   const [upcoming, recent] = await Promise.all([
     prisma.match.findMany({
       where: { ...teamWhere, date: { gte: today }, status: { not: "Annulé" } },
-      include: { team: true, convocations: true },
+      include: { team: true, convocations: true, slots: true },
       orderBy: { date: "asc" },
       take: 10,
     }),
     prisma.match.findMany({
       where: { ...teamWhere, date: { lt: today } },
-      include: { team: true, convocations: true },
+      include: { team: true, convocations: true, slots: true },
       orderBy: { date: "desc" },
       take: 6,
     }),
@@ -71,9 +73,21 @@ function MatchCard({
     isHome: boolean;
     team: { code: string };
     convocations: { confirmed: boolean | null }[];
+    slots: { id: string }[];
+    status: string;
+    formation: string;
+    collectiveNote: string | null;
+    objectiveStatus: string | null;
   };
 }) {
   const confirmed = m.convocations.filter((c) => c.confirmed === true).length;
+  const phase = computeMatchPhase({
+    status: m.status,
+    convocationCount: m.convocations.length,
+    startersCount: m.slots.length,
+    neededStarters: (FORMATIONS[m.formation] ?? FORMATIONS["1-3-3-1"]).length,
+    bilanFilled: !!(m.collectiveNote || m.objectiveStatus),
+  });
   return (
     <Link
       href={`/coach/matchs/${m.id}`}
@@ -85,7 +99,10 @@ function MatchCard({
         <div className="text-[9.5px] text-[#9A9DA3]">{MONTHS[m.date.getMonth()]}</div>
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[11px] font-bold tracking-[0.06em] uppercase text-green">{m.team.code}</div>
+        <div className="flex items-center gap-1.5">
+          <div className="text-[11px] font-bold tracking-[0.06em] uppercase text-green">{m.team.code}</div>
+          {phase === "JOUE" && <span className="text-[10px] font-semibold text-orange">· Bilan à compléter</span>}
+        </div>
         <div className="text-[14.5px] font-bold truncate">{m.opponent ?? "Adversaire à définir"}</div>
         <div className="text-[12.5px] text-[#6E7178] mt-0.5">
           {[m.time, m.isHome ? "domicile" : "extérieur", m.location].filter(Boolean).join(" · ")}

@@ -62,6 +62,7 @@ export async function toggleConvocation(matchId: string, playerId: string) {
     await prisma.matchConvocation.create({ data: { matchId, playerId } });
   }
   revalidatePath(`/matchs/${matchId}`);
+  revalidatePath(`/coach/matchs/${matchId}`);
   revalidatePath("/matchs");
   revalidatePath("/");
 }
@@ -104,6 +105,7 @@ export async function recordScore(matchId: string, formData: FormData) {
     data: { status: "Joué", scoreFor: parsed.data.scoreFor, scoreAgainst: parsed.data.scoreAgainst },
   });
   revalidatePath(`/matchs/${matchId}`);
+  revalidatePath(`/coach/matchs/${matchId}`);
   revalidatePath("/matchs");
   revalidatePath("/");
 }
@@ -147,6 +149,7 @@ export async function generateFeuille(matchId: string) {
     )
   );
   revalidatePath(`/matchs/${matchId}`);
+  revalidatePath(`/coach/matchs/${matchId}`);
 }
 
 export async function updateStatRow(matchId: string, playerId: string, formData: FormData) {
@@ -168,23 +171,31 @@ export async function updateStatRow(matchId: string, playerId: string, formData:
     data: parsed.data,
   });
   revalidatePath(`/matchs/${matchId}`);
+  revalidatePath(`/coach/matchs/${matchId}`);
 }
 
+const BILAN_FIELDS = ["objectiveStatus", "collectiveNote", "firstHalfNote", "secondHalfNote", "positivePoints", "improvementAreas", "notableEvents"] as const;
+
+// Mode brouillon (V5.2 §41) : the coach can fill the bilan in several
+// passes — a quick "objectif" pick pitch-side, the rest later from the
+// Cockpit. Only fields actually present in this particular submission are
+// touched; a mobile quick-form that only sends objectiveStatus must never
+// blank out collectiveNote/firstHalfNote/... already recorded elsewhere.
 export async function updateBilan(matchId: string, formData: FormData) {
   await assertMatchAccess(matchId);
-  const objectiveStatusRaw = String(formData.get("objectiveStatus") || "");
-  const parsed = bilanSchema.safeParse({
-    objectiveStatus: objectiveStatusRaw || null,
-    collectiveNote: String(formData.get("collectiveNote") || ""),
-    firstHalfNote: String(formData.get("firstHalfNote") || ""),
-    secondHalfNote: String(formData.get("secondHalfNote") || ""),
-    positivePoints: String(formData.get("positivePoints") || ""),
-    improvementAreas: String(formData.get("improvementAreas") || ""),
-    notableEvents: String(formData.get("notableEvents") || ""),
-  });
+  const submitted = BILAN_FIELDS.filter((f) => formData.has(f));
+  if (submitted.length === 0) return;
+
+  const raw: Partial<Record<(typeof BILAN_FIELDS)[number], string | null>> = {};
+  for (const f of submitted) {
+    const v = String(formData.get(f) || "");
+    raw[f] = f === "objectiveStatus" ? v || null : v;
+  }
+  const parsed = bilanSchema.partial().safeParse(raw);
   if (!parsed.success) return;
   await prisma.match.update({ where: { id: matchId }, data: parsed.data });
   revalidatePath(`/matchs/${matchId}`);
+  revalidatePath(`/coach/matchs/${matchId}`);
 }
 
 export async function updateMatch(matchId: string, formData: FormData) {

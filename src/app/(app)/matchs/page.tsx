@@ -4,6 +4,7 @@ import { TeamChip } from "@/components/ui/TeamChip";
 import { Badge } from "@/components/ui/Badge";
 import { formatDateShort } from "@/lib/format";
 import { requireUser, teamScopeWhere } from "@/lib/authz";
+import { computeMatchResult } from "@/lib/match-phase";
 
 const GRID = "grid-cols-[70px_76px_minmax(190px,1fr)_110px_140px_62px_68px_130px_24px]";
 
@@ -48,7 +49,13 @@ export default async function MatchsPage() {
               <div className={`font-mono ${m.time ? "" : "text-red"}`}>{m.time ?? "—"}</div>
               <div
                 className={`font-mono font-bold ${
-                  played ? (m.scoreFor! > m.scoreAgainst! ? "text-green" : m.scoreFor === m.scoreAgainst ? "text-muted" : "text-red") : "text-muted-2"
+                  played
+                    ? computeMatchResult(m.scoreFor!, m.scoreAgainst!) === "GAGNE"
+                      ? "text-green"
+                      : computeMatchResult(m.scoreFor!, m.scoreAgainst!) === "NUL"
+                        ? "text-muted"
+                        : "text-red"
+                    : "text-muted-2"
                 }`}
               >
                 {played ? `${m.scoreFor} – ${m.scoreAgainst}` : "—"}

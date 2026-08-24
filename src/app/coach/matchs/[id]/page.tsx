@@ -9,7 +9,8 @@ import { formationLabel } from "@/lib/format";
 import { POSITIONS } from "@/lib/constants";
 import { MATCH_ROLES } from "@/lib/match-validation";
 import { ArrowLeftIcon } from "@/components/coach/icons";
-import { toggleConvocation, generateFeuille, updateStatRow, recordScore } from "@/app/(app)/matchs/actions";
+import { toggleConvocation, generateFeuille, updateStatRow, recordScore, updateBilan } from "@/app/(app)/matchs/actions";
+import { OBJECTIVE_STATUS_LABELS, OBJECTIVE_STATUSES, type ObjectiveStatus } from "@/lib/match-validation";
 
 type Stat = {
   id: string;
@@ -96,6 +97,52 @@ export default async function CoachMatchDetailPage({ params }: { params: Promise
             Terminer
           </button>
         </form>
+      )}
+
+      {played && (
+        <div className="bg-white rounded-2xl border border-[#E7E7E2] p-4 flex flex-col gap-3">
+          <div className="text-[11px] font-bold tracking-[0.09em] uppercase text-[#9A9DA3]">Bilan rapide</div>
+
+          <form action={updateBilan.bind(null, match.id)} className="flex gap-2">
+            {OBJECTIVE_STATUSES.map((status) => (
+              <button
+                key={status}
+                type="submit"
+                name="objectiveStatus"
+                value={status}
+                className={`flex-1 h-10 rounded-lg text-[12px] font-semibold active:scale-[0.97] transition-transform duration-100 ${
+                  match.objectiveStatus === status ? "bg-ink text-white" : "bg-[#FAFAF8] border border-[#E7E7E2] text-[#6E7178]"
+                }`}
+              >
+                {OBJECTIVE_STATUS_LABELS[status as ObjectiveStatus]}
+              </button>
+            ))}
+          </form>
+
+          <form action={updateBilan.bind(null, match.id)} className="flex flex-col gap-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] font-semibold text-[#9A9DA3]">Points positifs</span>
+              <textarea
+                name="positivePoints"
+                defaultValue={match.positivePoints ?? ""}
+                rows={2}
+                className="w-full border border-[#E7E7E2] rounded-lg text-[13px] px-2.5 py-2 bg-[#FCFCFB] outline-none focus:border-blue resize-none"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] font-semibold text-[#9A9DA3]">Axes d&apos;amélioration</span>
+              <textarea
+                name="improvementAreas"
+                defaultValue={match.improvementAreas ?? ""}
+                rows={2}
+                className="w-full border border-[#E7E7E2] rounded-lg text-[13px] px-2.5 py-2 bg-[#FCFCFB] outline-none focus:border-blue resize-none"
+              />
+            </label>
+            <button type="submit" className="h-10 rounded-lg bg-ink text-white text-[13px] font-semibold active:scale-[0.97] transition-transform duration-100">
+              Enregistrer
+            </button>
+          </form>
+        </div>
       )}
 
       <div className="text-[11px] font-bold tracking-[0.09em] uppercase text-[#9A9DA3] mt-1">
