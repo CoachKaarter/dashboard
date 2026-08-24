@@ -110,6 +110,19 @@ export default async function MatchDetailPage({
             <span className="text-muted-2">Objectif :</span> <span className="font-semibold">{match.preMatchObjective}</span>
           </div>
         )}
+        {match.mainInstructions && (
+          <div className="text-[12.5px] mt-1">
+            <span className="text-muted-2">Consignes :</span> <span className="font-semibold">{match.mainInstructions}</span>
+          </div>
+        )}
+        {match.competition === "Tournoi" && match.tournamentRanking && match.tournamentTeamsCount && (
+          <div className="text-[12.5px] mt-1">
+            <span className="text-muted-2">Classement :</span>{" "}
+            <span className="font-semibold">
+              {match.tournamentRanking}e / {match.tournamentTeamsCount} équipes
+            </span>
+          </div>
+        )}
 
         <div className="flex items-center mt-3.5 pt-3 border-t border-line-soft flex-wrap gap-y-2">
           {steps.map((label, i) => {
@@ -157,10 +170,11 @@ export default async function MatchDetailPage({
             <input name="opponent" defaultValue={match.opponent ?? ""} placeholder="Adversaire" className={matchInputClass} />
             <select name="competition" defaultValue={match.competition} className={matchInputClass}>
               <option value="Championnat">Championnat</option>
-              <option value="Plateau">Plateau</option>
               <option value="Amical">Amical</option>
-              <option value="Coupe">Coupe</option>
               <option value="Tournoi">Tournoi</option>
+              <option value="Coupe">Coupe</option>
+              <option value="Plateau">Plateau</option>
+              <option value="Autre">Autre</option>
             </select>
             <input type="date" name="date" defaultValue={match.date.toISOString().slice(0, 10)} className={matchInputClass} />
             <input type="time" name="time" defaultValue={match.time ?? ""} className={matchInputClass} />
@@ -172,10 +186,44 @@ export default async function MatchDetailPage({
               placeholder="Objectif avant match (ex. Gagner les duels)"
               className={`${matchInputClass} col-span-2`}
             />
+            <input
+              name="mainInstructions"
+              defaultValue={match.mainInstructions ?? ""}
+              placeholder="Consignes principales"
+              className={`${matchInputClass} col-span-2`}
+            />
+            <textarea
+              name="preMatchNotes"
+              defaultValue={match.preMatchNotes ?? ""}
+              placeholder="Notes libres avant-match…"
+              rows={2}
+              className={`${matchInputClass} col-span-2 h-auto py-2 resize-y`}
+            />
             <label className="flex items-center gap-2 text-[12.5px] text-ink-soft col-span-2">
               <input type="checkbox" name="isHome" defaultChecked={match.isHome} className="w-4 h-4" />
               Match à domicile
             </label>
+            <div className="col-span-2 pt-2 border-t border-line-soft grid grid-cols-2 gap-2.5">
+              <div className="col-span-2 text-[11px] font-bold tracking-[0.08em] uppercase text-muted-2">
+                Tournoi (facultatif — renseignable une fois terminé)
+              </div>
+              <input
+                type="number"
+                name="tournamentRanking"
+                defaultValue={match.tournamentRanking ?? ""}
+                min={1}
+                placeholder="Classement final (ex. 3)"
+                className={matchInputClass}
+              />
+              <input
+                type="number"
+                name="tournamentTeamsCount"
+                defaultValue={match.tournamentTeamsCount ?? ""}
+                min={2}
+                placeholder="Nombre d'équipes (ex. 16)"
+                className={matchInputClass}
+              />
+            </div>
             <button type="submit" className="col-span-2 h-9 border-none rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36]">
               Enregistrer les modifications
             </button>
@@ -396,32 +444,61 @@ export default async function MatchDetailPage({
           {played && (
             <section className="bg-surface border border-line rounded-lg p-3.5">
               <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted mb-2.5">Bilan du match</div>
-              <form action={updateBilan.bind(null, match.id)} className="flex flex-col gap-2.5">
+              <form action={updateBilan.bind(null, match.id)} className="flex flex-col gap-3">
                 {match.preMatchObjective && (
                   <div className="text-[12.5px] text-ink-soft">
                     Objectif fixé : <span className="font-semibold text-ink">{match.preMatchObjective}</span>
                   </div>
                 )}
-                <div className="flex items-center gap-2">
-                  <span className="text-[12.5px] text-muted mr-1">Objectif atteint :</span>
-                  {(["oui", "non"] as const).map((v) => (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[12.5px] text-muted mr-1">Objectif :</span>
+                  {(
+                    [
+                      ["ATTEINT", "Atteint"],
+                      ["PARTIEL", "Partiellement atteint"],
+                      ["NON_ATTEINT", "Non atteint"],
+                    ] as const
+                  ).map(([v, label]) => (
                     <label key={v} className="flex items-center gap-1.5 text-[12.5px]">
-                      <input
-                        type="radio"
-                        name="objectiveMet"
-                        value={v}
-                        defaultChecked={(v === "oui") === match.objectiveMet}
-                      />
-                      {v === "oui" ? "Oui" : "Non"}
+                      <input type="radio" name="objectiveStatus" value={v} defaultChecked={match.objectiveStatus === v} />
+                      {label}
                     </label>
                   ))}
                 </div>
-                <textarea
-                  name="collectiveNote"
-                  defaultValue={match.collectiveNote ?? ""}
-                  placeholder="Notes collectives sur le match…"
-                  rows={3}
-                  className="border border-line rounded-md px-2.5 py-2 text-[12.5px] bg-surface outline-none resize-y focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
+                <BilanField name="collectiveNote" label="Bilan global" defaultValue={match.collectiveNote} placeholder="Notes collectives sur le match…" />
+                <div className="grid grid-cols-2 gap-2.5">
+                  <BilanField
+                    name="firstHalfNote"
+                    label="1ère mi-temps"
+                    defaultValue={match.firstHalfNote}
+                    placeholder="Ce qui a fonctionné, problèmes rencontrés…"
+                  />
+                  <BilanField
+                    name="secondHalfNote"
+                    label="2ème mi-temps"
+                    defaultValue={match.secondHalfNote}
+                    placeholder="Ce qui a fonctionné, problèmes rencontrés…"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <BilanField
+                    name="positivePoints"
+                    label="Points positifs"
+                    defaultValue={match.positivePoints}
+                    placeholder="Ce qu'on veut conserver…"
+                  />
+                  <BilanField
+                    name="improvementAreas"
+                    label="Axes d'amélioration"
+                    defaultValue={match.improvementAreas}
+                    placeholder="Ce qu'on doit retravailler…"
+                  />
+                </div>
+                <BilanField
+                  name="notableEvents"
+                  label="Faits marquants"
+                  defaultValue={match.notableEvents}
+                  placeholder="Moment fort, changement tactique, blessure…"
                 />
                 <button type="submit" className="self-start h-9 px-3 rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36]">
                   Enregistrer le bilan
@@ -437,3 +514,28 @@ export default async function MatchDetailPage({
 
 const matchInputClass =
   "h-9 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none w-full focus:border-blue focus:ring-[3px] focus:ring-blue-bg";
+
+function BilanField({
+  name,
+  label,
+  defaultValue,
+  placeholder,
+}: {
+  name: string;
+  label: string;
+  defaultValue: string | null;
+  placeholder: string;
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[11px] font-semibold text-muted">{label}</span>
+      <textarea
+        name={name}
+        defaultValue={defaultValue ?? ""}
+        placeholder={placeholder}
+        rows={2}
+        className="border border-line rounded-md px-2.5 py-2 text-[12.5px] bg-surface outline-none resize-y focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
+      />
+    </label>
+  );
+}

@@ -108,6 +108,21 @@ Espace Parents redesign — one new table, `StaffAnnouncement` (the "Infos"
 tab feed, authored from a new Cockpit page). Purely additive, no existing
 table touched. A real, new change — apply with `prisma migrate deploy`.
 
+## Fifth migration: `20260824090439_v52_match_foundations`
+
+V5.2 Phase 1 (cycle Match complet) — `Match` gains prep fields
+(`mainInstructions`, `preMatchNotes`), tournoi fields (`tournamentRanking`,
+`tournamentTeamsCount`), and a structured bilan (`firstHalfNote`,
+`secondHalfNote`, `positivePoints`, `improvementAreas`, `notableEvents`).
+`objectiveMet` (Boolean) is replaced by `objectiveStatus` (3-state: ATTEINT
+| PARTIEL | NON_ATTEINT) — the migration backfills existing data (`true` →
+`ATTEINT`, `false` → `NON_ATTEINT`) before dropping the old column, so no
+previously-recorded bilan is lost. Applied directly against production via
+the Supabase MCP connector (this session had live DB access for the first
+time) and registered in `_prisma_migrations` — see the connector's
+`apply_migration`/`execute_sql` calls in this session for the exact
+checksum used.
+
 ## Supabase RLS & grants (2026-08-21 hardening)
 
 Every migration up to and including `20260820140000_staff_announcements`
@@ -135,18 +150,25 @@ tables, but there's no reason to keep re-running it):
    ALL ON TABLES FROM anon, authenticated;` so tables created by future
    migrations don't silently regain the old exposure.
 
-**Why this doesn't break Prisma:** the app's Postgres connection uses the
-table-owning role (`postgres`, standard for the Supabase-Vercel
-integration), which bypasses RLS entirely by Postgres design — RLS only
-restricts non-owner, non-`BYPASSRLS` roles. Before running the hardening
-script in production, confirm this holds for this project's actual
-connection role with:
+**Why this doesn't break Prisma:** the app's Postgres connection must use a
+role that bypasses RLS. **This project's actual app role is `app_prisma`**
+(connects via Supavisor — confirmed by querying `pg_stat_activity` while
+the app was live, since the role name isn't visible from the Vercel
+dashboard for a `Sensitive`-flagged env var). It is a dedicated,
+non-superuser role and, at the time RLS was first enabled, did **not**
+have `BYPASSRLS` — enabling RLS with no policies broke every DB read
+(`prisma.user.findUnique` returned nothing, so staff logins failed with
+"identifiant/mot de passe incorrect") until this was run:
 ```sql
-SELECT tableowner FROM pg_tables WHERE schemaname = 'public' AND tablename = 'User';
-SELECT rolname, rolbypassrls, rolsuper FROM pg_roles WHERE rolname = 'postgres';
+ALTER ROLE app_prisma BYPASSRLS;
 ```
-If the app's `DATABASE_URL`/`POSTGRES_PRISMA_URL` role matches the table
-owner (or has `rolbypassrls = true`), the script is safe to run as-is.
+Before touching RLS on any table again, confirm the app's actual role and
+its `BYPASSRLS` status — don't assume it's `postgres`:
+```sql
+SELECT usename, application_name, count(*) FROM pg_stat_activity
+WHERE datname = current_database() GROUP BY usename, application_name;
+SELECT rolname, rolbypassrls, rolsuper FROM pg_roles WHERE rolname = 'app_prisma';
+```
 
 ## From now on: applying a new migration
 

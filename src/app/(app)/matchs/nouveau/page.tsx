@@ -36,9 +36,11 @@ export default async function NouveauMatchPage() {
             <Field label="Compétition">
               <select name="competition" defaultValue="Championnat" className={inputClass}>
                 <option value="Championnat">Championnat</option>
-                <option value="Plateau">Plateau</option>
                 <option value="Amical">Amical</option>
+                <option value="Tournoi">Tournoi</option>
                 <option value="Coupe">Coupe</option>
+                <option value="Plateau">Plateau</option>
+                <option value="Autre">Autre</option>
               </select>
             </Field>
             <Field label="Joueurs requis">

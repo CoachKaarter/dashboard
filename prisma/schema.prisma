@@ -475,7 +475,7 @@ model Match {
   team         Team     @relation(fields: [teamId], references: [id])
   teamId       String
   opponent     String? // null = "adversaire à définir"
-  competition  String // "Championnat" | "Amical" | "Plateau"
+  competition  String // "Championnat" | "Amical" | "Tournoi" | "Coupe" | "Plateau" | "Autre"
   date         DateTime
   time         String? // "10:30"
   meetTime     String? // rendez-vous
@@ -489,8 +489,24 @@ model Match {
   shareToken   String   @unique @default(cuid()) // lien de convocation partageable, sans connexion
 
   preMatchObjective String? // objectif fixé avant le match
-  objectiveMet      Boolean? // atteint ou non — renseigné dans le bilan après match
-  collectiveNote    String? // bilan collectif après match
+  mainInstructions  String? // consignes principales avant-match
+  preMatchNotes     String? // notes libres avant-match
+
+  // Tournoi uniquement (competition = "Tournoi") — score global facultatif,
+  // classement final possible sans score. Restent vides tant que le
+  // tournoi n'est pas terminé.
+  tournamentRanking    Int? // ex: 3
+  tournamentTeamsCount Int? // ex: 16
+
+  // Bilan après-match. objectiveStatus répond à preMatchObjective —
+  // jamais une ressaisie de l'objectif lui-même, seulement son verdict.
+  objectiveStatus  String? // "ATTEINT" | "PARTIEL" | "NON_ATTEINT"
+  collectiveNote   String? // bilan global (texte libre)
+  firstHalfNote    String? // 1ère mi-temps : ce qui a fonctionné / problèmes rencontrés
+  secondHalfNote   String? // 2ème mi-temps : idem
+  positivePoints   String? // points à conserver
+  improvementAreas String? // axes à retravailler — pourra alimenter la préparation des séances
+  notableEvents    String? // faits marquants (texte libre, pas de minute par minute)
 
   convocations       MatchConvocation[]
   slots              CompositionSlot[]

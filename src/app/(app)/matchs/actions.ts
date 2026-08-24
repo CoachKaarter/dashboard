@@ -6,7 +6,16 @@ import { redirect } from "next/navigation";
 import { requireUser, canAccessTeam } from "@/lib/authz";
 import { getSettings } from "@/lib/settings";
 import { logActivity } from "@/lib/activity";
-import { isValidFormation, isValidSlotIndex, scoreSchema, statRowSchema, neededSchema } from "@/lib/match-validation";
+import {
+  isValidFormation,
+  isValidSlotIndex,
+  scoreSchema,
+  statRowSchema,
+  neededSchema,
+  competitionSchema,
+  bilanSchema,
+  tournamentSchema,
+} from "@/lib/match-validation";
 
 function computeMeetTime(time: string | null, delaiRdv: number): string | null {
   if (!time) return null;
@@ -154,33 +163,50 @@ export async function updateStatRow(matchId: string, playerId: string, formData:
 
 export async function updateBilan(matchId: string, formData: FormData) {
   await assertMatchAccess(matchId);
-  const objectiveMetRaw = String(formData.get("objectiveMet") || "");
-  const objectiveMet = objectiveMetRaw === "oui" ? true : objectiveMetRaw === "non" ? false : null;
-  const collectiveNote = String(formData.get("collectiveNote") || "").trim() || null;
-  await prisma.match.update({ where: { id: matchId }, data: { objectiveMet, collectiveNote } });
+  const objectiveStatusRaw = String(formData.get("objectiveStatus") || "");
+  const parsed = bilanSchema.safeParse({
+    objectiveStatus: objectiveStatusRaw || null,
+    collectiveNote: String(formData.get("collectiveNote") || ""),
+    firstHalfNote: String(formData.get("firstHalfNote") || ""),
+    secondHalfNote: String(formData.get("secondHalfNote") || ""),
+    positivePoints: String(formData.get("positivePoints") || ""),
+    improvementAreas: String(formData.get("improvementAreas") || ""),
+    notableEvents: String(formData.get("notableEvents") || ""),
+  });
+  if (!parsed.success) return;
+  await prisma.match.update({ where: { id: matchId }, data: parsed.data });
   revalidatePath(`/matchs/${matchId}`);
 }
 
 export async function updateMatch(matchId: string, formData: FormData) {
   await assertMatchAccess(matchId);
   const opponent = String(formData.get("opponent") || "") || null;
-  const competition = String(formData.get("competition"));
+  const competitionParsed = competitionSchema.safeParse(String(formData.get("competition")));
   const date = new Date(String(formData.get("date")));
   const time = String(formData.get("time") || "") || null;
   const isHome = formData.get("isHome") === "on";
   const location = String(formData.get("location") || "") || null;
   const neededParsed = neededSchema.safeParse(Number(formData.get("needed")));
   const preMatchObjective = String(formData.get("preMatchObjective") || "").trim() || null;
-  if (!competition || Number.isNaN(date.getTime()) || !neededParsed.success) return;
+  const mainInstructions = String(formData.get("mainInstructions") || "").trim() || null;
+  const preMatchNotes = String(formData.get("preMatchNotes") || "").trim() || null;
+  const tournamentRankingRaw = String(formData.get("tournamentRanking") || "").trim();
+  const tournamentTeamsCountRaw = String(formData.get("tournamentTeamsCount") || "").trim();
+  const tournamentParsed = tournamentSchema.safeParse({
+    tournamentRanking: tournamentRankingRaw ? Number(tournamentRankingRaw) : null,
+    tournamentTeamsCount: tournamentTeamsCountRaw ? Number(tournamentTeamsCountRaw) : null,
+  });
+  if (!competitionParsed.success || Number.isNaN(date.getTime()) || !neededParsed.success || !tournamentParsed.success) return;
   const needed = neededParsed.data;
   const settings = await getSettings();
 
   await prisma.match.update({
     where: { id: matchId },
     data: {
-      opponent, competition, date, time,
+      opponent, competition: competitionParsed.data, date, time,
       meetTime: computeMeetTime(time, settings.delaiRdv),
-      isHome, location, needed, preMatchObjective,
+      isHome, location, needed, preMatchObjective, mainInstructions, preMatchNotes,
+      ...tournamentParsed.data,
     },
   });
   revalidatePath(`/matchs/${matchId}`);
@@ -224,19 +250,19 @@ export async function createMatch(formData: FormData) {
   const teamId = String(formData.get("teamId"));
   if (!canAccessTeam(user, teamId)) return;
   const opponent = String(formData.get("opponent") || "") || null;
-  const competition = String(formData.get("competition"));
+  const competitionParsed = competitionSchema.safeParse(String(formData.get("competition")));
   const date = new Date(String(formData.get("date")));
   const time = String(formData.get("time") || "") || null;
   const isHome = formData.get("isHome") === "on";
   const location = String(formData.get("location") || "") || null;
   const neededParsed = neededSchema.safeParse(Number(formData.get("needed")));
-  if (!competition || Number.isNaN(date.getTime()) || !neededParsed.success) return;
+  if (!competitionParsed.success || Number.isNaN(date.getTime()) || !neededParsed.success) return;
   const needed = neededParsed.data;
   const settings = await getSettings();
 
   const match = await prisma.match.create({
     data: {
-      teamId, opponent, competition, date, time,
+      teamId, opponent, competition: competitionParsed.data, date, time,
       meetTime: computeMeetTime(time, settings.delaiRdv),
       isHome, location, needed, status: "Planifié",
     },
