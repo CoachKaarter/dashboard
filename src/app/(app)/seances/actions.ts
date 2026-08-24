@@ -145,6 +145,9 @@ export async function updateSession(sessionId: string, formData: FormData) {
   revalidatePath("/seances");
   revalidatePath("/planning");
   revalidatePath("/");
+  revalidatePath(`/coach/seances/${sessionId}`);
+  revalidatePath("/coach/seances");
+  revalidatePath("/coach");
 }
 
 const RATINGS = ["Très difficile", "Difficile", "Correcte", "Bonne", "Très bonne"];
@@ -191,6 +194,9 @@ export async function cancelSession(sessionId: string) {
   revalidatePath("/seances");
   revalidatePath("/planning");
   revalidatePath("/");
+  revalidatePath(`/coach/seances/${sessionId}`);
+  revalidatePath("/coach/seances");
+  revalidatePath("/coach");
 }
 
 export async function deleteSession(sessionId: string) {
@@ -205,5 +211,8 @@ export async function deleteSession(sessionId: string) {
   revalidatePath("/seances");
   revalidatePath("/planning");
   revalidatePath("/");
+  revalidatePath(`/coach/seances/${sessionId}`);
+  revalidatePath("/coach/seances");
+  revalidatePath("/coach");
   redirect("/seances");
 }
