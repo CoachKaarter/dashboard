@@ -28,4 +28,6 @@ export async function confirmMyConvocation(matchId: string, confirmed: boolean) 
     href: `/matchs/${matchId}`,
   });
   revalidatePath("/parent/planning");
+  revalidatePath("/parent/matchs");
+  revalidatePath("/parent");
 }
