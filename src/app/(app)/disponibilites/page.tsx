@@ -40,7 +40,7 @@ export default async function DisponibilitesPage({
   const proto = hdrs.get("x-forwarded-proto") ?? "https";
   const parentUrl = `${proto}://${host}/parent`;
   const sundayMessage = [
-    "Bonjour à tous 👋",
+    "Bonjour à tous,",
     "",
     "Les pointages de présence de la semaine sont désormais ouverts.",
     "",
@@ -141,7 +141,7 @@ export default async function DisponibilitesPage({
         )}
         {window?.status === "LOCKED" && (
           <>
-            <Badge tone="orange">✅ Clôturé</Badge>
+            <Badge tone="orange">Clôturé</Badge>
             <form action={reopenWindow.bind(null, weekStartIso)}>
               <button type="submit" className="h-9 px-3.5 rounded-md border border-line text-[12.5px] font-semibold text-ink-soft hover:border-ink">
                 Réouvrir exceptionnellement

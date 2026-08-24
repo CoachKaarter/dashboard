@@ -1,4 +1,5 @@
 import { OBJECTIVE_CATEGORY_LABELS, OBJECTIVE_STATUS_LABELS } from "@/lib/constants";
+import { TargetIcon } from "@/components/parent/icons";
 
 const STATUS_STYLE: Record<string, { bg: string; fg: string }> = {
   A_TRAVAILLER: { bg: "#FDF3E4", fg: "#C97A17" },
@@ -22,8 +23,8 @@ export function ObjectiveCard({
   return (
     <div className="px-4 py-3.5 border-t border-[#EFEFEC] first:border-t-0">
       <div className="flex items-start gap-2.5">
-        <span className="text-[18px] leading-none mt-0.5" aria-hidden>
-          🎯
+        <span className="text-[#9A9DA3] mt-0.5 shrink-0" aria-hidden>
+          <TargetIcon size={18} />
         </span>
         <div className="flex-1 min-w-0">
           <div className="text-[14.5px] font-bold">{title}</div>

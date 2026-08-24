@@ -7,6 +7,7 @@ import { TeamChip } from "@/components/ui/TeamChip";
 import { Avatar } from "@/components/ui/Avatar";
 import { formatDateLong, formatDayShort } from "@/lib/format";
 import { requireUser, scopedTeamIds, teamScopeWhere } from "@/lib/authz";
+import { getClub } from "@/lib/club";
 
 const ALERT_HEAD_TONE: Record<string, string> = {
   red: "bg-red-bg text-red",
@@ -32,12 +33,14 @@ export default async function CockpitPage() {
   const scope = scopedTeamIds(user);
   const teamFilter = teamScopeWhere(user);
 
-  const [playerCount, teamCount, alertGroups, dataChecks] = await Promise.all([
+  const [playerCount, teamCount, alertGroups, dataChecks, club] = await Promise.all([
     prisma.player.count({ where: { archived: false, ...teamFilter } }),
     scope === "ALL" ? prisma.team.count() : Promise.resolve(scope.length),
     getAlertGroups(scope),
     getDataChecks(scope),
+    getClub(),
   ]);
+  const clubUnconfigured = user.role === "ADMIN" && club.name === "Mon club" && !club.hasLogo;
 
   const upcomingMatches = await prisma.match.findMany({
     where: { status: "Planifié", ...teamFilter },
@@ -109,6 +112,17 @@ export default async function CockpitPage() {
 
   return (
     <div className="max-w-[1560px] mx-auto animate-fadein">
+      {clubUnconfigured && (
+        <div className="flex items-center gap-3 mb-3.5 px-3.5 h-11 rounded-lg border border-club-primary/25 bg-club-primary-bg text-[12.5px]">
+          <span className="flex-1">
+            <span className="font-semibold">Identité du club pas encore configurée.</span> Ajoute le nom, le logo et les couleurs du club pour
+            personnaliser le Cockpit, l&apos;Espace Coach et l&apos;Espace Parents.
+          </span>
+          <Link href="/parametres" className="shrink-0 text-club-primary font-semibold hover:underline">
+            Configurer →
+          </Link>
+        </div>
+      )}
       <div className="flex items-end justify-between gap-5 mb-[18px] flex-wrap">
         <div>
           <div className="text-2xl font-bold tracking-[-0.02em]">Bonjour {user.name.split(" ")[0]}</div>
