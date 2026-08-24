@@ -29,8 +29,32 @@
   --color-neutral-badge: #6e7178;
   --color-neutral-badge-bg: #f1f1ee;
 
+  /* Club branding — backed by CSS custom properties injected at runtime by
+     the root layout (src/app/layout.tsx) from the Club settings row, never
+     baked in at build time. Consumed as accent only: nav active states,
+     primary buttons — not a general-purpose recolor of the app. */
+  --color-club-primary: var(--club-primary);
+  --color-club-primary-foreground: var(--club-primary-foreground);
+  --color-club-primary-bg: color-mix(in srgb, var(--club-primary) 12%, white);
+  --color-club-secondary: var(--club-secondary);
+  --color-club-secondary-foreground: var(--club-secondary-foreground);
+  --color-club-accent: var(--club-accent);
+  --color-club-accent-foreground: var(--club-accent-foreground);
+
   --font-sans: var(--font-archivo), Helvetica, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+}
+
+/* Fallback so bg-club-* / text-club-* never resolve to nothing if some page
+   ever renders outside the root layout's injected <style> (e.g. an error
+   boundary) — mirrors src/lib/club.ts's own FALLBACK defaults. */
+:root {
+  --club-primary: #3f8f5b;
+  --club-primary-foreground: #ffffff;
+  --club-secondary: #3c6e9f;
+  --club-secondary-foreground: #ffffff;
+  --club-accent: #c97a17;
+  --club-accent-foreground: #ffffff;
 }
 
 html,

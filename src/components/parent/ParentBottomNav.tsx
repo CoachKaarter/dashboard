@@ -29,12 +29,12 @@ export function ParentBottomNav() {
             >
               <span
                 className={`w-8 h-6 rounded-full flex items-center justify-center transition-all duration-150 ${
-                  active ? "bg-green-bg text-green scale-105" : "text-[#9A9DA3] scale-100"
+                  active ? "bg-club-primary-bg text-club-primary scale-105" : "text-[#9A9DA3] scale-100"
                 }`}
               >
                 <item.Icon size={17} />
               </span>
-              <span className={`text-[9.5px] font-semibold transition-colors duration-150 ${active ? "text-green" : "text-[#9A9DA3]"}`}>
+              <span className={`text-[9.5px] font-semibold transition-colors duration-150 ${active ? "text-club-primary" : "text-[#9A9DA3]"}`}>
                 {item.label}
               </span>
             </Link>

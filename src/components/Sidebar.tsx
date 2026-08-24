@@ -1,12 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { getAlertGroups } from "@/lib/alerts";
+import { getClub } from "@/lib/club";
 import { NavLink } from "@/components/NavLink";
 import { auth } from "@/auth";
 import { signOutAction } from "@/lib/actions/auth";
 
 export async function Sidebar() {
-  const session = await auth();
-  const [playerCount, upcomingMatches, alertGroups] = await Promise.all([
+  const [session, club, playerCount, upcomingMatches, alertGroups] = await Promise.all([
+    auth(),
+    getClub(),
     prisma.player.count(),
     prisma.match.count({ where: { status: "Planifié" } }),
     getAlertGroups(),
@@ -46,10 +48,15 @@ export async function Sidebar() {
   return (
     <nav className="no-print w-[214px] shrink-0 bg-sidebar text-sidebar-text flex flex-col p-2.5 overflow-y-auto">
       <div className="flex items-center gap-2.5 px-2 pb-4 pt-1.5">
-        <div className="w-[22px] h-[22px] rounded-[5px] bg-green shrink-0" />
+        {club.hasLogo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={`/api/club/logo?v=${club.logoVersion}`} alt="" className="w-[22px] h-[22px] rounded-[5px] object-contain shrink-0" />
+        ) : (
+          <div className="w-[22px] h-[22px] rounded-[5px] bg-club-primary shrink-0" />
+        )}
         <div>
           <div className="text-white font-bold text-xs tracking-[0.04em]">U12 / U13</div>
-          <div className="text-[10px] text-muted tracking-[0.06em]">SAINT-SÉBASTIEN FC</div>
+          <div className="text-[10px] text-muted tracking-[0.06em] truncate max-w-[150px]">{club.name.toUpperCase()}</div>
         </div>
       </div>
 

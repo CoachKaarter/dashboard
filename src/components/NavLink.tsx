@@ -26,7 +26,7 @@ export function NavLink({
       }`}
     >
       <span
-        className={`w-1 h-1 rounded-full shrink-0 transition-all duration-150 ${active ? "bg-green scale-125" : "bg-white/15 scale-100"}`}
+        className={`w-1 h-1 rounded-full shrink-0 transition-all duration-150 ${active ? "bg-club-primary scale-125" : "bg-white/15 scale-100"}`}
       />
       <span className="flex-1 text-left truncate">{label}</span>
       {badge !== undefined && badge !== "" && (

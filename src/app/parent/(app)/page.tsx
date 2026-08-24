@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireParentReady } from "@/lib/parent-guard";
+import { getClub } from "@/lib/club";
 import { prisma } from "@/lib/prisma";
 import { getWeekStart, getWeekendDate, getWindowForWeek, getPlayerWeekSessions } from "@/lib/availability";
 import { isPreOpen, isPostOpen } from "@/lib/session-feedback";
@@ -35,7 +36,8 @@ export default async function ParentAccueilPage() {
   const weekend = getWeekendDate(weekStart);
   const weekStartIso = weekStart.toISOString();
 
-  const [window, { player, sessions }, answers, weekendConvocation, categoryHasWeekendMatch, weekendAssignment, weekendPlan, announcementsPreview] = await Promise.all([
+  const [club, window, { player, sessions }, answers, weekendConvocation, categoryHasWeekendMatch, weekendAssignment, weekendPlan, announcementsPreview] = await Promise.all([
+    getClub(),
     getWindowForWeek(weekStart),
     getPlayerWeekSessions(parent.playerId, weekStart),
     prisma.playerAvailability.findMany({ where: { playerId: parent.playerId, weekStartDate: weekStart } }),
@@ -121,6 +123,7 @@ export default async function ParentAccueilPage() {
         firstName={player.firstName}
         category={player.team.category}
         subtitle={`Semaine du ${weekStart.getDate()} au ${weekEndLabel(weekStart)}`}
+        clubName={club.name}
       />
 
       {isBeforeOpen && (
