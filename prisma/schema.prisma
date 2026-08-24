@@ -852,3 +852,22 @@ model Settings {
   minMinutes     Int @default(30)
   delaiRdv       Int @default(60) // minutes before kickoff
 }
+
+// ---------- Club (single row: identité visuelle) ----------
+// Le logo est stocké en base (Bytes) plutôt que sur un service externe :
+// aucune solution de stockage n'existait déjà dans le projet, et un logo de
+// club (quelques centaines de Ko) ne justifie pas d'introduire une nouvelle
+// dépendance/service pour ce seul usage. Servi par /api/club/logo.
+// Les couleurs par défaut reprennent l'identité actuelle de l'app (vert,
+// bleu, orange) — un club qui n'a rien configuré ne voit aucune différence.
+model Club {
+  id             Int      @id @default(1)
+  name           String   @default("Mon club")
+  shortName      String?
+  logoData       Bytes?
+  logoMimeType   String?
+  primaryColor   String   @default("#3F8F5B")
+  secondaryColor String   @default("#3C6E9F")
+  accentColor    String   @default("#C97A17")
+  updatedAt      DateTime @updatedAt
+}

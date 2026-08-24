@@ -1,16 +1,19 @@
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
+import { getClub } from "@/lib/club";
 import { requireAdmin } from "@/lib/authz";
 import { NumField } from "@/components/ui/NumField";
+import { ColorField } from "@/components/ui/ColorField";
 import { Badge } from "@/components/ui/Badge";
 import { formatDateFull } from "@/lib/format";
-import { updateSettings, createSeason, setCurrentSeason } from "./actions";
+import { updateSettings, createSeason, setCurrentSeason, updateClub } from "./actions";
 
 export default async function ParametresPage() {
-  const [settings, admin, seasons] = await Promise.all([
+  const [settings, admin, seasons, club] = await Promise.all([
     getSettings(),
     requireAdmin(),
     prisma.season.findMany({ orderBy: { startDate: "desc" } }),
+    getClub(),
   ]);
   const currentSeason = seasons.find((s) => s.isCurrent) ?? seasons[0] ?? null;
 
@@ -41,7 +44,7 @@ export default async function ParametresPage() {
             currentSeason?.label ?? "non définie",
             currentSeason ? `du ${formatDateFull(currentSeason.startDate)} au ${formatDateFull(currentSeason.endDate)}` : "à créer ci-dessous",
           ],
-          ["Club", "Saint-Sébastien FC", "catégorie U12 / U13"],
+          ["Club", club.shortName ? `${club.name} (${club.shortName})` : club.name, "catégorie U12 / U13"],
           ["Responsable", admin.name, "accès complet"],
         ].map(([label, value, hint]) => (
           <div key={label} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3.5 items-center px-3.5 py-[10px] border-b border-line-soft-2 last:border-b-0">
@@ -52,6 +55,62 @@ export default async function ParametresPage() {
             <div className="h-[30px] flex items-center justify-end font-mono text-[12.5px] text-ink-soft whitespace-nowrap">{value}</div>
           </div>
         ))}
+      </section>
+
+      <section className="bg-surface border border-line rounded-lg overflow-hidden">
+        <div className="px-3.5 py-[11px] border-b border-line-soft text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Identité visuelle</div>
+        <form action={updateClub} className="p-3.5 flex flex-col gap-3.5">
+          <div className="flex items-center gap-3.5">
+            <div className="w-16 h-16 rounded-lg border border-line bg-[#FAFAF8] flex items-center justify-center overflow-hidden shrink-0">
+              {club.hasLogo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={`/api/club/logo?v=${club.logoVersion}`} alt="" className="w-full h-full object-contain" />
+              ) : (
+                <span className="text-[10px] text-muted-2 text-center px-1">Aucun logo</span>
+              )}
+            </div>
+            <div className="flex-1 flex flex-col gap-1.5">
+              <label className="text-[11px] font-semibold text-muted">Logo (PNG, JPEG ou WebP, 2 Mo max)</label>
+              <input type="file" name="logo" accept="image/png,image/jpeg,image/webp" className="text-[12px]" />
+              {club.hasLogo && (
+                <label className="flex items-center gap-1.5 text-[11.5px] text-muted">
+                  <input type="checkbox" name="removeLogo" value="1" className="w-3.5 h-3.5" /> Retirer le logo actuel
+                </label>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            <label className="flex flex-col gap-1">
+              <span className="text-[10.5px] text-muted">Nom du club</span>
+              <input
+                name="name"
+                defaultValue={club.name}
+                required
+                className="h-9 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[10.5px] text-muted">Nom court</span>
+              <input
+                name="shortName"
+                defaultValue={club.shortName ?? ""}
+                placeholder="SSFC"
+                className="h-9 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
+              />
+            </label>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2.5">
+            <ColorField name="primaryColor" label="Couleur principale" defaultValue={club.primaryColor} />
+            <ColorField name="secondaryColor" label="Couleur secondaire" defaultValue={club.secondaryColor} />
+            <ColorField name="accentColor" label="Couleur d'accent" defaultValue={club.accentColor} />
+          </div>
+
+          <button type="submit" className="self-start h-9 px-4 rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36]">
+            Enregistrer l&apos;identité visuelle
+          </button>
+        </form>
       </section>
 
       <form action={updateSettings} className="flex flex-col gap-3.5">
