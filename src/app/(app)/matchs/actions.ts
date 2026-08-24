@@ -20,25 +20,28 @@ async function assertMatchAccess(matchId: string) {
   const user = await requireUser();
   const match = await prisma.match.findUniqueOrThrow({
     where: { id: matchId },
-    select: { teamId: true, formation: true, team: { select: { format: true } } },
+    select: { teamId: true, formation: true, team: { select: { format: true, category: true } } },
   });
   if (!canAccessTeam(user, match.teamId)) throw new Error("Accès refusé.");
   return { user, match };
 }
 
-// A player can only ever be convoked/placed/rated on THEIR OWN team's
-// matches — without this, a coach authorized on team A could pass any
-// playerId (including a player from an unrelated team B they have no
-// authorization over) into these actions, since none of the writes below
-// otherwise check where the player actually plays.
-async function assertPlayerOnMatchTeam(teamId: string, playerId: string) {
-  const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId }, select: { teamId: true } });
-  if (player.teamId !== teamId) throw new Error("Ce joueur ne fait pas partie de l'effectif de ce match.");
+// Scoped by CATEGORY (U12/U13), not by the player's own administrative
+// team — the week-end répartition (WeekendAssignment) routinely moves a
+// player to a different team within their category (e.g. a U13A player
+// covering for U13B on a given Saturday), and once convoked there they
+// must work normally in that match's fiche (V5.2 §2). What this still
+// blocks is the real hole: a player from an unrelated category (or an
+// unrelated club roster) being convoked/placed/rated on a match they have
+// no business being in.
+async function assertPlayerOnMatchTeam(category: string, playerId: string) {
+  const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId }, select: { team: { select: { category: true } } } });
+  if (player.team.category !== category) throw new Error("Ce joueur ne fait pas partie de la catégorie de ce match.");
 }
 
 export async function toggleConvocation(matchId: string, playerId: string) {
   const { match } = await assertMatchAccess(matchId);
-  await assertPlayerOnMatchTeam(match.teamId, playerId);
+  await assertPlayerOnMatchTeam(match.team.category, playerId);
   const existing = await prisma.matchConvocation.findUnique({
     where: { matchId_playerId: { matchId, playerId } },
   });
@@ -56,7 +59,7 @@ export async function toggleConvocation(matchId: string, playerId: string) {
 
 export async function assignSlot(matchId: string, slotIndex: number, playerId: string) {
   const { match } = await assertMatchAccess(matchId);
-  await assertPlayerOnMatchTeam(match.teamId, playerId);
+  await assertPlayerOnMatchTeam(match.team.category, playerId);
   if (!isValidSlotIndex(match.formation, slotIndex)) throw new Error("Position invalide pour cette formation.");
   const convoked = await prisma.matchConvocation.findUnique({ where: { matchId_playerId: { matchId, playerId } } });
   if (!convoked) throw new Error("Le joueur doit être convoqué avant d'être placé dans la composition.");
@@ -132,7 +135,7 @@ export async function generateFeuille(matchId: string) {
 
 export async function updateStatRow(matchId: string, playerId: string, formData: FormData) {
   const { match } = await assertMatchAccess(matchId);
-  await assertPlayerOnMatchTeam(match.teamId, playerId);
+  await assertPlayerOnMatchTeam(match.team.category, playerId);
   const noteRaw = formData.get("note");
   const parsed = statRowSchema.safeParse({
     minutes: Number(formData.get("minutes")),
