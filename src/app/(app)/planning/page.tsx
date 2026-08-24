@@ -146,14 +146,14 @@ async function WeekView({
                     <Link
                       key={e.id}
                       href={e.href}
-                      className="rounded-md px-2.5 py-[7px] cursor-pointer block"
+                      className={`rounded-md px-2.5 py-[7px] cursor-pointer block ${e.cancelled ? "opacity-60" : ""}`}
                       style={{ borderLeft: `3px solid ${c.fg}`, background: c.bg }}
                     >
                       <div className="font-mono text-[10.5px] text-ink-soft">
                         {e.start}
                         {e.end && ` › ${e.end}`}
                       </div>
-                      <div className="text-xs font-semibold mt-0.5">{e.title}</div>
+                      <div className={`text-xs font-semibold mt-0.5 ${e.cancelled ? "line-through" : ""}`}>{e.title}</div>
                       <div className="text-[11px] text-muted mt-0.5">{e.lieu}</div>
                       <div className="mt-[5px]">
                         <TeamChip code={e.team} />
@@ -238,7 +238,7 @@ async function MonthView({
                     <Link
                       key={e.id}
                       href={e.href}
-                      className="block text-[10.5px] font-semibold px-1.5 py-0.5 rounded mb-[3px] truncate"
+                      className={`block text-[10.5px] font-semibold px-1.5 py-0.5 rounded mb-[3px] truncate ${e.cancelled ? "line-through opacity-60" : ""}`}
                       style={{ color: c.fg, background: c.bg }}
                     >
                       {e.title}
@@ -271,7 +271,7 @@ async function AgendaView({ team, today, allowed }: { team: string; today: Date;
           <Link
             key={e.id}
             href={e.href}
-            className="grid grid-cols-[150px_120px_minmax(0,1fr)_200px_80px] gap-3 items-center px-3.5 py-[11px] border-b border-line-soft-2 last:border-b-0 text-[12.5px] hover:bg-bg/60"
+            className={`grid grid-cols-[150px_120px_minmax(0,1fr)_200px_80px] gap-3 items-center px-3.5 py-[11px] border-b border-line-soft-2 last:border-b-0 text-[12.5px] hover:bg-bg/60 ${e.cancelled ? "opacity-60" : ""}`}
           >
             <div className="text-muted">
               {DAY_NAMES[(e.date.getDay() + 6) % 7]} {e.date.getDate()} {MONTH_NAMES[e.date.getMonth()].slice(0, 4)}.
@@ -282,7 +282,7 @@ async function AgendaView({ team, today, allowed }: { team: string; today: Date;
             </div>
             <div className="flex items-center gap-2.5">
               <span className="w-[7px] h-[7px] rounded-full shrink-0" style={{ background: c.fg }} />
-              <span className="font-semibold">{e.title}</span>
+              <span className={`font-semibold ${e.cancelled ? "line-through" : ""}`}>{e.title}</span>
             </div>
             <div className="text-muted truncate">{e.lieu}</div>
             <div>

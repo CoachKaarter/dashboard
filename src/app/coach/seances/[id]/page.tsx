@@ -32,7 +32,7 @@ export default async function CoachSeanceDetailPage({
 
   const user = await requireUser();
   const session = await prisma.trainingSession.findUnique({ where: { id }, include: { scopeTeam: true } });
-  if (!session) notFound();
+  if (!session || session.deletedAt) notFound();
   if (!(await canAccessSession(user, session))) notFound();
 
   const [players, availabilities, blocks] = await Promise.all([

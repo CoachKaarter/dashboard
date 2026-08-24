@@ -13,6 +13,7 @@ export default async function SeancesPage() {
   const scope = scopedTeamIds(user);
   await ensureUpcomingSessions();
   const allSessions = await prisma.trainingSession.findMany({
+    where: { deletedAt: null },
     include: { scopeTeam: true, _count: { select: { attendances: true } } },
     orderBy: { date: "asc" },
   });

@@ -207,9 +207,11 @@ export async function deleteSession(sessionId: string) {
   // (date, category, scopeTeam, startTime) — it has no memory of a row that
   // used to exist. So hard-deleting a session that matches an active
   // RecurringSlot gets it silently recreated the next time /seances loads.
-  // Cancelling instead keeps the row (the generator skips it, exactly like
-  // any other manually-cancelled "exception") while still taking it out of
-  // active use.
+  // Soft-deleting (deletedAt) instead keeps the row for that check — the
+  // generator still sees it and skips regenerating it — while every display
+  // query filters deletedAt: null, so it disappears from view exactly like a
+  // real delete everywhere a person actually looks (Planning, séances list,
+  // coach app).
   const regeneratedByTemplate = await prisma.recurringSlot.findFirst({
     where: {
       active: true,
@@ -221,10 +223,10 @@ export async function deleteSession(sessionId: string) {
   });
 
   if (regeneratedByTemplate) {
-    await prisma.trainingSession.update({ where: { id: sessionId }, data: { status: "Annulée" } });
+    await prisma.trainingSession.update({ where: { id: sessionId }, data: { status: "Annulée", deletedAt: new Date() } });
     await logActivity({
       actorId: user.id,
-      summary: `a annulé la séance ${session.category} du ${session.date.toLocaleDateString("fr-FR")} (suppression impossible : modèle récurrent actif, elle serait réapparue)`,
+      summary: `a supprimé la séance ${session.category} du ${session.date.toLocaleDateString("fr-FR")} (conservée en interne pour éviter sa régénération par le modèle récurrent actif)`,
       entityType: "TrainingSession",
       entityId: sessionId,
     });
@@ -235,7 +237,7 @@ export async function deleteSession(sessionId: string) {
     revalidatePath(`/coach/seances/${sessionId}`);
     revalidatePath("/coach/seances");
     revalidatePath("/coach");
-    redirect(`/seances/${sessionId}`);
+    redirect("/seances");
   }
 
   await prisma.trainingSession.delete({ where: { id: sessionId } });

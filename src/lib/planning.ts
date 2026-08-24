@@ -10,6 +10,7 @@ export type PlanEvent = {
   lieu: string;
   team: string;
   href: string;
+  cancelled: boolean;
 };
 
 export const KIND_COLOR: Record<PlanEvent["kind"], { fg: string; bg: string }> = {
@@ -37,7 +38,7 @@ export async function getPlanEvents(
     allowedTeamCodes.some((c) => eTeam === c || eTeam.startsWith(c) || c.startsWith(eTeam));
 
   const [sessions, matches, calEvents] = await Promise.all([
-    prisma.trainingSession.findMany({ where: { date: { gte: from, lt: to } }, include: { scopeTeam: true } }),
+    prisma.trainingSession.findMany({ where: { date: { gte: from, lt: to }, deletedAt: null }, include: { scopeTeam: true } }),
     prisma.match.findMany({ where: { date: { gte: from, lt: to } }, include: { team: true } }),
     prisma.calendarEvent.findMany({ where: { date: { gte: from, lt: to } }, include: { team: true } }),
   ]);
@@ -49,6 +50,7 @@ export async function getPlanEvents(
     events.push({
       id: `s-${s.id}`, kind: "seance", date: s.date, start: s.startTime, end: s.endTime,
       title: `${eTeam} — ${s.label}`, lieu: s.location, team: eTeam, href: `/seances/${s.id}`,
+      cancelled: s.status === "Annulée",
     });
   }
   for (const m of matches) {
@@ -56,6 +58,7 @@ export async function getPlanEvents(
     events.push({
       id: `m-${m.id}`, kind: "match", date: m.date, start: m.time ?? "—", end: "",
       title: m.opponent ?? "Match à programmer", lieu: m.location ?? "lieu à définir", team: m.team.code, href: `/matchs/${m.id}`,
+      cancelled: m.status === "Annulé",
     });
   }
   for (const e of calEvents) {
@@ -64,6 +67,7 @@ export async function getPlanEvents(
     events.push({
       id: `c-${e.id}`, kind: e.kind as PlanEvent["kind"], date: e.date, start: e.startTime, end: e.endTime,
       title: e.title, lieu: e.location ?? "lieu à définir", team: eTeam, href: `/planning/${e.id}`,
+      cancelled: false,
     });
   }
   return events.sort((a, b) => a.date.getTime() - b.date.getTime() || a.start.localeCompare(b.start));

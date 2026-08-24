@@ -31,7 +31,7 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const user = await requireUser();
   const session = await prisma.trainingSession.findUnique({ where: { id }, include: { scopeTeam: true } });
-  if (!session) notFound();
+  if (!session || session.deletedAt) notFound();
   if (!(await canAccessSession(user, session))) notFound();
 
   const [players, blocks] = await Promise.all([
@@ -52,19 +52,6 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
       pointed++;
     }
   }
-  const recurringConflict =
-    session.status !== "Annulée"
-      ? await prisma.recurringSlot.findFirst({
-          where: {
-            active: true,
-            category: session.category,
-            scopeTeamId: session.scopeTeamId,
-            weekday: session.date.getDay(),
-            startTime: session.startTime,
-          },
-        })
-      : null;
-
   const label = session.scopeTeam ? session.scopeTeam.code : session.category;
   const dayLabel = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"][session.date.getDay()];
   const today = new Date();
@@ -176,13 +163,6 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
                 Supprimer définitivement
               </button>
             </form>
-            {recurringConflict && (
-              <span className="text-[11.5px] text-muted-2">
-                Séance issue d&apos;un modèle récurrent actif ({recurringConflict.label}) : « Supprimer » l&apos;annulera au lieu de l&apos;effacer,
-                pour qu&apos;elle ne soit pas régénérée automatiquement. Pour ne plus jamais avoir de séance à ce créneau, désactivez le modèle dans
-                Planning.
-              </span>
-            )}
           </div>
         </div>
       </details>

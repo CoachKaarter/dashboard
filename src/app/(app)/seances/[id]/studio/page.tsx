@@ -9,7 +9,7 @@ export default async function SessionStudioPage({ params }: { params: Promise<{ 
   const { id } = await params;
   const user = await requireUser();
   const session = await prisma.trainingSession.findUnique({ where: { id }, include: { scopeTeam: true } });
-  if (!session) notFound();
+  if (!session || session.deletedAt) notFound();
   if (!(await canAccessSession(user, session))) notFound();
 
   const scopeWhere = user.role === "ADMIN" ? {} : { OR: [{ visibility: "SHARED" as const }, { createdById: user.id }] };

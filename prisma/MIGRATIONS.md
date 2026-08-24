@@ -123,6 +123,21 @@ time) and registered in `_prisma_migrations` — see the connector's
 `apply_migration`/`execute_sql` calls in this session for the exact
 checksum used.
 
+## `20260824125358_trainingsession_soft_delete`
+
+`TrainingSession` gains `deletedAt DateTime?`. Fixes a real bug: `ensureUpcomingSessions()`
+(`src/lib/recurring.ts`) decides whether a session was already generated purely by
+checking whether a row exists for that (date, category, scopeTeam, startTime) — it has
+no memory of a row that used to exist. Hard-deleting a session matching an active
+`RecurringSlot` therefore got it silently recreated the next time `/seances` loaded.
+`deleteSession()` now soft-deletes (`deletedAt` + `status: "Annulée"`) in that specific
+case instead of a real `delete()` — the row still exists so the generator skips it, but
+every display query (`/seances`, `/planning` via `src/lib/planning.ts`, `/coach/seances/[id]`,
+parent planning, global search) filters `deletedAt: null`, so it's gone from view exactly
+like a real delete everywhere a person looks. `ensureUpcomingSessions()` deliberately does
+NOT filter by `deletedAt` — it must still see these rows to keep skipping them. Applied
+directly via the Supabase MCP connector and registered in `_prisma_migrations`.
+
 ## Supabase RLS & grants (2026-08-21 hardening)
 
 Every migration up to and including `20260820140000_staff_announcements`

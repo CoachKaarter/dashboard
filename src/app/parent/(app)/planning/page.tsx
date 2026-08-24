@@ -54,6 +54,7 @@ export default async function ParentPlanningPage({ searchParams }: { searchParam
     prisma.trainingSession.findMany({
       where: {
         date: { gte: monthStart, lt: monthEnd },
+        deletedAt: null,
         OR: [{ scopeTeamId: player.teamId }, { scopeTeamId: null, category: player.team.category }],
       },
       orderBy: { date: "asc" },

@@ -15,7 +15,7 @@ export default async function ProcedeDetailPage({
   const { id, blockId } = await params;
   const user = await requireUser();
   const session = await prisma.trainingSession.findUnique({ where: { id } });
-  if (!session) notFound();
+  if (!session || session.deletedAt) notFound();
   if (!(await canAccessSession(user, session))) notFound();
 
   const blocks = await prisma.sessionBlock.findMany({ where: { sessionId: id }, orderBy: { order: "asc" } });

@@ -27,7 +27,10 @@ export async function GET(req: NextRequest) {
       take: 6,
     }),
     prisma.trainingSession.findMany({
-      where: { OR: [{ label: { contains: q, mode: "insensitive" } }, { location: { contains: q, mode: "insensitive" } }] },
+      where: {
+        deletedAt: null,
+        OR: [{ label: { contains: q, mode: "insensitive" } }, { location: { contains: q, mode: "insensitive" } }],
+      },
       include: { scopeTeam: true },
       orderBy: { date: "desc" },
       take: 6,

@@ -282,6 +282,14 @@ model TrainingSession {
   sourceSlot   RecurringSlot? @relation(fields: [sourceSlotId], references: [id])
   sourceSlotId String?
 
+  // Soft-delete marker, set only when deleteSession() can't hard-delete a row
+  // that matches an active RecurringSlot (see src/lib/recurring.ts —
+  // ensureUpcomingSessions() decides "already generated" purely from row
+  // existence, so a real delete would get it silently recreated). Every
+  // display query must filter deletedAt: null; ensureUpcomingSessions()
+  // deliberately does NOT, so it still sees — and skips — this row.
+  deletedAt DateTime?
+
   attendances     Attendance[]
   availabilities  PlayerAvailability[]
   sessionFeedback SessionFeedback[]
