@@ -112,16 +112,21 @@ export async function generateFeuille(matchId: string) {
   await assertMatchAccess(matchId);
   const match = await prisma.match.findUniqueOrThrow({
     where: { id: matchId },
-    include: { convocations: true, slots: true },
+    include: { convocations: { include: { player: true } }, slots: true },
   });
   const placedIds = new Set(match.slots.map((s) => s.playerId));
-  const bench = match.convocations.map((c) => c.playerId).filter((id) => !placedIds.has(id));
+  const bench = match.convocations.filter((c) => !placedIds.has(c.playerId));
+  const positionByPlayerId = new Map(match.convocations.map((c) => [c.playerId, c.player.position]));
 
   const rows = [
     ...match.slots.sort((a, b) => a.slotIndex - b.slotIndex).map((s) => ({ playerId: s.playerId, role: "Titulaire" })),
-    ...bench.map((playerId) => ({ playerId, role: "Remplaçant" })),
+    ...bench.map((c) => ({ playerId: c.playerId, role: "Remplaçant" })),
   ];
 
+  // plannedRole is only ever set here, at creation, from the composition
+  // as it stands right now — it is never touched again (see model
+  // comment), so it stays "what was actually planned" even after role is
+  // later edited to reflect what really happened on the day (§5).
   await prisma.$transaction(
     rows.map((r) =>
       prisma.matchPlayerStat.upsert({
@@ -130,7 +135,9 @@ export async function generateFeuille(matchId: string) {
         create: {
           matchId,
           playerId: r.playerId,
+          plannedRole: r.role,
           role: r.role,
+          position: positionByPlayerId.get(r.playerId) ?? null,
           minutes: 0, // à confirmer par le coach — la composition ne détermine pas les minutes réelles
           goals: 0,
           assists: 0,
@@ -147,6 +154,8 @@ export async function updateStatRow(matchId: string, playerId: string, formData:
   await assertPlayerOnMatchTeam(match.team.category, playerId);
   const noteRaw = formData.get("note");
   const parsed = statRowSchema.safeParse({
+    role: String(formData.get("role") || ""),
+    position: String(formData.get("position") || "").trim() || null,
     minutes: Number(formData.get("minutes")),
     goals: Number(formData.get("goals")),
     assists: Number(formData.get("assists")),

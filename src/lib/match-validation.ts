@@ -19,7 +19,11 @@ export const scoreSchema = z.object({
   scoreAgainst: z.number().int().min(0).max(50),
 });
 
+export const MATCH_ROLES = ["Titulaire", "Remplaçant"] as const;
+
 export const statRowSchema = z.object({
+  role: z.enum(MATCH_ROLES),
+  position: z.string().trim().max(60).nullable(),
   minutes: z.number().int().min(0).max(120),
   goals: z.number().int().min(0).max(20),
   assists: z.number().int().min(0).max(20),

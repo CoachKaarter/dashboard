@@ -8,10 +8,13 @@ import { TeamChip } from "@/components/ui/TeamChip";
 import { Avatar } from "@/components/ui/Avatar";
 import { CompositionBoard } from "@/components/CompositionBoard";
 import { NumField } from "@/components/ui/NumField";
+import { SelectField } from "@/components/ui/SelectField";
 import { formatDateFull } from "@/lib/format";
 import { requireUser, canAccessTeam } from "@/lib/authz";
 import { computeBench } from "@/lib/composition-pool";
 import { Badge } from "@/components/ui/Badge";
+import { POSITIONS } from "@/lib/constants";
+import { MATCH_ROLES } from "@/lib/match-validation";
 import {
   toggleConvocation,
   recordScore,
@@ -401,42 +404,55 @@ export default async function MatchDetailPage({
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-[minmax(160px,1fr)_100px_90px_64px_60px_64px_64px_minmax(140px,1fr)] gap-2.5 items-center px-3.5 h-[34px] bg-[#FAFAF8] border-b border-line text-[10.5px] font-bold tracking-[0.08em] uppercase text-muted">
+                <div className="grid grid-cols-[minmax(160px,1fr)_130px_120px_64px_60px_64px_64px_minmax(140px,1fr)] gap-2.5 items-center px-3.5 h-[34px] bg-[#FAFAF8] border-b border-line text-[10.5px] font-bold tracking-[0.08em] uppercase text-muted">
                   <div>Joueur</div>
-                  <div>Poste occupé</div>
-                  <div>Statut</div>
+                  <div>Poste joué</div>
+                  <div>Statut réel</div>
                   <div className="text-right">Min.</div>
                   <div className="text-right">Buts</div>
                   <div className="text-right">Passes</div>
                   <div className="text-right">Note</div>
                   <div>Note individuelle</div>
                 </div>
-                {match.stats.map((r) => (
-                  <form
-                    key={r.id}
-                    action={updateStatRow.bind(null, match.id, r.playerId)}
-                    className="grid grid-cols-[minmax(160px,1fr)_100px_90px_64px_60px_64px_64px_minmax(140px,1fr)] gap-2.5 items-center px-3.5 h-11 border-b border-line-soft-2 last:border-b-0 text-[12.5px]"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <Avatar initials={`${r.player.firstName[0]}${r.player.lastName[0]}`} size={24} />
-                      <div className="font-semibold truncate">
-                        {r.player.firstName} {r.player.lastName}
+                {match.stats.map((r) => {
+                  const positionOptions = POSITIONS.includes(r.position ?? "") || !r.position ? POSITIONS : [r.position, ...POSITIONS];
+                  return (
+                    <form
+                      key={r.id}
+                      action={updateStatRow.bind(null, match.id, r.playerId)}
+                      className="grid grid-cols-[minmax(160px,1fr)_130px_120px_64px_60px_64px_64px_minmax(140px,1fr)] gap-2.5 items-center px-3.5 h-11 border-b border-line-soft-2 last:border-b-0 text-[12.5px]"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Avatar initials={`${r.player.firstName[0]}${r.player.lastName[0]}`} size={24} />
+                        <div className="font-semibold truncate">
+                          {r.player.firstName} {r.player.lastName}
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-ink-soft">{r.player.position}</div>
-                    <div className={`text-[11.5px] font-semibold ${r.role === "Titulaire" ? "text-green" : "text-muted"}`}>{r.role}</div>
-                    <NumField name="minutes" defaultValue={r.minutes} />
-                    <NumField name="goals" defaultValue={r.goals} />
-                    <NumField name="assists" defaultValue={r.assists} />
-                    <NumField name="note" defaultValue={r.note ?? ""} step="0.1" />
-                    <input
-                      name="comment"
-                      defaultValue={r.comment ?? ""}
-                      placeholder="—"
-                      className="h-7 min-w-0 border border-line rounded-md px-2 text-[11.5px] bg-surface outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
-                    />
-                  </form>
-                ))}
+                      <SelectField name="position" defaultValue={r.position ?? r.player.position} options={positionOptions} />
+                      <div className="flex flex-col gap-0.5">
+                        <SelectField
+                          name="role"
+                          defaultValue={r.role}
+                          options={MATCH_ROLES}
+                          className={`w-full h-7 border border-line rounded text-[11.5px] font-semibold px-1 outline-none focus:border-blue bg-surface ${
+                            r.role === "Titulaire" ? "text-green" : "text-muted"
+                          }`}
+                        />
+                        {r.plannedRole !== r.role && <span className="text-[10px] text-muted-2">Prévu : {r.plannedRole}</span>}
+                      </div>
+                      <NumField name="minutes" defaultValue={r.minutes} />
+                      <NumField name="goals" defaultValue={r.goals} />
+                      <NumField name="assists" defaultValue={r.assists} />
+                      <NumField name="note" defaultValue={r.note ?? ""} step="0.1" />
+                      <input
+                        name="comment"
+                        defaultValue={r.comment ?? ""}
+                        placeholder="—"
+                        className="h-7 min-w-0 border border-line rounded-md px-2 text-[11.5px] bg-surface outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
+                      />
+                    </form>
+                  );
+                })}
               </>
             )}
           </section>

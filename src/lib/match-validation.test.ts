@@ -29,12 +29,20 @@ test("scoreSchema: rejects negative, non-integer, and absurd scores", () => {
 });
 
 test("statRowSchema: bounds minutes/goals/assists/note", () => {
-  assert.equal(statRowSchema.safeParse({ minutes: 45, goals: 1, assists: 0, note: 7.5, comment: null }).success, true);
-  assert.equal(statRowSchema.safeParse({ minutes: -5, goals: 0, assists: 0, note: null, comment: null }).success, false);
-  assert.equal(statRowSchema.safeParse({ minutes: 200, goals: 0, assists: 0, note: null, comment: null }).success, false);
-  assert.equal(statRowSchema.safeParse({ minutes: 45, goals: -1, assists: 0, note: null, comment: null }).success, false);
-  assert.equal(statRowSchema.safeParse({ minutes: 45, goals: 0, assists: 0, note: 11, comment: null }).success, false);
-  assert.equal(statRowSchema.safeParse({ minutes: 45, goals: 0, assists: 0, note: null, comment: null }).success, true);
+  const base = { role: "Titulaire" as const, position: null, comment: null };
+  assert.equal(statRowSchema.safeParse({ ...base, minutes: 45, goals: 1, assists: 0, note: 7.5 }).success, true);
+  assert.equal(statRowSchema.safeParse({ ...base, minutes: -5, goals: 0, assists: 0, note: null }).success, false);
+  assert.equal(statRowSchema.safeParse({ ...base, minutes: 200, goals: 0, assists: 0, note: null }).success, false);
+  assert.equal(statRowSchema.safeParse({ ...base, minutes: 45, goals: -1, assists: 0, note: null }).success, false);
+  assert.equal(statRowSchema.safeParse({ ...base, minutes: 45, goals: 0, assists: 0, note: 11 }).success, false);
+  assert.equal(statRowSchema.safeParse({ ...base, minutes: 45, goals: 0, assists: 0, note: null }).success, true);
+});
+
+test("statRowSchema: role must be Titulaire or Remplaçant, position is free text", () => {
+  const base = { minutes: 45, goals: 0, assists: 0, note: null, comment: null };
+  assert.equal(statRowSchema.safeParse({ ...base, role: "Titulaire", position: "Défenseur central" }).success, true);
+  assert.equal(statRowSchema.safeParse({ ...base, role: "Remplaçant", position: null }).success, true);
+  assert.equal(statRowSchema.safeParse({ ...base, role: "Capitaine", position: null }).success, false);
 });
 
 test("neededSchema: bounds squad size needed", () => {

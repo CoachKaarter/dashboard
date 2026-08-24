@@ -672,12 +672,20 @@ model MatchPlayerStat {
   matchId  String
   player   Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
   playerId String
-  role     String // "Titulaire" | "Remplaçant"
-  minutes  Int
-  goals    Int     @default(0)
-  assists  Int     @default(0)
-  note     Float?
-  comment  String? // note individuelle qualitative pour ce match
+
+  // Prévu vs réalité (V5.2 §5) : plannedRole est figé au moment où
+  // generateFeuille() crée la ligne, à partir de la composition
+  // (CompositionSlot) — jamais réécrit ensuite, même si role change.
+  // role est la réalité du jour de match, modifiable librement par le
+  // coach (ex. prévu titulaire → finalement resté remplaçant).
+  plannedRole String // "Titulaire" | "Remplaçant"
+  role        String // "Titulaire" | "Remplaçant"
+  position    String? // poste réellement joué ce match-là — distinct de Player.position (poste habituel)
+  minutes     Int
+  goals       Int     @default(0)
+  assists     Int     @default(0)
+  note        Float?
+  comment     String? // note individuelle qualitative pour ce match
 
   @@unique([matchId, playerId])
 }
