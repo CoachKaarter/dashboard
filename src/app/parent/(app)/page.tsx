@@ -35,7 +35,7 @@ export default async function ParentAccueilPage() {
   const weekend = getWeekendDate(weekStart);
   const weekStartIso = weekStart.toISOString();
 
-  const [window, { player, sessions }, answers, weekendConvocation, weekendMatch, weekendAssignment, weekendPlan, announcementsPreview] = await Promise.all([
+  const [window, { player, sessions }, answers, weekendConvocation, categoryHasWeekendMatch, weekendAssignment, weekendPlan, announcementsPreview] = await Promise.all([
     getWindowForWeek(weekStart),
     getPlayerWeekSessions(parent.playerId, weekStart),
     prisma.playerAvailability.findMany({ where: { playerId: parent.playerId, weekStartDate: weekStart } }),
@@ -44,7 +44,16 @@ export default async function ParentAccueilPage() {
     // qui compte devient "je viens / je ne viens pas" à CE match, gérée
     // dans Planning (§18). Réutilise MatchConvocation, rien de nouveau.
     prisma.matchConvocation.findFirst({ where: { playerId: parent.playerId, match: { date: weekend } }, include: { match: { include: { team: true } } } }),
-    prisma.match.findFirst({ where: { teamId: parent.player.teamId, date: weekend, status: { not: "Annulé" } } }),
+    // Existence check ONLY (select id) — jamais Match.teamId /
+    // parent.player.teamId : avant publication de la convocation, on a le
+    // droit de savoir qu'un match a lieu ce week-end pour la catégorie,
+    // jamais dans quelle équipe / contre qui. Ce booléen ne sert qu'à
+    // afficher (ou non) le bloc "Où en est [prénom]" ci-dessous ; aucun
+    // champ de ce match n'est jamais lu ni rendu.
+    prisma.match.findFirst({
+      where: { team: { category: parent.player.teamCategory }, date: weekend, status: { not: "Annulé" } },
+      select: { id: true },
+    }),
     prisma.weekendAssignment.findUnique({ where: { weekendDate_playerId: { weekendDate: weekend, playerId: parent.playerId } } }),
     prisma.weekendPlan.findUnique({ where: { weekStartDate: weekStart } }),
     prisma.staffAnnouncement.findMany({
@@ -74,24 +83,30 @@ export default async function ParentAccueilPage() {
     return (isPreOpen(s) && !fb?.preAnsweredAt) || (isPostOpen(s) && !fb?.postAnsweredAt);
   });
 
-  const weekendSteps = weekendMatch
-    ? computeWeekendTimeline({
-        answered: (weekendAnswer?.status as "AVAILABLE" | "UNAVAILABLE" | undefined) ?? null,
-        selectionStarted: !!weekendAssignment || (weekendPlan ? weekendPlan.status !== "DRAFT" : false),
-        convoked: !!weekendConvocation,
-        convokedTeamCode: weekendConvocation?.match.team.code ?? null,
-      })
-    : null;
+  const weekendSteps =
+    weekendConvocation || categoryHasWeekendMatch
+      ? computeWeekendTimeline({
+          answered: (weekendAnswer?.status as "AVAILABLE" | "UNAVAILABLE" | undefined) ?? null,
+          selectionStarted: !!weekendAssignment || (weekendPlan ? weekendPlan.status !== "DRAFT" : false),
+          convoked: !!weekendConvocation,
+          convokedTeamCode: weekendConvocation?.match.team.code ?? null,
+        })
+      : null;
 
   const upcoming = [
     ...sessions.map((s) => ({ kind: "session" as const, date: s.date, label: "Entraînement", detail: `${s.startTime} · ${s.location}` })),
-    ...(weekendMatch
+    // weekendConvocation.match seulement — jamais une lecture de Match par
+    // Player.teamId : tant que rien n'est publié pour CE joueur, aucun
+    // adversaire/horaire n'apparaît ici.
+    ...(weekendConvocation
       ? [
           {
             kind: "match" as const,
-            date: weekendMatch.date,
-            label: weekendMatch.opponent ?? "Match à définir",
-            detail: `${weekendMatch.time ? `Coup d'envoi ${weekendMatch.time}` : "Horaire à confirmer"}${weekendMatch.isHome ? "" : " · extérieur"}`,
+            date: weekendConvocation.match.date,
+            label: weekendConvocation.match.opponent ?? "Match à définir",
+            detail: `${weekendConvocation.match.time ? `Coup d'envoi ${weekendConvocation.match.time}` : "Horaire à confirmer"}${
+              weekendConvocation.match.isHome ? "" : " · extérieur"
+            }`,
           },
         ]
       : []),
