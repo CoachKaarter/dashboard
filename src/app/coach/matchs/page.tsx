@@ -76,7 +76,7 @@ function MatchCard({
   const confirmed = m.convocations.filter((c) => c.confirmed === true).length;
   return (
     <Link
-      href={`/matchs/${m.id}`}
+      href={`/coach/matchs/${m.id}`}
       className="bg-white rounded-2xl border border-[#E7E7E2] p-4 flex items-center gap-3 active:bg-[#FAFAF8] transition-colors duration-100"
     >
       <div className="w-11 text-center shrink-0">
