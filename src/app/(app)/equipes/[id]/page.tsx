@@ -5,15 +5,41 @@ import { requireUser, canAccessTeam } from "@/lib/authz";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
+import { FilterChip } from "@/components/ui/FilterChip";
 import { POSITIONS } from "@/lib/constants";
 import { formatDateFull } from "@/lib/format";
+import { toQueryString } from "@/lib/query";
+import { computeTeamStats, computeForm } from "@/lib/team-stats";
+import { COMPETITION_TYPES } from "@/lib/match-validation";
 import { updateTeamTarget, updateTeamFormat, updateTeamCoach } from "../actions";
 
 const inputClass =
   "h-9 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg";
 
-export default async function EquipeDetailPage({ params }: { params: Promise<{ id: string }> }) {
+const PERIODS = [
+  { key: "saison", label: "Saison" },
+  { key: "mois", label: "Ce mois-ci" },
+  { key: "5", label: "5 derniers matchs" },
+  { key: "10", label: "10 derniers matchs" },
+];
+
+const LIEUX = [
+  { key: "domicile", label: "Domicile" },
+  { key: "exterieur", label: "Extérieur" },
+];
+
+const FORM_TONE: Record<string, string> = { GAGNE: "bg-green text-white", NUL: "bg-neutral-badge text-ink-soft", PERDU: "bg-red text-white" };
+const FORM_LETTER: Record<string, string> = { GAGNE: "V", NUL: "N", PERDU: "D" };
+
+export default async function EquipeDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ periode?: string; competition?: string; lieu?: string }>;
+}) {
   const { id } = await params;
+  const sp = await searchParams;
   const user = await requireUser();
   if (!canAccessTeam(user, id)) notFound();
 
@@ -25,6 +51,34 @@ export default async function EquipeDetailPage({ params }: { params: Promise<{ i
     },
   });
   if (!team) notFound();
+
+  const periode = PERIODS.some((p) => p.key === sp.periode) ? sp.periode! : "saison";
+  const competitionFilter = COMPETITION_TYPES.includes(sp.competition as (typeof COMPETITION_TYPES)[number]) ? sp.competition : undefined;
+  const lieuFilter = LIEUX.some((l) => l.key === sp.lieu) ? sp.lieu : undefined;
+
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const playedMatches = await prisma.match.findMany({
+    where: {
+      teamId: id,
+      status: "Joué",
+      ...(competitionFilter ? { competition: competitionFilter } : {}),
+      ...(lieuFilter ? { isHome: lieuFilter === "domicile" } : {}),
+      ...(periode === "mois" ? { date: { gte: monthStart } } : {}),
+    },
+    orderBy: { date: "asc" },
+    select: { scoreFor: true, scoreAgainst: true, date: true },
+  });
+
+  const filteredMatches = (periode === "5" ? playedMatches.slice(-5) : periode === "10" ? playedMatches.slice(-10) : playedMatches).map((m) => ({
+    scoreFor: m.scoreFor!,
+    scoreAgainst: m.scoreAgainst!,
+    date: m.date,
+  }));
+  const stats = computeTeamStats(filteredMatches);
+  const form = computeForm(filteredMatches, 5);
 
   const isAdmin = user.role === "ADMIN";
   const coaches = isAdmin ? await prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" } }) : [];
@@ -101,6 +155,75 @@ export default async function EquipeDetailPage({ params }: { params: Promise<{ i
             <span className="text-[11px] font-bold tracking-[0.08em] uppercase text-muted">Coach / responsable</span>
             <span className="text-[13px] font-medium mt-1.5">{team.coach?.name ?? "— non assigné —"}</span>
           </div>
+        )}
+      </div>
+
+      <div className="text-[13px] font-bold mt-5 mb-2">Statistiques & tendances</div>
+      <div className="bg-surface border border-line rounded-lg p-3.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {PERIODS.map((p) => (
+            <FilterChip
+              key={p.key}
+              href={toQueryString({ periode: p.key === "saison" ? undefined : p.key, competition: competitionFilter, lieu: lieuFilter })}
+              active={periode === p.key}
+            >
+              {p.label}
+            </FilterChip>
+          ))}
+          <div className="w-px h-[22px] bg-line mx-1" />
+          <FilterChip href={toQueryString({ periode, competition: undefined, lieu: lieuFilter })} active={!competitionFilter}>
+            Toutes compétitions
+          </FilterChip>
+          {COMPETITION_TYPES.map((c) => (
+            <FilterChip key={c} href={toQueryString({ periode, competition: c, lieu: lieuFilter })} active={competitionFilter === c}>
+              {c}
+            </FilterChip>
+          ))}
+          <div className="w-px h-[22px] bg-line mx-1" />
+          <FilterChip href={toQueryString({ periode, competition: competitionFilter, lieu: undefined })} active={!lieuFilter}>
+            Domicile + extérieur
+          </FilterChip>
+          {LIEUX.map((l) => (
+            <FilterChip key={l.key} href={toQueryString({ periode, competition: competitionFilter, lieu: l.key })} active={lieuFilter === l.key}>
+              {l.label}
+            </FilterChip>
+          ))}
+        </div>
+
+        {stats.played === 0 ? (
+          <div className="text-[13px] text-muted mt-3.5">Aucun match joué sur cette période.</div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2.5 flex-wrap mt-3.5 pt-3.5 border-t border-line-soft">
+              {[
+                ["Joués", String(stats.played)],
+                ["Victoires", String(stats.wins)],
+                ["Nuls", String(stats.draws)],
+                ["Défaites", String(stats.losses)],
+                ["Buts marqués", String(stats.goalsFor)],
+                ["Buts encaissés", String(stats.goalsAgainst)],
+                ["Diff.", stats.goalDiff > 0 ? `+${stats.goalDiff}` : String(stats.goalDiff)],
+                ["% victoires", `${stats.winPct}%`],
+                ["Moy. marqués", String(stats.avgGoalsFor)],
+                ["Moy. encaissés", String(stats.avgGoalsAgainst)],
+              ].map(([label, value]) => (
+                <div key={label} className="flex items-baseline gap-1.5 pr-3.5 border-r border-line-soft last:border-r-0">
+                  <span className="font-mono text-[15px] font-bold">{value}</span>
+                  <span className="text-[11px] text-muted">{label}</span>
+                </div>
+              ))}
+            </div>
+            {form.length > 0 && (
+              <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-line-soft">
+                <span className="text-[11px] text-muted mr-1">Forme (5 derniers) :</span>
+                {form.map((r, i) => (
+                  <span key={i} className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${FORM_TONE[r]}`}>
+                    {FORM_LETTER[r]}
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 
