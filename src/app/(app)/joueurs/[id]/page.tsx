@@ -13,6 +13,7 @@ import { updateObjectives } from "../../evaluations/actions";
 import { requireUser, canAccessTeam, scopedTeamIds } from "@/lib/authz";
 import { getInterviewPrep } from "@/lib/interview-prep";
 import { computeEvaluationDelta } from "@/lib/evaluation";
+import { computeDistribution } from "@/lib/player-history";
 import {
   addPlayerNote,
   changeTeam,
@@ -60,7 +61,7 @@ export default async function FichePage({
       include: {
         team: true,
         attendances: { include: { session: true }, orderBy: { session: { date: "desc" } }, take: 5 },
-        matchStats: { include: { match: true }, orderBy: { match: { date: "desc" } }, take: 4 },
+        matchStats: { include: { match: { include: { team: true } } }, orderBy: { match: { date: "desc" } } },
         evaluations: { orderBy: { createdAt: "desc" } },
         history: { include: { fromTeam: true, toTeam: true, decidedBy: true }, orderBy: { date: "desc" } },
         notes: { include: { author: true }, orderBy: { createdAt: "desc" } },
@@ -142,13 +143,13 @@ export default async function FichePage({
             </Panel>
           )}
 
-          {(tab === "assiduite" || tab === "matchs") && (
+          {tab === "assiduite" && (
             <Panel title="Derniers matchs" hint={`${stats.minutes} minutes cumulées · moyenne équipe ${stats.teamAvgMinutes}`}>
-              {player.matchStats.map((m) => (
+              {player.matchStats.slice(0, 4).map((m) => (
                 <Row
                   key={m.id}
                   left={formatDateShort(m.match.date)}
-                  title={`${stats.teamCode} — ${m.match.opponent ?? "Adversaire à définir"}`}
+                  title={`${m.match.team.code} — ${m.match.opponent ?? "Adversaire à définir"}`}
                   detail={`${m.match.isHome ? "Domicile" : "Extérieur"} · ${m.match.competition} · ${m.role}`}
                   valueNode={
                     <span className={`font-mono text-[13px] font-bold ${m.minutes < 30 ? "text-red" : m.minutes < 45 ? "text-orange" : "text-green"}`}>
@@ -159,6 +160,64 @@ export default async function FichePage({
               ))}
               {player.matchStats.length === 0 && <EmptyRow text="Aucun match joué pour l'instant." />}
             </Panel>
+          )}
+
+          {tab === "matchs" && (
+            <>
+              {player.matchStats.length > 0 && (
+                <div className="grid grid-cols-2 gap-3.5">
+                  <Panel title="Équipe habituelle" hint={`calculée sur ${player.matchStats.length} match${player.matchStats.length > 1 ? "s" : ""} joués`}>
+                    <div className="px-3.5 py-2.5 flex flex-col gap-2">
+                      {computeDistribution(player.matchStats.map((m) => m.match.team.code)).map((d) => (
+                        <div key={d.value} className="flex items-center gap-2.5">
+                          <TeamChip code={d.value} />
+                          <div className="flex-1 h-1.5 rounded-full bg-bg overflow-hidden">
+                            <div className="h-full bg-ink" style={{ width: `${d.pct}%` }} />
+                          </div>
+                          <span className="font-mono text-[11.5px] text-muted w-16 text-right">
+                            {d.count} · {d.pct}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </Panel>
+                  <Panel title="Postes réellement joués" hint="poste saisi sur la feuille de match, sinon poste habituel">
+                    <div className="px-3.5 py-2.5 flex flex-col gap-2">
+                      {computeDistribution(player.matchStats.map((m) => m.position ?? stats.position)).map((d) => (
+                        <div key={d.value} className="flex items-center gap-2.5">
+                          <span className="text-[12px] font-semibold w-24 shrink-0 truncate">{d.value}</span>
+                          <div className="flex-1 h-1.5 rounded-full bg-bg overflow-hidden">
+                            <div className="h-full bg-ink" style={{ width: `${d.pct}%` }} />
+                          </div>
+                          <span className="font-mono text-[11.5px] text-muted w-16 text-right">
+                            {d.count} · {d.pct}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </Panel>
+                </div>
+              )}
+
+              <Panel title="Historique des matchs" hint={`${player.matchStats.length} match${player.matchStats.length > 1 ? "s" : ""} au total`}>
+                {player.matchStats.map((m) => (
+                  <Row
+                    key={m.id}
+                    left={formatDateShort(m.match.date)}
+                    title={`${m.match.team.code} — ${m.match.opponent ?? "Adversaire à définir"}`}
+                    detail={`${m.match.isHome ? "Domicile" : "Extérieur"} · ${m.match.competition} · ${m.role} · ${m.position ?? stats.position}${
+                      m.goals || m.assists ? ` · ${m.goals} but${m.goals > 1 ? "s" : ""}, ${m.assists} passe${m.assists > 1 ? "s" : ""}` : ""
+                    }`}
+                    valueNode={
+                      <span className={`font-mono text-[13px] font-bold ${m.minutes < 30 ? "text-red" : m.minutes < 45 ? "text-orange" : "text-green"}`}>
+                        {m.minutes}&apos;
+                      </span>
+                    }
+                  />
+                ))}
+                {player.matchStats.length === 0 && <EmptyRow text="Aucun match joué pour l'instant." />}
+              </Panel>
+            </>
           )}
 
           {tab === "performance" && (
