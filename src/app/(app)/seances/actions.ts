@@ -201,6 +201,43 @@ export async function cancelSession(sessionId: string) {
 
 export async function deleteSession(sessionId: string) {
   const { user, session } = await assertSessionAccess(sessionId);
+
+  // ensureUpcomingSessions() (src/lib/recurring.ts) decides whether a session
+  // was already generated purely by checking whether a row exists for that
+  // (date, category, scopeTeam, startTime) — it has no memory of a row that
+  // used to exist. So hard-deleting a session that matches an active
+  // RecurringSlot gets it silently recreated the next time /seances loads.
+  // Cancelling instead keeps the row (the generator skips it, exactly like
+  // any other manually-cancelled "exception") while still taking it out of
+  // active use.
+  const regeneratedByTemplate = await prisma.recurringSlot.findFirst({
+    where: {
+      active: true,
+      category: session.category,
+      scopeTeamId: session.scopeTeamId,
+      weekday: session.date.getDay(),
+      startTime: session.startTime,
+    },
+  });
+
+  if (regeneratedByTemplate) {
+    await prisma.trainingSession.update({ where: { id: sessionId }, data: { status: "Annulée" } });
+    await logActivity({
+      actorId: user.id,
+      summary: `a annulé la séance ${session.category} du ${session.date.toLocaleDateString("fr-FR")} (suppression impossible : modèle récurrent actif, elle serait réapparue)`,
+      entityType: "TrainingSession",
+      entityId: sessionId,
+    });
+    revalidatePath(`/seances/${sessionId}`);
+    revalidatePath("/seances");
+    revalidatePath("/planning");
+    revalidatePath("/");
+    revalidatePath(`/coach/seances/${sessionId}`);
+    revalidatePath("/coach/seances");
+    revalidatePath("/coach");
+    redirect(`/seances/${sessionId}`);
+  }
+
   await prisma.trainingSession.delete({ where: { id: sessionId } });
   await logActivity({
     actorId: user.id,
