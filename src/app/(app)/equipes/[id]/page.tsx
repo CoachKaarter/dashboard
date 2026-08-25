@@ -131,6 +131,7 @@ export default async function EquipeDetailPage({
           <span className="text-[11px] font-bold tracking-[0.08em] uppercase text-muted">Format</span>
           <div className="flex gap-2">
             <select name="format" defaultValue={team.format} className={`${inputClass} flex-1`}>
+              <option value="Foot à 5">Foot à 5</option>
               <option value="Foot à 8">Foot à 8</option>
               <option value="Foot à 11">Foot à 11</option>
             </select>

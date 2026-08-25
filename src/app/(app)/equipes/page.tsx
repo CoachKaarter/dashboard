@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, scopedTeamIds } from "@/lib/authz";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Badge } from "@/components/ui/Badge";
+import { createTeam } from "./actions";
+
+const inputClass =
+  "h-9 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none w-full focus:border-blue focus:ring-[3px] focus:ring-blue-bg";
 
 export default async function EquipesPage() {
   const user = await requireUser();
@@ -55,6 +59,35 @@ export default async function EquipesPage() {
           );
         })}
       </div>
+
+      {user.role === "ADMIN" && (
+        <details className="mt-3.5">
+          <summary className="cursor-pointer text-[12.5px] font-semibold text-muted hover:text-ink select-none">
+            + Nouvelle équipe
+          </summary>
+          <form action={createTeam} className="mt-2 bg-surface border border-line rounded-lg p-3.5 grid grid-cols-4 gap-2 items-end">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-muted">Code</span>
+              <input name="code" required placeholder="U8A" className={inputClass} />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-muted">Catégorie</span>
+              <input name="category" required placeholder="U8" className={inputClass} />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-muted">Format</span>
+              <select name="format" defaultValue="Foot à 5" className={inputClass}>
+                <option value="Foot à 5">Foot à 5</option>
+                <option value="Foot à 8">Foot à 8</option>
+                <option value="Foot à 11">Foot à 11</option>
+              </select>
+            </label>
+            <button type="submit" className="h-9 px-3 rounded-md bg-ink text-white text-xs font-semibold hover:bg-[#2A2E36]">
+              Créer
+            </button>
+          </form>
+        </details>
+      )}
     </div>
   );
 }

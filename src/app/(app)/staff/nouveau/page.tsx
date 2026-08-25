@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/authz";
 import { createStaff } from "../actions";
 
@@ -8,7 +7,6 @@ const inputClass =
 
 export default async function NouveauStaffPage() {
   await requireAdmin();
-  const teams = await prisma.team.findMany({ orderBy: { code: "asc" } });
 
   return (
     <div className="max-w-[560px] mx-auto animate-fadein">
@@ -44,18 +42,8 @@ export default async function NouveauStaffPage() {
           <Field label="Email (optionnel)">
             <input type="email" name="email" className={inputClass} />
           </Field>
-          <div>
-            <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-muted mb-1.5 block">
-              Équipes autorisées (ignoré pour un compte ADMIN)
-            </span>
-            <div className="grid grid-cols-3 gap-2">
-              {teams.map((t) => (
-                <label key={t.id} className="flex items-center gap-1.5 text-[12.5px] border border-line rounded-md px-2 h-8">
-                  <input type="checkbox" name="teamIds" value={t.id} className="w-3.5 h-3.5" />
-                  {t.code}
-                </label>
-              ))}
-            </div>
+          <div className="text-[11.5px] text-muted-2 -mt-1">
+            Les responsabilités (Coach/Responsable, équipe/catégorie) s&apos;ajoutent sur la fiche du compte une fois créé.
           </div>
           <button
             type="submit"

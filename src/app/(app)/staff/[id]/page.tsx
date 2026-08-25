@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/authz";
 import { Badge } from "@/components/ui/Badge";
-import { updateStaff, setActive, resetPassword } from "../actions";
+import { ConfirmSubmitButton } from "@/components/ui/ConfirmSubmitButton";
+import { StaffAccessScopeFields } from "@/components/StaffAccessScopeFields";
+import { updateStaff, setActive, resetPassword, addStaffAccess, removeStaffAccess } from "../actions";
 
 const inputClass =
   "h-9 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none w-full focus:border-blue focus:ring-[3px] focus:ring-blue-bg";
@@ -19,7 +21,7 @@ export default async function StaffDetailPage({
   const { id } = await params;
   const { tempPassword } = await searchParams;
   const [user, teams] = await Promise.all([
-    prisma.user.findUnique({ where: { id } }),
+    prisma.user.findUnique({ where: { id }, include: { staffAccess: { include: { team: true }, orderBy: { createdAt: "asc" } } } }),
     prisma.team.findMany({ orderBy: { code: "asc" } }),
   ]);
   if (!user) notFound();
@@ -72,23 +74,57 @@ export default async function StaffDetailPage({
           <Field label="Email">
             <input type="email" name="email" defaultValue={user.email ?? ""} className={inputClass} />
           </Field>
-          <div>
-            <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-muted mb-1.5 block">
-              Équipes autorisées (ignoré pour un compte ADMIN)
-            </span>
-            <div className="grid grid-cols-3 gap-2">
-              {teams.map((t) => (
-                <label key={t.id} className="flex items-center gap-1.5 text-[12.5px] border border-line rounded-md px-2 h-8">
-                  <input type="checkbox" name="teamIds" value={t.id} defaultChecked={user.teamIds.includes(t.id)} className="w-3.5 h-3.5" />
-                  {t.code}
-                </label>
-              ))}
-            </div>
-          </div>
           <button type="submit" className="h-10 border-none rounded-md bg-ink text-white text-[13px] font-semibold cursor-pointer mt-1 hover:bg-[#2A2E36]">
             Enregistrer
           </button>
         </form>
+      </div>
+
+      <div className="bg-surface border border-line rounded-lg p-5 mb-3.5">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Responsabilités</div>
+          <span className="text-[11px] text-muted-2">({user.staffAccess.length})</span>
+        </div>
+        <div className="text-[11.5px] text-muted-2 mb-3">
+          Le périmètre sportif de ce compte — cumulable, indépendant du rôle technique ci-dessus.
+        </div>
+        <div className="flex flex-col gap-1.5 mb-3">
+          {user.staffAccess.map((a) => (
+            <div key={a.id} className="flex items-center gap-2.5 border border-line rounded-md px-3 h-10">
+              <Badge tone={a.level === "RESPONSABLE" ? "blue" : "neutral"}>{a.level === "RESPONSABLE" ? "Responsable" : "Coach"}</Badge>
+              <span className="text-[12.5px] font-semibold">
+                {a.scope === "TEAM" ? a.team?.code : a.scope === "CATEGORY" ? a.category : "École de foot"}
+              </span>
+              <span className="flex-1" />
+              <form action={removeStaffAccess.bind(null, a.id)}>
+                <ConfirmSubmitButton
+                  confirmText={`Retirer "${a.level === "RESPONSABLE" ? "Responsable" : "Coach"} ${
+                    a.scope === "TEAM" ? a.team?.code : a.scope === "CATEGORY" ? a.category : "École de foot"
+                  }" à ${user.name} ? Cette personne perdra immédiatement l'accès correspondant.`}
+                  className="h-7 px-2 border border-line rounded-md text-[10.5px] font-semibold text-red hover:border-red"
+                >
+                  Retirer
+                </ConfirmSubmitButton>
+              </form>
+            </div>
+          ))}
+          {user.staffAccess.length === 0 && <div className="text-[12.5px] text-muted-2 py-1">Aucune responsabilité pour l&apos;instant.</div>}
+        </div>
+        <details>
+          <summary className="cursor-pointer text-[12px] font-semibold text-muted hover:text-ink select-none">
+            + Ajouter une responsabilité
+          </summary>
+          <form action={addStaffAccess.bind(null, id)} className="mt-2 flex items-end gap-2">
+            <select name="level" defaultValue="RESPONSABLE" className={inputClass}>
+              <option value="RESPONSABLE">Responsable</option>
+              <option value="COACH">Coach</option>
+            </select>
+            <StaffAccessScopeFields teams={teams} />
+            <button type="submit" className="h-9 px-3 border-none rounded-md bg-ink text-white text-xs font-semibold cursor-pointer hover:bg-[#2A2E36] shrink-0">
+              Ajouter
+            </button>
+          </form>
+        </details>
       </div>
 
       <div className="bg-surface border border-line rounded-lg p-5 flex flex-col gap-3">

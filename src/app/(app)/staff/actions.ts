@@ -13,6 +13,10 @@ function randomPassword() {
   return Math.random().toString(36).slice(2, 6) + Math.random().toString(36).slice(2, 6);
 }
 
+// teamIds is no longer set here — it's the frozen legacy sporting-scope
+// field (see User.teamIds in prisma/schema.prisma). A new account starts
+// with zero responsibilities; they're added afterward via addStaffAccess
+// on the staff detail page, same as for any existing account.
 export async function createStaff(formData: FormData) {
   const admin = await requireAdmin();
   const username = String(formData.get("username") ?? "").trim().toLowerCase();
@@ -21,13 +25,12 @@ export async function createStaff(formData: FormData) {
   const jobTitle = String(formData.get("jobTitle") ?? "").trim();
   const accessLabel = String(formData.get("accessLabel") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim() || null;
-  const teamIds = formData.getAll("teamIds").map(String);
   if (!username || !name || !ROLES.includes(role) || !jobTitle || !accessLabel) return;
 
   const tempPassword = randomPassword();
   const passwordHash = await bcrypt.hash(tempPassword, 10);
   const user = await prisma.user.create({
-    data: { username, name, role, jobTitle, accessLabel, email, teamIds, passwordHash },
+    data: { username, name, role, jobTitle, accessLabel, email, passwordHash },
   });
   await logActivity({ actorId: admin.id, summary: `a créé le compte ${name} (${role})`, entityType: "User", entityId: user.id });
   revalidatePath("/staff");
@@ -41,12 +44,11 @@ export async function updateStaff(userId: string, formData: FormData) {
   const jobTitle = String(formData.get("jobTitle") ?? "").trim();
   const accessLabel = String(formData.get("accessLabel") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim() || null;
-  const teamIds = formData.getAll("teamIds").map(String);
   if (!name || !ROLES.includes(role) || !jobTitle || !accessLabel) return;
 
   await prisma.user.update({
     where: { id: userId },
-    data: { name, role, jobTitle, accessLabel, email, teamIds },
+    data: { name, role, jobTitle, accessLabel, email },
   });
   await logActivity({ actorId: admin.id, summary: `a modifié le compte ${name}`, entityType: "User", entityId: userId });
   revalidatePath("/staff");
@@ -75,4 +77,75 @@ export async function resetPassword(userId: string) {
   await logActivity({ actorId: admin.id, summary: `a réinitialisé le mot de passe de ${target.name}`, entityType: "User", entityId: userId });
   revalidatePath(`/staff/${userId}`);
   redirect(`/staff/${userId}?tempPassword=${tempPassword}`);
+}
+
+const ACCESS_LEVELS = ["COACH", "RESPONSABLE"];
+const ACCESS_SCOPES = ["TEAM", "CATEGORY", "SCHOOL"];
+
+function accessScopeLabel(scope: string, category: string | null, teamCode: string | undefined) {
+  if (scope === "TEAM") return teamCode ?? "équipe";
+  if (scope === "CATEGORY") return category ?? "catégorie";
+  return "école de foot";
+}
+
+// A grant is unique per (user, scope, category-or-team) at the database
+// level (partial unique indexes — Prisma's schema DSL can't declare a
+// conditional unique index, so there's no typed `where` target for it, see
+// migration 20260825150000). Submitting the same périmètre again therefore
+// updates its level in place (this doubles as the "changer Responsable →
+// Coach" flow from the staff spec) rather than failing or duplicating.
+export async function addStaffAccess(userId: string, formData: FormData) {
+  const admin = await requireAdmin();
+  const level = String(formData.get("level") ?? "");
+  const scope = String(formData.get("scope") ?? "");
+  if (!ACCESS_LEVELS.includes(level) || !ACCESS_SCOPES.includes(scope)) return;
+
+  const target = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+
+  let category: string | null = null;
+  let teamId: string | null = null;
+  let teamCode: string | undefined;
+  if (scope === "TEAM") {
+    teamId = String(formData.get("teamId") ?? "") || null;
+    if (!teamId) return;
+    const team = await prisma.team.findUnique({ where: { id: teamId } });
+    if (!team) return;
+    teamCode = team.code;
+  } else if (scope === "CATEGORY") {
+    category = String(formData.get("category") ?? "").trim() || null;
+    if (!category) return;
+  }
+
+  const existing = await prisma.staffAccess.findFirst({ where: { userId, scope, category, teamId } });
+  if (existing) {
+    await prisma.staffAccess.update({ where: { id: existing.id }, data: { level, grantedById: admin.id } });
+  } else {
+    await prisma.staffAccess.create({ data: { userId, level, scope, category, teamId, grantedById: admin.id } });
+  }
+
+  const levelLabel = level === "RESPONSABLE" ? "Responsable" : "Coach";
+  await logActivity({
+    actorId: admin.id,
+    summary: `a attribué "${levelLabel} ${accessScopeLabel(scope, category, teamCode)}" à ${target.name}`,
+    entityType: "User",
+    entityId: userId,
+  });
+  revalidatePath(`/staff/${userId}`);
+  revalidatePath("/staff");
+}
+
+export async function removeStaffAccess(accessId: string) {
+  const admin = await requireAdmin();
+  const access = await prisma.staffAccess.findUniqueOrThrow({ where: { id: accessId }, include: { user: true, team: true } });
+  await prisma.staffAccess.delete({ where: { id: accessId } });
+
+  const levelLabel = access.level === "RESPONSABLE" ? "Responsable" : "Coach";
+  await logActivity({
+    actorId: admin.id,
+    summary: `a retiré "${levelLabel} ${accessScopeLabel(access.scope, access.category, access.team?.code)}" à ${access.user.name}`,
+    entityType: "User",
+    entityId: access.userId,
+  });
+  revalidatePath(`/staff/${access.userId}`);
+  revalidatePath("/staff");
 }
