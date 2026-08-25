@@ -7,7 +7,7 @@ import { TeamChip } from "@/components/ui/TeamChip";
 import { Avatar } from "@/components/ui/Avatar";
 import { formatDateLong, formatDayShort } from "@/lib/format";
 import { requireUser, scopedTeamIdsInCategory } from "@/lib/authz";
-import { getActiveCategory } from "@/lib/active-category";
+import { getActiveCategoryGroup } from "@/lib/active-category";
 import { getClub } from "@/lib/club";
 
 const ALERT_HEAD_TONE: Record<string, string> = {
@@ -31,9 +31,10 @@ const ALERT_TAG_TONE: Record<string, string> = {
 
 export default async function CockpitPage() {
   const user = await requireUser();
-  const activeCategory = await getActiveCategory(user);
+  const activeGroup = await getActiveCategoryGroup(user);
+  const activeCategories = activeGroup?.categories ?? null;
   const allTeams = await prisma.team.findMany({ select: { id: true, code: true, category: true } });
-  const categoryTeamIds = scopedTeamIdsInCategory(user, allTeams, activeCategory);
+  const categoryTeamIds = scopedTeamIdsInCategory(user, allTeams, activeCategories);
   const teamFilter = { teamId: { in: categoryTeamIds } };
 
   const [playerCount, alertGroups, dataChecks, club] = await Promise.all([
@@ -59,7 +60,7 @@ export default async function CockpitPage() {
     orderBy: { date: "asc" },
   });
   const nextSessions = allNextSessions
-    .filter((s) => (s.scopeTeamId ? categoryTeamIds.includes(s.scopeTeamId) : s.category === activeCategory))
+    .filter((s) => (s.scopeTeamId ? categoryTeamIds.includes(s.scopeTeamId) : (activeCategories ?? []).includes(s.category)))
     .slice(0, 4);
   const sessionExpected = await Promise.all(
     nextSessions.map((s) =>

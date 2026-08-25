@@ -3,8 +3,8 @@ import { getAlertGroups } from "@/lib/alerts";
 import { getClub } from "@/lib/club";
 import { NavLink } from "@/components/NavLink";
 import { CategorySwitcher } from "@/components/CategorySwitcher";
-import { getAuthedUser, getAccessibleCategories } from "@/lib/authz";
-import { getActiveCategory } from "@/lib/active-category";
+import { getAuthedUser, buildCategorySwitcherGroups } from "@/lib/authz";
+import { getActiveCategoryGroup } from "@/lib/active-category";
 import { signOutAction } from "@/lib/actions/auth";
 
 export async function Sidebar() {
@@ -15,8 +15,8 @@ export async function Sidebar() {
     prisma.match.count({ where: { status: "Planifié" } }),
     getAlertGroups(),
   ]);
-  const accessibleCategories = user ? getAccessibleCategories(user).sort() : [];
-  const activeCategory = user ? await getActiveCategory(user) : null;
+  const categoryGroups = user ? buildCategorySwitcherGroups(user) : [];
+  const activeGroup = user ? await getActiveCategoryGroup(user) : null;
   const totalAlerts = alertGroups.reduce((n, g) => n + g.items.filter((i) => !i.treated).length, 0);
   const urgentCount = alertGroups.find((g) => g.key === "urgent")?.items.filter((i) => !i.treated).length ?? 0;
 
@@ -60,10 +60,10 @@ export async function Sidebar() {
           <div className="w-[22px] h-[22px] rounded-[5px] bg-club-primary shrink-0" />
         )}
         <div>
-          {accessibleCategories.length > 1 ? (
-            <CategorySwitcher categories={accessibleCategories} active={activeCategory ?? accessibleCategories[0]} />
+          {categoryGroups.length > 1 ? (
+            <CategorySwitcher groups={categoryGroups} activeKey={activeGroup?.key ?? categoryGroups[0].key} />
           ) : (
-            <div className="text-white font-bold text-xs tracking-[0.04em]">{accessibleCategories[0] ?? "—"}</div>
+            <div className="text-white font-bold text-xs tracking-[0.04em]">{categoryGroups[0]?.label ?? "—"}</div>
           )}
           <div className="text-[10px] text-muted tracking-[0.06em] truncate max-w-[150px]">{club.name.toUpperCase()}</div>
         </div>

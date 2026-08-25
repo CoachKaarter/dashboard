@@ -1,6 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildAccessibleScopes, expandScopesToTeamIds, scopedTeamIdsInCategory, type RawGrant, type TeamRef, type AuthedUser } from "./authz";
+import {
+  buildAccessibleScopes,
+  expandScopesToTeamIds,
+  scopedTeamIdsInCategory,
+  buildCategorySwitcherGroups,
+  type RawGrant,
+  type TeamRef,
+  type AuthedUser,
+} from "./authz";
 
 function user(overrides: Partial<AuthedUser>): AuthedUser {
   return {
@@ -100,30 +108,67 @@ test("buildAccessibleScopes: no grants at all means no access — never defaults
   assert.deepEqual(expandScopesToTeamIds(scopes, ALL_TEAMS), []);
 });
 
-// scopedTeamIdsInCategory — the active-category narrowing behind the sidebar
-// switcher (src/lib/active-category.ts): every screen it feeds must still
-// respect the underlying StaffAccess grant, never just the category name.
+// scopedTeamIdsInCategory — the active-category-group narrowing behind the
+// sidebar switcher (src/lib/active-category.ts): every screen it feeds must
+// still respect the underlying StaffAccess grant, never just the category
+// name.
 test("scopedTeamIdsInCategory: Davy on active category U8 sees only U8 teams, never U12 even though he's also a coach there", () => {
   const davy = user({ teamIds: ["u8a", "u9a", "u12a"] });
-  assert.deepEqual(new Set(scopedTeamIdsInCategory(davy, ALL_TEAMS, "U8")), new Set(["u8a"]));
+  assert.deepEqual(new Set(scopedTeamIdsInCategory(davy, ALL_TEAMS, ["U8"])), new Set(["u8a"]));
 });
 
-test("scopedTeamIdsInCategory: switching active category to U9 shows U9 and nothing else", () => {
+test("scopedTeamIdsInCategory: a bundled group of two categories (U8+U9) returns teams from both", () => {
   const davy = user({ teamIds: ["u8a", "u9a", "u12a"] });
-  assert.deepEqual(scopedTeamIdsInCategory(davy, ALL_TEAMS, "U9"), ["u9a"]);
+  assert.deepEqual(new Set(scopedTeamIdsInCategory(davy, ALL_TEAMS, ["U8", "U9"])), new Set(["u8a", "u9a"]));
 });
 
 test("scopedTeamIdsInCategory: a category the user has no grant for at all yields nothing, even if named explicitly", () => {
   const davy = user({ teamIds: ["u8a", "u9a", "u12a"] });
-  assert.deepEqual(scopedTeamIdsInCategory(davy, ALL_TEAMS, "U13"), []);
+  assert.deepEqual(scopedTeamIdsInCategory(davy, ALL_TEAMS, ["U13"]), []);
 });
 
-test("scopedTeamIdsInCategory: full access (hasFullAccess) still narrows to just the active category's real teams", () => {
+test("scopedTeamIdsInCategory: full access (hasFullAccess) still narrows to just the active categories' real teams", () => {
   const admin = user({ hasFullAccess: true, teamIds: ALL_TEAMS.map((t) => t.id) });
-  assert.deepEqual(new Set(scopedTeamIdsInCategory(admin, ALL_TEAMS, "U13")), new Set(["u13a", "u13b", "u13c"]));
+  assert.deepEqual(new Set(scopedTeamIdsInCategory(admin, ALL_TEAMS, ["U13"])), new Set(["u13a", "u13b", "u13c"]));
 });
 
-test("scopedTeamIdsInCategory: category null skips the narrowing and returns every accessible team", () => {
+test("scopedTeamIdsInCategory: categories null skips the narrowing and returns every accessible team", () => {
   const davy = user({ teamIds: ["u8a", "u9a", "u12a"] });
   assert.deepEqual(new Set(scopedTeamIdsInCategory(davy, ALL_TEAMS, null)), new Set(["u8a", "u9a", "u12a"]));
+});
+
+// buildCategorySwitcherGroups — every RESPONSABLE category bundles into one
+// combined switcher option; a COACH-only category stays its own option.
+test("buildCategorySwitcherGroups: Davy gets a bundled 'U8/U9' Responsable option plus a separate 'U12' Coach option", () => {
+  const davy = user({
+    scopes: [
+      { kind: "category", category: "U8", level: "RESPONSABLE" },
+      { kind: "category", category: "U9", level: "RESPONSABLE" },
+      { kind: "team", teamId: "u12a", teamCode: "U12A", category: "U12", level: "COACH" },
+    ],
+  });
+  const groups = buildCategorySwitcherGroups(davy);
+  assert.deepEqual(groups, [
+    { key: "U8+U9", label: "U8/U9", categories: ["U8", "U9"] },
+    { key: "U12", label: "U12", categories: ["U12"] },
+  ]);
+});
+
+test("buildCategorySwitcherGroups: Marvyn (RESPONSABLE U12+U13, nothing else) gets one bundled group, not two", () => {
+  const marvyn = user({
+    scopes: [
+      { kind: "category", category: "U12", level: "RESPONSABLE" },
+      { kind: "category", category: "U13", level: "RESPONSABLE" },
+    ],
+  });
+  assert.deepEqual(buildCategorySwitcherGroups(marvyn), [{ key: "U12+U13", label: "U12/U13", categories: ["U12", "U13"] }]);
+});
+
+test("buildCategorySwitcherGroups: a solo Coach with one team gets exactly one option", () => {
+  const coach = user({ scopes: [{ kind: "team", teamId: "u13a", teamCode: "U13A", category: "U13", level: "COACH" }] });
+  assert.deepEqual(buildCategorySwitcherGroups(coach), [{ key: "U13", label: "U13", categories: ["U13"] }]);
+});
+
+test("buildCategorySwitcherGroups: no grants at all means no switcher options", () => {
+  assert.deepEqual(buildCategorySwitcherGroups(user({ scopes: [] })), []);
 });

@@ -162,18 +162,46 @@ export function canAccessTeam(user: AuthedUser, teamId: string) {
 }
 
 /**
- * The user's accessible team ids, narrowed to one category — the "active
- * category" a multi-category Responsable/Coach is currently working in
- * (see src/lib/active-category.ts). Pass `category: null` to skip the
- * narrowing and get every accessible team, same as scopedTeamIds would
- * (still as a concrete array, never "ALL", since callers use this to build
- * a category-aware `where` directly).
+ * The user's accessible team ids, narrowed to a set of categories — the
+ * "active category group" a multi-category Responsable/Coach is currently
+ * working in (see src/lib/active-category.ts and buildCategorySwitcherGroups
+ * below). Pass `categories: null` to skip the narrowing and get every
+ * accessible team, same as scopedTeamIds would (still as a concrete array,
+ * never "ALL", since callers use this to build a category-aware `where`
+ * directly).
  */
-export function scopedTeamIdsInCategory(user: AuthedUser, allTeams: TeamRef[], category: string | null): string[] {
+export function scopedTeamIdsInCategory(user: AuthedUser, allTeams: TeamRef[], categories: string[] | null): string[] {
   const scope = scopedTeamIds(user);
   return allTeams
-    .filter((t) => (scope === "ALL" || scope.includes(t.id)) && (category === null || t.category === category))
+    .filter((t) => (scope === "ALL" || scope.includes(t.id)) && (categories === null || categories.includes(t.category)))
     .map((t) => t.id);
+}
+
+export type CategorySwitcherGroup = { key: string; label: string; categories: string[] };
+
+/**
+ * Options for the sidebar's active-category switcher. A Responsable runs
+ * every category they're Responsable of as ONE combined perimeter (Davy's
+ * U8 + U9 → a single "U8/U9" option) — they're the same job, splitting them
+ * into separate switcher entries would just add clicks. A category reached
+ * only at COACH level stays its own separate option: a Coach's day-to-day
+ * is genuinely scoped to that one category (Davy's U12, from coaching one
+ * of its teams, stays apart from his U8/U9 pilotage).
+ */
+export function buildCategorySwitcherGroups(user: AuthedUser): CategorySwitcherGroup[] {
+  const responsableCategories = [
+    ...new Set(user.scopes.filter((s) => s.kind === "category" && s.level === "RESPONSABLE").map((s) => s.category)),
+  ].sort();
+  const coachCategories = getAccessibleCategories(user)
+    .filter((c) => !responsableCategories.includes(c))
+    .sort();
+
+  const groups: CategorySwitcherGroup[] = [];
+  if (responsableCategories.length > 0) {
+    groups.push({ key: responsableCategories.join("+"), label: responsableCategories.join("/"), categories: responsableCategories });
+  }
+  for (const c of coachCategories) groups.push({ key: c, label: c, categories: [c] });
+  return groups;
 }
 
 export function assertTeamAccess(user: AuthedUser, teamId: string) {

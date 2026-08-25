@@ -6,7 +6,7 @@ import { toQueryString } from "@/lib/query";
 import { getPlanEvents, KIND_COLOR, startOfWeek, startOfMonth } from "@/lib/planning";
 import { formatDateShort } from "@/lib/format";
 import { requireUser, scopedTeamIds } from "@/lib/authz";
-import { getActiveCategory } from "@/lib/active-category";
+import { getActiveCategoryGroup } from "@/lib/active-category";
 
 const VIEWS = ["semaine", "mois", "agenda"];
 const DAY_NAMES = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
@@ -25,7 +25,7 @@ export default async function PlanningPage({
 
   const user = await requireUser();
   const scope = scopedTeamIds(user);
-  const activeCategory = await getActiveCategory(user);
+  const activeGroup = await getActiveCategoryGroup(user);
   let allowed: string[] | "ALL" = "ALL";
   let visibleTeamFilters: string[];
   if (scope !== "ALL") {
@@ -36,7 +36,11 @@ export default async function PlanningPage({
     const allTeams = await prisma.team.findMany({ orderBy: { code: "asc" } });
     visibleTeamFilters = ["Toutes", ...allTeams.map((t) => t.code)];
   }
-  const team = sp.team ?? activeCategory ?? "Toutes";
+  // This picker is single-category (prefix-matched against team codes, see
+  // getPlanEvents/visible() in src/lib/planning.ts) — a bundled Responsable
+  // group (e.g. "U8/U9") defaults here to its first category; the chips
+  // below still let you switch to the others in the group individually.
+  const team = sp.team ?? activeGroup?.categories[0] ?? "Toutes";
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);

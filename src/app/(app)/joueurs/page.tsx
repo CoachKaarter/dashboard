@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getAllPlayerStats } from "@/lib/stats";
-import { requireUser, scopedTeamIds, getAccessibleCategories } from "@/lib/authz";
-import { getActiveCategory } from "@/lib/active-category";
+import { requireUser, scopedTeamIds, buildCategorySwitcherGroups } from "@/lib/authz";
+import { getActiveCategoryGroup } from "@/lib/active-category";
 import { FilterChip } from "@/components/ui/FilterChip";
 import { QuerySelect } from "@/components/ui/QuerySelect";
 import { TextFilter } from "@/components/ui/TextFilter";
@@ -26,14 +26,15 @@ export default async function JoueursPage({
 
   const user = await requireUser();
   const scope = scopedTeamIds(user);
-  const activeCategory = await getActiveCategory(user);
-  const categoryFilters = ["Toutes", ...getAccessibleCategories(user).sort()];
-  const team = sp.team ?? activeCategory ?? "Toutes";
+  const groups = buildCategorySwitcherGroups(user);
+  const activeGroup = await getActiveCategoryGroup(user);
+  const team = sp.team ?? activeGroup?.key ?? "Toutes";
+  const selectedGroup = groups.find((g) => g.key === team) ?? null;
   const all = await getAllPlayerStats();
   const players = all.filter(
     (p) =>
       (scope === "ALL" || scope.includes(p.teamId)) &&
-      (team === "Toutes" || p.category === team) &&
+      (!selectedGroup || selectedGroup.categories.includes(p.category)) &&
       (pos === "Tous" || p.position === pos) &&
       (statut === "Tous" || p.status === statut) &&
       (!q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q))
@@ -42,9 +43,12 @@ export default async function JoueursPage({
   return (
     <div className="max-w-[1560px] mx-auto animate-fadein">
       <div className="flex items-center gap-2.5 mb-3.5 flex-wrap">
-        {categoryFilters.map((t) => (
-          <FilterChip key={t} href={toQueryString({ team: t === "Toutes" ? undefined : t, pos: sp.pos, statut: sp.statut, q: sp.q })} active={team === t}>
-            {t}
+        <FilterChip href={toQueryString({ team: undefined, pos: sp.pos, statut: sp.statut, q: sp.q })} active={team === "Toutes"}>
+          Toutes
+        </FilterChip>
+        {groups.map((g) => (
+          <FilterChip key={g.key} href={toQueryString({ team: g.key, pos: sp.pos, statut: sp.statut, q: sp.q })} active={team === g.key}>
+            {g.label}
           </FilterChip>
         ))}
         <span className="flex-1" />
