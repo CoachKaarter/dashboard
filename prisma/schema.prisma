@@ -972,5 +972,11 @@ model Club {
   availabilityMessageTemplate String? // /disponibilites — ouverture des pointages/dispos
   convocationMessageTemplate  String? // /week-end — annonce des convocations publiées
 
+  // Injecte le bloc résultats du week-end (variable {{resultats}}) dans le
+  // message d'ouverture des dispos. Défaut false — un club existant qui n'a
+  // rien réglé ne voit son message changer d'aucune façon tant qu'il n'a pas
+  // explicitement activé l'option depuis /parametres.
+  includeWeekendResultsInAvailabilityMessage Boolean @default(false)
+
   updatedAt DateTime @updatedAt
 }

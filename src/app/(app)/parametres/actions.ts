@@ -108,11 +108,12 @@ export async function updateMessageTemplates(formData: FormData) {
   await requireAdmin();
   const availabilityMessageTemplate = String(formData.get("availabilityMessageTemplate") ?? "").trim() || null;
   const convocationMessageTemplate = String(formData.get("convocationMessageTemplate") ?? "").trim() || null;
+  const includeWeekendResultsInAvailabilityMessage = formData.get("includeWeekendResultsInAvailabilityMessage") === "on";
 
   await prisma.club.upsert({
     where: { id: 1 },
-    update: { availabilityMessageTemplate, convocationMessageTemplate },
-    create: { id: 1, availabilityMessageTemplate, convocationMessageTemplate },
+    update: { availabilityMessageTemplate, convocationMessageTemplate, includeWeekendResultsInAvailabilityMessage },
+    create: { id: 1, availabilityMessageTemplate, convocationMessageTemplate, includeWeekendResultsInAvailabilityMessage },
   });
   revalidatePath("/parametres");
   revalidatePath("/disponibilites");

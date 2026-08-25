@@ -6,10 +6,9 @@ import { TeamChip } from "@/components/ui/TeamChip";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge, type Tone } from "@/components/ui/Badge";
 import { formatDateFull, formationLabel } from "@/lib/format";
-import { computeMatchResult, computeGoalDifference } from "@/lib/match-phase";
+import { computeMatchResult, computeGoalDifference, RESULT_LABEL_FR } from "@/lib/match-phase";
 import { OBJECTIVE_STATUS_LABELS, type ObjectiveStatus } from "@/lib/match-validation";
 
-const RESULT_LABEL: Record<"GAGNE" | "NUL" | "PERDU", string> = { GAGNE: "Victoire", NUL: "Match nul", PERDU: "Défaite" };
 const RESULT_TONE: Record<"GAGNE" | "NUL" | "PERDU", Tone> = { GAGNE: "green", NUL: "neutral", PERDU: "red" };
 
 export default async function MatchRapportPage({ params }: { params: Promise<{ id: string }> }) {
@@ -46,7 +45,7 @@ export default async function MatchRapportPage({ params }: { params: Promise<{ i
           <TeamChip code={match.team.code} />
           <div className="text-xl font-bold tracking-[-0.02em]">{match.opponent ?? "Adversaire à définir"}</div>
           {match.status === "Annulé" && <Badge tone="red">Annulé</Badge>}
-          {result && <Badge tone={RESULT_TONE[result]}>{RESULT_LABEL[result]}</Badge>}
+          {result && <Badge tone={RESULT_TONE[result]}>{RESULT_LABEL_FR[result]}</Badge>}
           <span className="flex-1" />
           {played && (
             <div className="font-mono text-2xl font-bold">

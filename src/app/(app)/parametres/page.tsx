@@ -120,20 +120,37 @@ export default async function ParametresPage() {
           Textes à copier
         </div>
         <form action={updateMessageTemplates} className="p-3.5 flex flex-col gap-4">
-          <label className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5">
             <span className="text-[12.5px] font-semibold">Ouverture des dispos — bouton Copier sur /disponibilites</span>
+
+            <label className="flex items-start gap-2 text-[12.5px] text-ink-soft mt-1 mb-0.5">
+              <input
+                type="checkbox"
+                name="includeWeekendResultsInAvailabilityMessage"
+                defaultChecked={messageTemplates.includeWeekendResultsInAvailabilityMessage}
+                className="w-4 h-4 mt-0.5"
+              />
+              <span>
+                <span className="font-semibold text-ink">Inclure les résultats du week-end</span>
+                <br />
+                <span className="text-[11px] text-muted-2">
+                  Ajoute automatiquement les résultats des matchs joués au message d&apos;ouverture des disponibilités.
+                </span>
+              </span>
+            </label>
+
             <span className="text-[11px] text-muted-2">
-              Variables : <code>{"{{date_limite}}"}</code> (date de clôture), <code>{"{{lien_parent}}"}</code> (lien espace parents).
-              Laisser vide pour revenir au texte par défaut.
+              Variables : <code>{"{{date_limite}}"}</code> (date de clôture), <code>{"{{lien_parent}}"}</code> (lien espace parents),{" "}
+              <code>{"{{resultats}}"}</code> (résultats des matchs joués du week-end). Laisser vide pour revenir au texte par défaut.
             </span>
             <textarea
               name="availabilityMessageTemplate"
               defaultValue={messageTemplates.availabilityMessageTemplate ?? ""}
               placeholder={DEFAULT_AVAILABILITY_MESSAGE_TEMPLATE}
-              rows={7}
+              rows={9}
               className="border border-line rounded-md px-2.5 py-2 text-[12.5px] bg-surface outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg font-mono"
             />
-          </label>
+          </div>
           <label className="flex flex-col gap-1.5">
             <span className="text-[12.5px] font-semibold">Convocations publiées — bouton Copier sur /week-end</span>
             <span className="text-[11px] text-muted-2">

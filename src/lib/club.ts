@@ -52,15 +52,24 @@ export const getClub = cache(async (): Promise<ClubIdentity> => {
 export type ClubMessageTemplates = {
   availabilityMessageTemplate: string | null;
   convocationMessageTemplate: string | null;
+  includeWeekendResultsInAvailabilityMessage: boolean;
 };
 
-const TEMPLATES_FALLBACK: ClubMessageTemplates = { availabilityMessageTemplate: null, convocationMessageTemplate: null };
+const TEMPLATES_FALLBACK: ClubMessageTemplates = {
+  availabilityMessageTemplate: null,
+  convocationMessageTemplate: null,
+  includeWeekendResultsInAvailabilityMessage: false,
+};
 
 export const getClubMessageTemplates = cache(async (): Promise<ClubMessageTemplates> => {
   try {
     const club = await prisma.club.findUnique({
       where: { id: 1 },
-      select: { availabilityMessageTemplate: true, convocationMessageTemplate: true },
+      select: {
+        availabilityMessageTemplate: true,
+        convocationMessageTemplate: true,
+        includeWeekendResultsInAvailabilityMessage: true,
+      },
     });
     return club ?? TEMPLATES_FALLBACK;
   } catch {

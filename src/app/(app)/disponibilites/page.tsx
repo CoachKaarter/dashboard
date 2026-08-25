@@ -5,6 +5,7 @@ import { getActiveCategoryGroup } from "@/lib/active-category";
 import { getWeekStart, addDays, getWindowForWeek } from "@/lib/availability";
 import { getClubMessageTemplates } from "@/lib/club";
 import { DEFAULT_AVAILABILITY_MESSAGE_TEMPLATE, renderMessageTemplate } from "@/lib/message-templates";
+import { getWeekendResults } from "@/lib/weekend-results";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { FilterChip } from "@/components/ui/FilterChip";
 import { Badge } from "@/components/ui/Badge";
@@ -47,13 +48,21 @@ export default async function DisponibilitesPage({
   const host = hdrs.get("host");
   const proto = hdrs.get("x-forwarded-proto") ?? "https";
   const parentUrl = `${proto}://${host}/parent`;
-  const sundayMessage = renderMessageTemplate(clubTemplates.availabilityMessageTemplate ?? DEFAULT_AVAILABILITY_MESSAGE_TEMPLATE, {
-    date_limite: window?.closesAt ? `le ${formatDT(new Date(window.closesAt))}` : "la date limite indiquée",
-    lien_parent: parentUrl,
-  });
   const teams = (scope === "ALL" ? allTeams : allTeams.filter((t) => scope.includes(t.id))).filter(
     (t) => !activeGroup || activeGroup.categories.includes(t.category)
   );
+  // Same permission scope + active category the rest of this page already
+  // uses for its own roster (teams above) — never the raw, unfiltered
+  // club-wide list. weekend === getWeekendDate(baseWeek), the same Saturday
+  // boundary getWeekendBoard uses, not a "last 7 days" window (§13).
+  const weekendResultLines = clubTemplates.includeWeekendResultsInAvailabilityMessage
+    ? await getWeekendResults(weekend, teams.map((t) => t.id))
+    : [];
+  const sundayMessage = renderMessageTemplate(clubTemplates.availabilityMessageTemplate ?? DEFAULT_AVAILABILITY_MESSAGE_TEMPLATE, {
+    date_limite: window?.closesAt ? `le ${formatDT(new Date(window.closesAt))}` : "la date limite indiquée",
+    lien_parent: parentUrl,
+    resultats: weekendResultLines.join("\n"),
+  });
 
   // One column per distinct calendar date that has at least one session, plus Samedi (weekend) at the end.
   const dateKeys = [...new Set(sessionsAll.map((s) => s.date.toISOString().slice(0, 10)))].sort();

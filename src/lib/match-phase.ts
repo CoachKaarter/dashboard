@@ -36,3 +36,8 @@ export function computeMatchResult(scoreFor: number, scoreAgainst: number): Matc
 export function computeGoalDifference(scoreFor: number, scoreAgainst: number): number {
   return scoreFor - scoreAgainst;
 }
+
+// Single source of truth for the French label of a MatchResult — reused by
+// the match report page and the weekend-results message block (src/lib/
+// weekend-results.ts) so the two never drift into slightly different wording.
+export const RESULT_LABEL_FR: Record<MatchResult, string> = { GAGNE: "Victoire", NUL: "Match nul", PERDU: "Défaite" };
