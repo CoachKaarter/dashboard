@@ -1,14 +1,37 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireUser, requireAdmin, canAccessTeam } from "@/lib/authz";
+import { requireUser, canAccessTeam, canManageCategory, getAccessibleCategories, type AuthedUser } from "@/lib/authz";
 import { logActivity } from "@/lib/activity";
 import { getWeekendDate } from "@/lib/availability";
 import { convocationsToCreate } from "@/lib/weekend-convocations";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 async function getPlanWeekendDate(weekStartDate: Date) {
   return getWeekendDate(weekStartDate);
+}
+
+// WeekendPlan is one global row per weekend, spanning every category that
+// has assignments that weekend — it has no per-category split. So a
+// Responsable can only validate/reopen/publish it when they manage EVERY
+// category actually involved that weekend (never just one of several), or
+// — for a still-empty plan — when they manage at least one category at
+// all, so the action isn't unusable before the first assignment exists.
+async function assertCanManageWeekend(user: AuthedUser, weekendDate: Date) {
+  const involvedTeams = await prisma.team.findMany({
+    where: { weekendAssignments: { some: { weekendDate } } },
+    select: { category: true },
+    distinct: ["category"],
+  });
+  if (involvedTeams.length > 0) {
+    const categories = [...new Set(involvedTeams.map((t) => t.category))];
+    if (!categories.every((c) => canManageCategory(user, c))) redirect("/");
+    return;
+  }
+  // Nothing assigned yet this weekend — any Responsable can act, there's
+  // nothing outside their perimeter to accidentally validate/publish.
+  if (!getAccessibleCategories(user).some((c) => canManageCategory(user, c))) redirect("/");
 }
 
 export async function assignPlayerToTeam(weekStartIso: string, playerId: string, teamId: string) {
@@ -81,16 +104,16 @@ export async function removeMatchStaff(id: string) {
   revalidatePath("/week-end");
 }
 
-// Global, cross-team actions — not scoped to any one team's roster, so
-// canAccessTeam() has nothing to check against. A coach authorized on a
-// single team must not be able to validate/reopen/publish the whole
-// club's week-end plan; that's reserved for ADMIN, same as elsewhere in
-// the app (requireAdmin(), src/lib/authz.ts). Coaches keep their
+// Global, one-row-per-weekend actions — WeekendPlan has no per-category
+// split, so validating/reopening/publishing it requires Responsable-level
+// coverage of every category actually involved that weekend (see
+// assertCanManageWeekend above), not just ADMIN. Coaches keep their
 // per-team actions above (assignPlayerToTeam, unassignPlayer, ...).
 export async function validateWeekendPlan(weekStartIso: string) {
-  const user = await requireAdmin();
+  const user = await requireUser();
   const weekStartDate = new Date(weekStartIso);
   const weekendDate = await getPlanWeekendDate(weekStartDate);
+  await assertCanManageWeekend(user, weekendDate);
 
   await prisma.weekendPlan.upsert({
     where: { weekStartDate },
@@ -102,9 +125,10 @@ export async function validateWeekendPlan(weekStartIso: string) {
 }
 
 export async function reopenWeekendPlan(weekStartIso: string) {
-  const user = await requireAdmin();
+  const user = await requireUser();
   const weekStartDate = new Date(weekStartIso);
   const weekendDate = await getPlanWeekendDate(weekStartDate);
+  await assertCanManageWeekend(user, weekendDate);
   const plan = await prisma.weekendPlan.findUnique({ where: { weekStartDate } });
   const wasPublished = plan?.status === "PUBLISHED";
 
@@ -119,9 +143,10 @@ export async function reopenWeekendPlan(weekStartIso: string) {
 }
 
 export async function generateWeekendConvocations(weekStartIso: string) {
-  const user = await requireAdmin();
+  const user = await requireUser();
   const weekStartDate = new Date(weekStartIso);
   const weekendDate = await getPlanWeekendDate(weekStartDate);
+  await assertCanManageWeekend(user, weekendDate);
 
   const [assignments, existingConvocations] = await Promise.all([
     prisma.weekendAssignment.findMany({ where: { weekendDate, matchId: { not: null } } }),

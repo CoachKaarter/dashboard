@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requireUser, scopedTeamIds } from "@/lib/authz";
+import { requireUser, scopedTeamIds, canManageCategory, getAccessibleCategories } from "@/lib/authz";
 import { getWeekStart, addDays } from "@/lib/availability";
 import { getWeekendBoard } from "@/lib/weekend";
 import { toQueryString } from "@/lib/query";
@@ -85,6 +85,16 @@ export default async function WeekEndPage({
     anomalies.push({ tone: "red", text: `${a.player.firstName} ${a.player.lastName} affecté alors qu'il/elle s'est déclaré(e) indisponible` });
   }
 
+  // Mirrors assertCanManageWeekend() server-side (src/app/(app)/week-end/actions.ts):
+  // WeekendPlan is one global row per weekend, so acting on it requires
+  // Responsable-level coverage of every category actually assigned that
+  // weekend — or, for a still-empty plan, at least one managed category.
+  const involvedCategories = [...new Set(teamCards.filter((c) => c.assigned.length > 0).map((c) => c.team.category))];
+  const canManageThisWeekend =
+    involvedCategories.length > 0
+      ? involvedCategories.every((c) => canManageCategory(user, c))
+      : getAccessibleCategories(user).some((c) => canManageCategory(user, c));
+
   const dateLabel = `${weekendDate.getDate()} ${MONTH_LABEL(weekendDate)}`;
 
   return (
@@ -113,18 +123,20 @@ export default async function WeekEndPage({
           Semaine suivante →
         </a>
 
-        {/* Validation/publication is a global, cross-team action (see
-            src/app/(app)/week-end/actions.ts) — reserved for ADMIN there;
-            hidden here for anyone else so the UI doesn't offer a button
-            that would just bounce them server-side. */}
-        {user.role === "ADMIN" && status === "DRAFT" && (
+        {/* Validation/publication is a global, one-row-per-weekend action
+            (see assertCanManageWeekend, src/app/(app)/week-end/actions.ts) —
+            it requires Responsable-level coverage of every category
+            involved this weekend, not the ADMIN technical role; hidden here
+            for anyone else so the UI doesn't offer a button that would just
+            bounce them server-side. */}
+        {canManageThisWeekend && status === "DRAFT" && (
           <form action={validateWeekendPlan.bind(null, weekStartIso)}>
             <SubmitButton pendingLabel="Validation…" className="h-9 px-3.5 rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36]">
               Valider le plan
             </SubmitButton>
           </form>
         )}
-        {user.role === "ADMIN" && status === "VALIDATED" && (
+        {canManageThisWeekend && status === "VALIDATED" && (
           <>
             <form action={reopenWeekendPlan.bind(null, weekStartIso)}>
               <SubmitButton className="h-9 px-3.5 rounded-md border border-line text-[12.5px] font-semibold text-ink-soft hover:border-ink">
@@ -138,7 +150,7 @@ export default async function WeekEndPage({
             </form>
           </>
         )}
-        {user.role === "ADMIN" && status === "PUBLISHED" && (
+        {canManageThisWeekend && status === "PUBLISHED" && (
           <form action={reopenWeekendPlan.bind(null, weekStartIso)}>
             <SubmitButton className="h-9 px-3.5 rounded-md border border-line text-[12.5px] font-semibold text-ink-soft hover:border-ink">
               Rouvrir (des convocations sont déjà publiées)
