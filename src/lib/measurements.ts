@@ -7,6 +7,9 @@ export const DEFAULT_TEST_TYPES = [
   { name: "Vitesse 20m", unit: "s", lowerIsBetter: true, order: 2 },
   { name: "Détente", unit: "cm", lowerIsBetter: false, order: 3 },
   { name: "Endurance (VMA)", unit: "km/h", lowerIsBetter: false, order: 4 },
+  { name: "Jonglerie pied droit", unit: "touches", lowerIsBetter: false, order: 5 },
+  { name: "Jonglerie pied gauche", unit: "touches", lowerIsBetter: false, order: 6 },
+  { name: "Jonglerie alterné", unit: "touches", lowerIsBetter: false, order: 7 },
 ];
 
 // Lazily seeds a starter catalog the first time the feature is used —
