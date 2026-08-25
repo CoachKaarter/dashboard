@@ -29,10 +29,32 @@ async function assertMatchAccess(matchId: string) {
   const user = await requireUser();
   const match = await prisma.match.findUniqueOrThrow({
     where: { id: matchId },
-    select: { teamId: true, formation: true, team: { select: { format: true, category: true } } },
+    select: { teamId: true, date: true, formation: true, team: { select: { format: true, category: true } } },
   });
   if (!canAccessTeam(user, match.teamId)) throw new Error("Accès refusé.");
   return { user, match };
+}
+
+// A player can't physically be at two matches at once. Same-team matches on
+// the same day are fine (tournament pool games all use that team's squad),
+// so the conflict only fires against a convocation on a DIFFERENT team's
+// match that day — the case this app's own player fluidity (V5.2 Phase 0)
+// makes newly possible: a floating player picked into two teams' matches
+// on the same Saturday.
+async function assertNoSameDayConflict(matchId: string, teamId: string, date: Date, playerId: string) {
+  const dayStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const dayEnd = new Date(dayStart.getTime() + 86400000);
+  const conflict = await prisma.matchConvocation.findFirst({
+    where: {
+      playerId,
+      matchId: { not: matchId },
+      match: { date: { gte: dayStart, lt: dayEnd }, teamId: { not: teamId } },
+    },
+    include: { match: { include: { team: true } } },
+  });
+  if (conflict) {
+    throw new Error(`Ce joueur est déjà convoqué le même jour avec ${conflict.match.team.code}.`);
+  }
 }
 
 // Scoped by CATEGORY (U12/U13), not by the player's own administrative
@@ -59,6 +81,7 @@ export async function toggleConvocation(matchId: string, playerId: string) {
     // also drop any composition slot for that player on this match
     await prisma.compositionSlot.deleteMany({ where: { matchId, playerId } });
   } else {
+    await assertNoSameDayConflict(matchId, match.teamId, match.date, playerId);
     await prisma.matchConvocation.create({ data: { matchId, playerId } });
   }
   revalidatePath(`/matchs/${matchId}`);

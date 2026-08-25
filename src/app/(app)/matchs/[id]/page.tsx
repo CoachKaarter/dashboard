@@ -58,8 +58,24 @@ export default async function MatchDetailPage({
   const defaultTab = match.status === "Joué" ? "feuille" : "convocation";
   const tab = TABS.some((t) => t.key === rawTab) ? rawTab! : defaultTab;
 
-  const [squad, hdrs] = await Promise.all([getPlayerStatsByCategory(match.team.category), headers()]);
+  const dayStart = new Date(Date.UTC(match.date.getUTCFullYear(), match.date.getUTCMonth(), match.date.getUTCDate()));
+  const dayEnd = new Date(dayStart.getTime() + 86400000);
+  const [squad, hdrs, sameDayElsewhere] = await Promise.all([
+    getPlayerStatsByCategory(match.team.category),
+    headers(),
+    prisma.matchConvocation.findMany({
+      where: {
+        matchId: { not: match.id },
+        match: { date: { gte: dayStart, lt: dayEnd }, teamId: { not: match.teamId } },
+      },
+      include: { match: { include: { team: true } } },
+    }),
+  ]);
   const convocatedIds = new Set(match.convocations.map((c) => c.playerId));
+  // A player can't be at two matches on the same day — surfaces the other
+  // team's match as the reason a candidate can't be picked here (see
+  // assertNoSameDayConflict in actions.ts, which enforces this server-side).
+  const conflictTeamByPlayer = new Map(sameDayElsewhere.map((c) => [c.playerId, c.match.team.code]));
   const host = hdrs.get("host");
   const proto = hdrs.get("x-forwarded-proto") ?? "https";
   const shareUrl = `${proto}://${host}/convocation/${match.shareToken}`;
@@ -309,7 +325,9 @@ export default async function MatchDetailPage({
                   {squad
                     .filter((p) => !convocatedIds.has(p.id))
                     .map((p) => {
-                      const blocked = p.status !== "Actif";
+                      const conflictTeam = conflictTeamByPlayer.get(p.id);
+                      const blocked = p.status !== "Actif" || !!conflictTeam;
+                      const blockedLabel = p.status !== "Actif" ? p.status : `Déjà convoqué (${conflictTeam})`;
                       return (
                         <form key={p.id} action={blocked ? undefined : toggleConvocation.bind(null, match.id, p.id)}>
                           <button
@@ -319,7 +337,7 @@ export default async function MatchDetailPage({
                           >
                             <Avatar initials={p.initials} size={22} />
                             <span className="text-[12px] font-semibold flex-1 truncate">{p.name}</span>
-                            <span className={`text-[11px] ${blocked ? "text-red" : "text-muted"}`}>{blocked ? p.status : p.position}</span>
+                            <span className={`text-[11px] ${blocked ? "text-red" : "text-muted"}`}>{blocked ? blockedLabel : p.position}</span>
                           </button>
                         </form>
                       );
