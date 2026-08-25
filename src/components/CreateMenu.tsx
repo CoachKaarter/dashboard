@@ -39,6 +39,13 @@ export function CreateMenu() {
           >
             Nouveau match
           </Link>
+          <Link
+            href="/matchs/importer"
+            onClick={() => setOpen(false)}
+            className="block px-3.5 py-2 text-[12.5px] font-medium hover:bg-bg"
+          >
+            Importer des matchs
+          </Link>
         </div>
       )}
     </div>

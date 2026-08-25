@@ -16,6 +16,7 @@ import {
   bilanSchema,
   tournamentSchema,
 } from "@/lib/match-validation";
+import { readXlsxFirstSheetGrid, extractMatchRows, buildMatchImportCandidates } from "@/lib/match-import";
 
 function computeMeetTime(time: string | null, delaiRdv: number): string | null {
   if (!time) return null;
@@ -314,4 +315,98 @@ export async function createMatch(formData: FormData) {
   revalidatePath("/planning");
   revalidatePath("/");
   redirect(`/matchs/${match.id}`);
+}
+
+// Expected columns (header row, case-insensitive, order-independent), from
+// this club's own federation exports: ADVERSAIRE, DATE DU MATCH — the rest
+// (Equipe, heures, lieu) is optional. See src/lib/match-import.ts for the
+// column-detection and row-mapping rules.
+export async function importMatches(formData: FormData) {
+  const user = await requireUser();
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    redirect(`/matchs/importer?error=${encodeURIComponent("Aucun fichier sélectionné.")}`);
+  }
+
+  const competitionParsed = competitionSchema.safeParse(String(formData.get("competition") || "Championnat"));
+  const defaultCompetition = competitionParsed.success ? competitionParsed.data : "Championnat";
+  const neededParsed = neededSchema.safeParse(Number(formData.get("needed") || 12));
+  const defaultNeeded = neededParsed.success ? neededParsed.data : 12;
+  const fallbackTeamIdRaw = String(formData.get("teamId") || "");
+  const fallbackTeamId = fallbackTeamIdRaw && canAccessTeam(user, fallbackTeamIdRaw) ? fallbackTeamIdRaw : null;
+
+  let grid;
+  try {
+    grid = readXlsxFirstSheetGrid(Buffer.from(await file.arrayBuffer()));
+  } catch {
+    redirect(`/matchs/importer?error=${encodeURIComponent("Fichier illisible — un fichier .xlsx est attendu.")}`);
+  }
+
+  const rawRows = extractMatchRows(grid);
+  if (rawRows.length === 0) {
+    redirect(
+      `/matchs/importer?error=${encodeURIComponent("Aucune ligne de match reconnue — colonnes attendues : Adversaire, Date du match.")}`
+    );
+  }
+
+  const allTeams = await prisma.team.findMany();
+  const teams = allTeams.map((t) => ({ id: t.id, code: t.code, allowed: canAccessTeam(user, t.id) }));
+  const outcomes = buildMatchImportCandidates(rawRows, { defaultCompetition, defaultNeeded, teams, fallbackTeamId });
+
+  const involvedTeamIds = [...new Set(outcomes.filter((o) => o.ok).map((o) => o.candidate.teamId))];
+  const existingMatches = await prisma.match.findMany({
+    where: { teamId: { in: involvedTeamIds } },
+    select: { teamId: true, date: true, opponent: true },
+  });
+  // Re-importing the same calendar (or an updated version of it) shouldn't
+  // create duplicate fixtures — a match is the same one if it's the same
+  // team, same day, same opponent text (both null for a still-unconfirmed
+  // opponent counts as a match).
+  const existingKeys = new Set(
+    existingMatches.map((m) => `${m.teamId}|${m.date.toISOString().slice(0, 10)}|${(m.opponent ?? "").toLowerCase()}`)
+  );
+
+  const settings = await getSettings();
+  let imported = 0;
+  let duplicates = 0;
+  let skipped = 0;
+  for (const outcome of outcomes) {
+    if (!outcome.ok) {
+      skipped++;
+      continue;
+    }
+    const c = outcome.candidate;
+    const key = `${c.teamId}|${c.date.toISOString().slice(0, 10)}|${(c.opponent ?? "").toLowerCase()}`;
+    if (existingKeys.has(key)) {
+      duplicates++;
+      continue;
+    }
+    await prisma.match.create({
+      data: {
+        teamId: c.teamId,
+        opponent: c.opponent,
+        competition: c.competition,
+        date: c.date,
+        time: c.time,
+        meetTime: computeMeetTime(c.time, settings.delaiRdv),
+        isHome: c.isHome,
+        location: c.location,
+        needed: c.needed,
+        status: "Planifié",
+      },
+    });
+    existingKeys.add(key);
+    imported++;
+  }
+
+  await logActivity({
+    actorId: user.id,
+    summary: `a importé ${imported} match(s) via Excel (${duplicates} déjà existant(s), ${skipped} ignoré(s))`,
+    entityType: "Match",
+  });
+  revalidatePath("/matchs");
+  revalidatePath("/planning");
+  revalidatePath("/");
+  redirect(`/matchs/importer?imported=${imported}&duplicates=${duplicates}&skipped=${skipped}`);
 }

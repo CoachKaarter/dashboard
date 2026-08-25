@@ -18,6 +18,7 @@ const TITLES: [RegExp, string][] = [
   [/^\/seances\/[^/]+$/, "Détail séance"],
   [/^\/seances/, "Séances"],
   [/^\/matchs\/nouveau/, "Nouveau match"],
+  [/^\/matchs\/importer/, "Importer des matchs"],
   [/^\/matchs\/[^/]+$/, "Fiche match"],
   [/^\/matchs/, "Matchs"],
   [/^\/temps-de-jeu/, "Temps de jeu"],
