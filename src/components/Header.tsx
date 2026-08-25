@@ -22,6 +22,8 @@ const TITLES: [RegExp, string][] = [
   [/^\/matchs\/[^/]+$/, "Fiche match"],
   [/^\/matchs/, "Matchs"],
   [/^\/temps-de-jeu/, "Temps de jeu"],
+  [/^\/mesures\/saisie/, "Saisir des mesures"],
+  [/^\/mesures/, "Mesures"],
   [/^\/evaluations/, "Évaluations"],
   [/^\/alertes/, "Alertes"],
   [/^\/materiel/, "Matériel"],

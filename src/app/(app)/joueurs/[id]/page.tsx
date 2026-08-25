@@ -14,6 +14,7 @@ import { requireUser, canAccessTeam, scopedTeamIds } from "@/lib/authz";
 import { getInterviewPrep } from "@/lib/interview-prep";
 import { computeEvaluationDelta } from "@/lib/evaluation";
 import { computeDistribution } from "@/lib/player-history";
+import { getPlayerMeasurementHistory, getTestTypes, computeMeasurementTrend } from "@/lib/measurements";
 import {
   addPlayerNote,
   changeTeam,
@@ -26,11 +27,13 @@ import {
   refuseUnavailability,
 } from "./actions";
 import { createInterview, updateObjectiveStatus, toggleObjectiveVisibility } from "./interview-actions";
+import { addPlayerMeasurement, deleteMeasurement } from "../../mesures/actions";
 
 const TABS = [
   { key: "assiduite", label: "Assiduité" },
   { key: "matchs", label: "Matchs" },
   { key: "performance", label: "Performance" },
+  { key: "mesures", label: "Mesures" },
   { key: "entretiens", label: "Entretiens" },
   { key: "historique", label: "Historique" },
 ];
@@ -55,7 +58,7 @@ export default async function FichePage({
   const tab = TABS.some((t) => t.key === rawTab) ? rawTab! : "assiduite";
 
   const user = await requireUser();
-  const [player, stats, allTeams, interviewPrep] = await Promise.all([
+  const [player, stats, allTeams, interviewPrep, measurementHistory, testTypes] = await Promise.all([
     prisma.player.findUnique({
       where: { id },
       include: {
@@ -74,6 +77,8 @@ export default async function FichePage({
     getPlayerStatsById(id),
     prisma.team.findMany({ orderBy: { code: "asc" } }),
     getInterviewPrep(id),
+    getPlayerMeasurementHistory(id),
+    getTestTypes(),
   ]);
   if (!player || !stats) notFound();
   if (!canAccessTeam(user, player.teamId)) notFound();
@@ -294,6 +299,125 @@ export default async function FichePage({
                   );
                 })}
               </Panel>
+            </>
+          )}
+
+          {tab === "mesures" && (
+            <>
+              <Panel title="Ajouter une mesure" hint="test, date et valeur">
+                <form
+                  action={addPlayerMeasurement.bind(null, player.id)}
+                  className="grid grid-cols-[1fr_140px_110px_auto] gap-2 items-end px-3.5 py-3"
+                >
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted">Test</span>
+                    <select
+                      name="testTypeId"
+                      required
+                      className="h-8 border border-line rounded-md px-2 text-[12.5px] bg-surface outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
+                    >
+                      {testTypes.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} ({t.unit})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted">Date</span>
+                    <input
+                      type="date"
+                      name="date"
+                      required
+                      defaultValue={new Date().toISOString().slice(0, 10)}
+                      className="h-8 border border-line rounded-md px-2 text-[12.5px] bg-surface outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted">Valeur</span>
+                    <input
+                      type="number"
+                      step="0.1"
+                      name="value"
+                      required
+                      className="h-8 border border-line rounded-md px-2 text-[12.5px] bg-surface outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className="h-8 px-3 border-none rounded-md bg-ink text-white text-xs font-semibold cursor-pointer hover:bg-[#2A2E36]"
+                  >
+                    Ajouter
+                  </button>
+                </form>
+              </Panel>
+
+              {measurementHistory.length === 0 && (
+                <Panel title="Historique" hint="">
+                  <EmptyRow text="Aucune mesure enregistrée pour ce joueur." />
+                </Panel>
+              )}
+
+              {measurementHistory.map((group) => {
+                const chronological = [...group.entries].reverse();
+                const values = chronological.map((e) => e.value);
+                const min = values.length ? Math.min(...values) : 0;
+                const max = values.length ? Math.max(...values) : 1;
+                const pad = (max - min) * 0.15 || 1;
+                return (
+                  <Panel
+                    key={group.testType.id}
+                    title={group.testType.name}
+                    hint={`${group.entries.length} mesure${group.entries.length > 1 ? "s" : ""}`}
+                  >
+                    {chronological.length >= 2 && (
+                      <div className="px-3.5 py-3 border-b border-line-soft-2">
+                        <ProgressChart
+                          points={chronological.map((e) => ({ label: formatDateShort(e.date), value: e.value }))}
+                          min={min - pad}
+                          max={max + pad}
+                        />
+                        <div className="flex justify-between text-[10.5px] text-muted-2 mt-1 px-1">
+                          {chronological.map((e) => (
+                            <span key={e.id}>{formatDateShort(e.date)}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {group.entries.map((e, i) => {
+                      const previous = group.entries[i + 1];
+                      const trend = previous ? computeMeasurementTrend(e.value, previous.value, group.testType.lowerIsBetter) : null;
+                      return (
+                        <div key={e.id} className="flex items-center gap-2.5 px-3.5 py-2.5 border-b border-line-soft-2 last:border-b-0">
+                          <span className="text-[12.5px] text-muted w-24">{formatDateShort(e.date)}</span>
+                          <span className="font-mono text-[13px] font-bold">
+                            {e.value} {group.testType.unit}
+                          </span>
+                          {trend && (
+                            <span
+                              className={`text-[11px] font-semibold ${
+                                trend === "up" ? "text-green" : trend === "down" ? "text-red" : "text-muted"
+                              }`}
+                            >
+                              {trend === "up" ? "▲" : trend === "down" ? "▼" : "="}
+                            </span>
+                          )}
+                          {e.note ? (
+                            <span className="text-[11.5px] text-ink-soft flex-1 truncate">{e.note}</span>
+                          ) : (
+                            <span className="flex-1" />
+                          )}
+                          <form action={deleteMeasurement.bind(null, player.id, e.id)}>
+                            <button type="submit" className="h-6 px-2 border border-line rounded-md text-[10.5px] font-semibold text-red hover:border-red">
+                              Retirer
+                            </button>
+                          </form>
+                        </div>
+                      );
+                    })}
+                  </Panel>
+                );
+              })}
             </>
           )}
 

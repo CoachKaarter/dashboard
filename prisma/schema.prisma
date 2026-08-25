@@ -45,6 +45,7 @@ model User {
   contentFavorites       TrainingContentFavorite[]
   templatesCreated       SessionTemplate[]
   announcementsPosted    StaffAnnouncement[]
+  physicalTestsRecorded  PhysicalTestResult[]
 
   createdAt DateTime @default(now())
 }
@@ -102,6 +103,7 @@ model Player {
   weekendAssignments WeekendAssignment[]
   interviews         PlayerInterview[]
   objectives         PlayerObjective[]
+  physicalTests      PhysicalTestResult[]
 
   createdAt DateTime @default(now())
 
@@ -825,6 +827,45 @@ model ActivityLog {
 }
 
 // ---------- Seasons (suivi — pas de cloisonnement des données par saison) ----------
+
+// ---------- Physical measurements & tests ----------
+// Extensible catalog rather than a fixed set of columns: a club's testing
+// programme changes from season to season (a new coach adds a slalom test,
+// drops another), so the list of what's measured lives in data (this
+// table), not in the schema. Poids/Taille/Vitesse/Détente/Endurance are
+// seeded lazily (see src/lib/measurements.ts) as a sensible starting point,
+// editable/extendable from the "Mesures" screen without a code change.
+
+model PhysicalTestType {
+  id            String  @id @default(cuid())
+  name          String  @unique // "Poids", "Taille", "Vitesse 20m", "Détente", "Endurance (VMA)"
+  unit          String // "kg", "cm", "s", "km/h"...
+  lowerIsBetter Boolean @default(false) // vrai pour un chrono : un temps plus bas = meilleure performance
+  order         Int     @default(0)
+  active        Boolean @default(true) // masqué de la saisie/du tableau, historique conservé
+
+  results PhysicalTestResult[]
+
+  createdAt DateTime @default(now())
+}
+
+model PhysicalTestResult {
+  id           String           @id @default(cuid())
+  player       Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId     String
+  testType     PhysicalTestType @relation(fields: [testTypeId], references: [id], onDelete: Cascade)
+  testTypeId   String
+  date         DateTime
+  value        Float
+  note         String?
+  recordedBy   User?            @relation(fields: [recordedById], references: [id])
+  recordedById String?
+  createdAt    DateTime         @default(now())
+
+  @@unique([playerId, testTypeId, date]) // re-saisir la même journée corrige plutôt que doublonne
+  @@index([playerId])
+  @@index([testTypeId])
+}
 
 model Season {
   id        String   @id @default(cuid())

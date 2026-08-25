@@ -26,6 +26,7 @@ export async function Sidebar() {
     { href: "/bibliotheque", label: "Bibliothèque" },
     { href: "/matchs", label: "Matchs", badge: String(upcomingMatches) },
     { href: "/temps-de-jeu", label: "Temps de jeu" },
+    { href: "/mesures", label: "Mesures" },
     { href: "/evaluations", label: "Évaluations" },
     { href: "/alertes", label: "Alertes", badge: String(totalAlerts), urgent: urgentCount > 0 },
     { href: "/materiel", label: "Matériel" },
