@@ -6,7 +6,8 @@ import { TeamChip } from "@/components/ui/TeamChip";
 import { Badge } from "@/components/ui/Badge";
 import { toQueryString } from "@/lib/query";
 import { formatDateShort } from "@/lib/format";
-import { requireUser, scopedTeamIds } from "@/lib/authz";
+import { requireUser, scopedTeamIdsInCategory } from "@/lib/authz";
+import { getActiveCategoryGroup } from "@/lib/active-category";
 import { decideAlert, reopenAlert } from "./actions";
 
 const LEVELS = ["Tous", "Urgent", "À traiter", "À surveiller", "Information"];
@@ -28,8 +29,11 @@ export default async function AlertesPage({ searchParams }: { searchParams: Prom
   const level = LEVELS.includes(sp.level ?? "") ? sp.level! : "Tous";
 
   const user = await requireUser();
+  const activeGroup = await getActiveCategoryGroup(user);
+  const allTeams = await prisma.team.findMany({ select: { id: true, code: true, category: true } });
+  const categoryTeamIds = scopedTeamIdsInCategory(user, allTeams, activeGroup?.categories ?? null);
   const [groups, staff] = await Promise.all([
-    getAlertGroups(scopedTeamIds(user)),
+    getAlertGroups(categoryTeamIds),
     prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
   ]);
   const rows = groups
