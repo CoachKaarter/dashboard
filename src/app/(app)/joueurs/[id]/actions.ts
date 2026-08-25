@@ -80,7 +80,12 @@ export async function updatePlayer(playerId: string, formData: FormData) {
   const foot = String(formData.get("foot") ?? "");
   const birthYear = Number(formData.get("birthYear"));
   const joinedLabel = String(formData.get("joinedLabel") ?? "").trim();
-  if (!firstName || !lastName || !POSITIONS.includes(position) || !birthYear || !joinedLabel) return;
+  // "Non renseigné" is a valid option in the position <select> (e.g. every
+  // freshly imported player defaults to it) but isn't itself part of
+  // POSITIONS — excluding it here used to silently reject the whole form,
+  // including firstName/lastName, for any player whose position was never
+  // set.
+  if (!firstName || !lastName || (position !== "Non renseigné" && !POSITIONS.includes(position)) || !birthYear || !joinedLabel) return;
 
   await prisma.player.update({
     where: { id: playerId },
