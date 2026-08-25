@@ -18,6 +18,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { redirect } from "next/navigation";
+import { decideOnboardingRedirect } from "@/lib/redirect-policy";
 
 export type AccessLevel = "COACH" | "RESPONSABLE";
 
@@ -132,9 +133,16 @@ export async function getAuthedUser(): Promise<AuthedUser | null> {
   };
 }
 
-export async function requireUser(): Promise<AuthedUser> {
+// skipOnboardingCheck exists solely for /onboarding itself — every other
+// call site keeps calling requireUser() with no argument, so this doesn't
+// touch the ~40 existing call sites across the app.
+export async function requireUser(options?: { skipOnboardingCheck?: boolean }): Promise<AuthedUser> {
   const user = await getAuthedUser();
   if (!user) redirect("/login");
+  if (!options?.skipOnboardingCheck) {
+    const target = decideOnboardingRedirect(user.onboardingCompletedAt);
+    if (target) redirect(target);
+  }
   return user;
 }
 

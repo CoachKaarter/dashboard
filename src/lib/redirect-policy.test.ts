@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decideStaffMiddleware, decideParentMiddleware, decideLoginPageRedirect, decidePasswordChangeRedirect } from "./redirect-policy";
+import {
+  decideStaffMiddleware,
+  decideParentMiddleware,
+  decideLoginPageRedirect,
+  decidePasswordChangeRedirect,
+  decideOnboardingRedirect,
+} from "./redirect-policy";
 
 // --- STAFF ---
 
@@ -61,4 +67,14 @@ test("parent: /parent/login never redirects itself away — the anti-loop invari
 test("decidePasswordChangeRedirect: forced first-login change never applies to itself", () => {
   assert.equal(decidePasswordChangeRedirect(true), "/parent/changer-mot-de-passe");
   assert.equal(decidePasswordChangeRedirect(false), null);
+});
+
+// --- STAFF ONBOARDING ---
+
+test("decideOnboardingRedirect: a brand new account (never onboarded) is sent to /onboarding", () => {
+  assert.equal(decideOnboardingRedirect(null), "/onboarding");
+});
+
+test("decideOnboardingRedirect: an account that already completed onboarding passes through", () => {
+  assert.equal(decideOnboardingRedirect(new Date("2026-01-01")), null);
 });

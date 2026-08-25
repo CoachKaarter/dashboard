@@ -37,3 +37,15 @@ export function decideLoginPageRedirect(isAuthedRealUser: boolean): string | nul
 export function decidePasswordChangeRedirect(mustChangePassword: boolean): string | null {
   return mustChangePassword ? "/parent/changer-mot-de-passe" : null;
 }
+
+/**
+ * Forced first-login onboarding for staff — shows a new account its real
+ * responsibilities (StaffAccess grants) before it reaches any real screen.
+ * Existing accounts are backfilled with a non-null onboardingCompletedAt
+ * at deploy time (see migration 20260825160000), so this only ever fires
+ * for genuinely new accounts going forward — never applied to /onboarding
+ * itself, or it would redirect to itself.
+ */
+export function decideOnboardingRedirect(onboardingCompletedAt: Date | null): string | null {
+  return onboardingCompletedAt ? null : "/onboarding";
+}
