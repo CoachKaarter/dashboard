@@ -230,6 +230,7 @@ export async function updateMatch(matchId: string, formData: FormData) {
   const time = String(formData.get("time") || "") || null;
   const isHome = formData.get("isHome") === "on";
   const location = String(formData.get("location") || "") || null;
+  const meetLocation = String(formData.get("meetLocation") || "").trim() || null;
   const neededParsed = neededSchema.safeParse(Number(formData.get("needed")));
   const preMatchObjective = String(formData.get("preMatchObjective") || "").trim() || null;
   const mainInstructions = String(formData.get("mainInstructions") || "").trim() || null;
@@ -249,6 +250,7 @@ export async function updateMatch(matchId: string, formData: FormData) {
     data: {
       opponent, competition: competitionParsed.data, date, time,
       meetTime: computeMeetTime(time, settings.delaiRdv),
+      meetLocation,
       isHome, location, needed, preMatchObjective, mainInstructions, preMatchNotes,
       ...tournamentParsed.data,
     },
@@ -307,6 +309,7 @@ export async function createMatch(formData: FormData) {
   const time = String(formData.get("time") || "") || null;
   const isHome = formData.get("isHome") === "on";
   const location = String(formData.get("location") || "") || null;
+  const meetLocation = String(formData.get("meetLocation") || "").trim() || null;
   const neededParsed = neededSchema.safeParse(Number(formData.get("needed")));
   if (!competitionParsed.success || Number.isNaN(date.getTime()) || !neededParsed.success) return;
   const needed = neededParsed.data;
@@ -316,6 +319,7 @@ export async function createMatch(formData: FormData) {
     data: {
       teamId, opponent, competition: competitionParsed.data, date, time,
       meetTime: computeMeetTime(time, settings.delaiRdv),
+      meetLocation,
       isHome, location, needed, status: "Planifié",
     },
   });

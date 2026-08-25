@@ -73,17 +73,41 @@ export async function updatePlayer(playerId: string, formData: FormData) {
   const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
   if (!canAccessTeam(user, player.teamId)) return;
 
+  const firstName = String(formData.get("firstName") ?? "").trim();
+  const lastName = String(formData.get("lastName") ?? "").trim();
   const position = String(formData.get("position") ?? "");
   const positionAlt = String(formData.get("positionAlt") ?? "");
   const foot = String(formData.get("foot") ?? "");
   const birthYear = Number(formData.get("birthYear"));
   const joinedLabel = String(formData.get("joinedLabel") ?? "").trim();
-  if (!POSITIONS.includes(position) || !birthYear || !joinedLabel) return;
+  if (!firstName || !lastName || !POSITIONS.includes(position) || !birthYear || !joinedLabel) return;
 
   await prisma.player.update({
     where: { id: playerId },
-    data: { position, positionAlt: positionAlt || position, foot: foot || "Non renseigné", birthYear, joinedLabel },
+    data: {
+      firstName,
+      lastName: lastName.toUpperCase(),
+      position,
+      positionAlt: positionAlt || position,
+      foot: foot || "Non renseigné",
+      birthYear,
+      joinedLabel,
+    },
   });
+  revalidatePath(`/joueurs/${playerId}`);
+  revalidatePath("/joueurs");
+}
+
+export async function updateParentContact(playerId: string, formData: FormData) {
+  const user = await requireUser();
+  const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
+  if (!canAccessTeam(user, player.teamId)) return;
+
+  const parentName = String(formData.get("parentName") ?? "").trim() || null;
+  const parentPhone = String(formData.get("parentPhone") ?? "").trim() || null;
+  const parentEmail = String(formData.get("parentEmail") ?? "").trim() || null;
+
+  await prisma.player.update({ where: { id: playerId }, data: { parentName, parentPhone, parentEmail } });
   revalidatePath(`/joueurs/${playerId}`);
 }
 

@@ -18,8 +18,8 @@ export default async function ConvocationPublicPage({ params }: { params: Promis
   const whatsappLines = [
     `Convocation ${match.team.code} — vs ${match.opponent ?? "adversaire à définir"}`,
     `${formatDateFull(match.date)}${match.time ? ` à ${match.time}` : ""}`,
-    match.meetTime ? `Rendez-vous : ${match.meetTime}` : null,
-    match.location ? `Lieu : ${match.location}` : null,
+    match.meetTime ? `Rendez-vous : ${match.meetTime}${match.meetLocation ? ` — ${match.meetLocation}` : ""}` : null,
+    match.location ? `Lieu du match : ${match.location}` : null,
     "",
     "Joueurs convoqués :",
     ...match.convocations.map((c) => `- ${c.player.firstName} ${c.player.lastName}`),
@@ -37,8 +37,13 @@ export default async function ConvocationPublicPage({ params }: { params: Promis
           <div className="text-[13px] text-[#6E7178] mt-1.5">
             {formatDateFull(match.date)}{match.time ? ` à ${match.time}` : ""}
           </div>
-          {match.meetTime && <div className="text-[13px] text-[#6E7178]">Rendez-vous : {match.meetTime}</div>}
-          {match.location && <div className="text-[13px] text-[#6E7178]">Lieu : {match.location}</div>}
+          {match.meetTime && (
+            <div className="text-[13px] text-[#6E7178]">
+              Rendez-vous : {match.meetTime}
+              {match.meetLocation ? ` — ${match.meetLocation}` : ""}
+            </div>
+          )}
+          {match.location && <div className="text-[13px] text-[#6E7178]">Lieu du match : {match.location}</div>}
 
           <div className="flex gap-2 mt-3.5 pt-3 border-t border-[#EFEFEC]">
             <CopyButton

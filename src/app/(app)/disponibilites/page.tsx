@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, scopedTeamIds, getAccessibleCategories } from "@/lib/authz";
 import { getActiveCategoryGroup } from "@/lib/active-category";
 import { getWeekStart, addDays, getWindowForWeek } from "@/lib/availability";
+import { getClubMessageTemplates } from "@/lib/club";
+import { DEFAULT_AVAILABILITY_MESSAGE_TEMPLATE, renderMessageTemplate } from "@/lib/message-templates";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { FilterChip } from "@/components/ui/FilterChip";
 import { Badge } from "@/components/ui/Badge";
@@ -31,7 +33,7 @@ export default async function DisponibilitesPage({
   const weekEndExclusive = addDays(baseWeek, 7);
   const weekend = addDays(baseWeek, 5);
 
-  const [window, allTeams, sessionsAll, hdrs] = await Promise.all([
+  const [window, allTeams, sessionsAll, hdrs, clubTemplates] = await Promise.all([
     getWindowForWeek(baseWeek),
     prisma.team.findMany({ orderBy: { code: "asc" } }),
     prisma.trainingSession.findMany({
@@ -40,21 +42,15 @@ export default async function DisponibilitesPage({
       orderBy: { date: "asc" },
     }),
     headers(),
+    getClubMessageTemplates(),
   ]);
   const host = hdrs.get("host");
   const proto = hdrs.get("x-forwarded-proto") ?? "https";
   const parentUrl = `${proto}://${host}/parent`;
-  const sundayMessage = [
-    "Bonjour à tous,",
-    "",
-    "Les pointages de présence de la semaine sont désormais ouverts.",
-    "",
-    "Vous pouvez dès à présent renseigner les présences de votre enfant aux séances ainsi que sa disponibilité pour le week-end depuis l'espace parents.",
-    "",
-    `Merci de compléter les informations avant ${window?.closesAt ? `le ${formatDT(new Date(window.closesAt))}` : "la date limite indiquée"}.`,
-    "",
-    `🔗 ${parentUrl}`,
-  ].join("\n");
+  const sundayMessage = renderMessageTemplate(clubTemplates.availabilityMessageTemplate ?? DEFAULT_AVAILABILITY_MESSAGE_TEMPLATE, {
+    date_limite: window?.closesAt ? `le ${formatDT(new Date(window.closesAt))}` : "la date limite indiquée",
+    lien_parent: parentUrl,
+  });
   const teams = (scope === "ALL" ? allTeams : allTeams.filter((t) => scope.includes(t.id))).filter(
     (t) => !activeGroup || activeGroup.categories.includes(t.category)
   );

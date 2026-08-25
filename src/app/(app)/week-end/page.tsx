@@ -4,6 +4,8 @@ import { requireUser, scopedTeamIdsInCategory, canManageCategory, getAccessibleC
 import { getActiveCategoryGroup } from "@/lib/active-category";
 import { getWeekStart, addDays } from "@/lib/availability";
 import { getWeekendBoard } from "@/lib/weekend";
+import { getClubMessageTemplates } from "@/lib/club";
+import { DEFAULT_CONVOCATION_MESSAGE_TEMPLATE, renderMessageTemplate } from "@/lib/message-templates";
 import { toQueryString } from "@/lib/query";
 import { Badge } from "@/components/ui/Badge";
 import { WeekendBoard } from "@/components/WeekendBoard";
@@ -23,10 +25,11 @@ export default async function WeekEndPage({
   const baseWeek = sp.week ? getWeekStart(new Date(sp.week)) : getWeekStart(new Date());
   const weekStartIso = baseWeek.toISOString();
 
-  const [allTeams, staffUsers, hdrs] = await Promise.all([
+  const [allTeams, staffUsers, hdrs, clubTemplates] = await Promise.all([
     prisma.team.findMany({ select: { id: true, code: true, category: true } }),
     prisma.user.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     headers(),
+    getClubMessageTemplates(),
   ]);
   const host = hdrs.get("host");
   const proto = hdrs.get("x-forwarded-proto") ?? "https";
@@ -42,6 +45,10 @@ export default async function WeekEndPage({
   const teamCardsForBoard = teamCards.map((c) => ({
     team: { id: c.team.id, code: c.team.code, category: c.team.category },
     match: c.match ? { id: c.match.id, opponent: c.match.opponent, time: c.match.time, isHome: c.match.isHome, location: c.match.location } : null,
+    nextMatch:
+      c.nextMatch && c.nextMatch.id !== c.match?.id
+        ? { id: c.nextMatch.id, opponent: c.nextMatch.opponent, date: c.nextMatch.date.toISOString(), time: c.nextMatch.time, isHome: c.nextMatch.isHome }
+        : null,
     assigned: c.assigned.map((a) => ({
       player: {
         id: a.player.id,
@@ -107,16 +114,11 @@ export default async function WeekEndPage({
       : getAccessibleCategories(user).some((c) => canManageCategory(user, c));
 
   const dateLabel = `${weekendDate.getDate()} ${MONTH_LABEL(weekendDate)}`;
-  const convocationsMessage = [
-    "Bonjour à tous,",
-    "",
-    `Les convocations pour le week-end du ${dateLabel} sont disponibles.`,
-    "",
-    "Vous pouvez les consulter dès à présent depuis l'espace parents ainsi que sur le site du club.",
-    "",
-    `🔗 Espace parents : ${parentUrl}`,
-    `🔗 Site du club : ${CLUB_SITE_URL}`,
-  ].join("\n");
+  const convocationsMessage = renderMessageTemplate(clubTemplates.convocationMessageTemplate ?? DEFAULT_CONVOCATION_MESSAGE_TEMPLATE, {
+    date: dateLabel,
+    lien_parent: parentUrl,
+    lien_club: CLUB_SITE_URL,
+  });
 
   return (
     <div className="max-w-[1400px] mx-auto animate-fadein">

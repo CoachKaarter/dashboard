@@ -7,6 +7,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { getWeekendDate } from "@/lib/availability";
+import { parisStartOfDay } from "@/lib/timezone";
 
 export type Scope = string[] | "ALL";
 
@@ -23,10 +24,19 @@ export async function getWeekendBoard(weekStartDate: Date, scope: Scope) {
   ]);
   const teamIds = teams.map((t) => t.id);
 
-  const [matches, players, assignments, staffAssignments, availability, unavailAll] = await Promise.all([
+  const today = parisStartOfDay(new Date());
+  const [matches, nextMatches, players, assignments, staffAssignments, availability, unavailAll] = await Promise.all([
     prisma.match.findMany({
       where: { teamId: { in: teamIds }, date: weekendDate, status: { not: "Annulé" } },
       orderBy: { time: "asc" },
+    }),
+    // Genuinely the next match on the calendar for each team — which is NOT
+    // necessarily this Saturday's match above: a team can have a midweek
+    // fixture before the weekend one, and staff need to see that, not the
+    // weekend board's own Saturday slot mistaken for "the next match".
+    prisma.match.findMany({
+      where: { teamId: { in: teamIds }, date: { gte: today }, status: { not: "Annulé" } },
+      orderBy: { date: "asc" },
     }),
     prisma.player.findMany({
       where: { archived: false, teamId: { in: teamIds } },
@@ -76,11 +86,14 @@ export async function getWeekendBoard(weekStartDate: Date, scope: Scope) {
 
   const teamCards = teams.map((t) => {
     const match = matches.find((m) => m.teamId === t.id) ?? null;
+    // nextMatches is ordered by date ascending, so the first hit per team is
+    // its earliest upcoming match — .find() short-circuits there.
+    const nextMatch = nextMatches.find((m) => m.teamId === t.id) ?? null;
     const assigned = assignments.filter((a) => a.teamId === t.id);
     const keeper = assigned.find((a) => a.player.position === "Gardien");
     const staff = staffAssignments.filter((s) => match && s.matchId === match.id);
     const needed = match?.needed ?? (t.category === "U13" ? 12 : 11);
-    return { team: t, match, assigned, keeper, staff, needed };
+    return { team: t, match, nextMatch, assigned, keeper, staff, needed };
   });
 
   return {

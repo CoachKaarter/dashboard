@@ -1,19 +1,21 @@
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
-import { getClub } from "@/lib/club";
+import { getClub, getClubMessageTemplates } from "@/lib/club";
 import { requireAdmin } from "@/lib/authz";
 import { NumField } from "@/components/ui/NumField";
 import { ColorField } from "@/components/ui/ColorField";
 import { Badge } from "@/components/ui/Badge";
 import { formatDateFull } from "@/lib/format";
-import { updateSettings, createSeason, setCurrentSeason, updateClub } from "./actions";
+import { DEFAULT_AVAILABILITY_MESSAGE_TEMPLATE, DEFAULT_CONVOCATION_MESSAGE_TEMPLATE } from "@/lib/message-templates";
+import { updateSettings, createSeason, setCurrentSeason, updateClub, updateMessageTemplates } from "./actions";
 
 export default async function ParametresPage() {
-  const [settings, admin, seasons, club] = await Promise.all([
+  const [settings, admin, seasons, club, messageTemplates] = await Promise.all([
     getSettings(),
     requireAdmin(),
     prisma.season.findMany({ orderBy: { startDate: "desc" } }),
     getClub(),
+    getClubMessageTemplates(),
   ]);
   const currentSeason = seasons.find((s) => s.isCurrent) ?? seasons[0] ?? null;
 
@@ -109,6 +111,45 @@ export default async function ParametresPage() {
 
           <button type="submit" className="self-start h-9 px-4 rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36]">
             Enregistrer l&apos;identité visuelle
+          </button>
+        </form>
+      </section>
+
+      <section className="bg-surface border border-line rounded-lg overflow-hidden">
+        <div className="px-3.5 py-[11px] border-b border-line-soft text-[11px] font-bold tracking-[0.11em] uppercase text-muted">
+          Textes à copier
+        </div>
+        <form action={updateMessageTemplates} className="p-3.5 flex flex-col gap-4">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[12.5px] font-semibold">Ouverture des dispos — bouton Copier sur /disponibilites</span>
+            <span className="text-[11px] text-muted-2">
+              Variables : <code>{"{{date_limite}}"}</code> (date de clôture), <code>{"{{lien_parent}}"}</code> (lien espace parents).
+              Laisser vide pour revenir au texte par défaut.
+            </span>
+            <textarea
+              name="availabilityMessageTemplate"
+              defaultValue={messageTemplates.availabilityMessageTemplate ?? ""}
+              placeholder={DEFAULT_AVAILABILITY_MESSAGE_TEMPLATE}
+              rows={7}
+              className="border border-line rounded-md px-2.5 py-2 text-[12.5px] bg-surface outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg font-mono"
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[12.5px] font-semibold">Convocations publiées — bouton Copier sur /week-end</span>
+            <span className="text-[11px] text-muted-2">
+              Variables : <code>{"{{date}}"}</code> (date du week-end), <code>{"{{lien_parent}}"}</code> (lien espace parents),{" "}
+              <code>{"{{lien_club}}"}</code> (site du club). Laisser vide pour revenir au texte par défaut.
+            </span>
+            <textarea
+              name="convocationMessageTemplate"
+              defaultValue={messageTemplates.convocationMessageTemplate ?? ""}
+              placeholder={DEFAULT_CONVOCATION_MESSAGE_TEMPLATE}
+              rows={7}
+              className="border border-line rounded-md px-2.5 py-2 text-[12.5px] bg-surface outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg font-mono"
+            />
+          </label>
+          <button type="submit" className="self-start h-9 px-4 rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36]">
+            Enregistrer les textes
           </button>
         </form>
       </section>

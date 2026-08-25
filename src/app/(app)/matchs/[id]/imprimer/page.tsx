@@ -62,8 +62,8 @@ export default async function FeuilleImprimablePage({ params }: { params: Promis
         <div style={{ fontSize: 13, color: "#3A3D43" }}>
           {formatDateFull(match.date)}
           {match.time ? ` · Coup d'envoi ${match.time}` : ""}
-          {match.meetTime ? ` · RDV ${match.meetTime}` : ""} · {match.competition} · {match.isHome ? "Domicile" : "Extérieur"} ·{" "}
-          {match.location ?? "lieu à définir"}
+          {match.meetTime ? ` · RDV ${match.meetTime}${match.meetLocation ? ` (${match.meetLocation})` : ""}` : ""} ·{" "}
+          {match.competition} · {match.isHome ? "Domicile" : "Extérieur"} · {match.location ?? "lieu à définir"}
         </div>
         <div style={{ fontSize: 13, color: "#3A3D43", marginTop: 2 }}>
           Système : {formationLabel(match.formation)} ({match.team.format})

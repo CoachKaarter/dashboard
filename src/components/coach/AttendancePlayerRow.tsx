@@ -42,7 +42,7 @@ export function AttendancePlayerRow({
         <Avatar initials={`${firstName[0]}${lastName[0]}`} size={32} />
         <div className="flex-1 min-w-0">
           <div className="text-[14.5px] font-bold truncate">
-            {firstName} {lastName.charAt(0)}.
+            {firstName} {lastName}
           </div>
           {familyStatus && (
             <div className={`text-[11.5px] mt-0.5 ${familyStatus === "UNAVAILABLE" ? "text-orange" : "text-[#9A9DA3]"}`}>

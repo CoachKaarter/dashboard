@@ -6,6 +6,7 @@ import Link from "next/link";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
+import { formatDateLong } from "@/lib/format";
 import { assignPlayerToTeam, unassignPlayer, assignMatchStaff, removeMatchStaff } from "@/app/(app)/week-end/actions";
 
 type BoardPlayer = {
@@ -20,6 +21,11 @@ type BoardPlayer = {
 type TeamCard = {
   team: { id: string; code: string; category: string };
   match: { id: string; opponent: string | null; time: string | null; isHome: boolean; location: string | null } | null;
+  // Le vrai prochain match de l'équipe — peut être différent de `match`
+  // ci-dessus (celui de CE samedi) : un match de semaine avant le week-end
+  // passe en premier. null quand `match` est déjà le prochain match, pour
+  // éviter d'afficher deux fois la même info.
+  nextMatch: { id: string; opponent: string | null; date: string; time: string | null; isHome: boolean } | null;
   assigned: { player: BoardPlayer }[];
   keeper: { player: BoardPlayer } | null;
   staff: { id: string; role: string; user: { name: string } }[];
@@ -118,6 +124,12 @@ export function WeekendBoard({
                           <span className="text-orange">⚠ Aucun match renseigné</span>
                         )}
                       </div>
+                      {c.nextMatch && (
+                        <div className="text-[11px] text-blue mt-0.5">
+                          Prochain match : vs {c.nextMatch.opponent ?? "adversaire à définir"} · {formatDateLong(new Date(c.nextMatch.date))}
+                          {c.nextMatch.time ? ` · ${c.nextMatch.time}` : ""}
+                        </div>
+                      )}
                       <div className="text-[11.5px] mt-1">
                         {c.keeper ? (
                           <span>🧤 {c.keeper.player.firstName} {c.keeper.player.lastName}</span>

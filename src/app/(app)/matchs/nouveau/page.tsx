@@ -69,6 +69,9 @@ export default async function NouveauMatchPage() {
           <Field label="Lieu">
             <input name="location" placeholder="Terrain" className={inputClass} />
           </Field>
+          <Field label="Lieu du rendez-vous (optionnel)">
+            <input name="meetLocation" placeholder="Ex. parking du club" className={inputClass} />
+          </Field>
           <label className="flex items-center gap-2 text-[12.5px] text-ink-soft">
             <input type="checkbox" name="isHome" defaultChecked className="w-4 h-4" />
             Match à domicile

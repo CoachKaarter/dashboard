@@ -101,3 +101,20 @@ export async function updateClub(formData: FormData) {
   revalidatePath("/coach");
   revalidatePath("/parent");
 }
+
+// Champ laissé vide = retour au texte par défaut codé en dur
+// (src/lib/message-templates.ts) — pas de valeur "vide" stockée en base.
+export async function updateMessageTemplates(formData: FormData) {
+  await requireAdmin();
+  const availabilityMessageTemplate = String(formData.get("availabilityMessageTemplate") ?? "").trim() || null;
+  const convocationMessageTemplate = String(formData.get("convocationMessageTemplate") ?? "").trim() || null;
+
+  await prisma.club.upsert({
+    where: { id: 1 },
+    update: { availabilityMessageTemplate, convocationMessageTemplate },
+    create: { id: 1, availabilityMessageTemplate, convocationMessageTemplate },
+  });
+  revalidatePath("/parametres");
+  revalidatePath("/disponibilites");
+  revalidatePath("/week-end");
+}

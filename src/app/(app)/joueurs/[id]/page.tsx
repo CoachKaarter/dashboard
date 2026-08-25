@@ -20,6 +20,7 @@ import {
   changeTeam,
   changeStatus,
   updatePlayer,
+  updateParentContact,
   setArchived,
   declareUnavailability,
   endUnavailability,
@@ -646,6 +647,12 @@ export default async function FichePage({
 
             <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted mt-4 mb-[11px]">Modifier</div>
             <form action={updatePlayer.bind(null, id)} className="flex flex-col gap-2.5">
+              <EditField label="Prénom">
+                <input name="firstName" defaultValue={player.firstName} className={editInputClass} />
+              </EditField>
+              <EditField label="Nom">
+                <input name="lastName" defaultValue={player.lastName} className={editInputClass} />
+              </EditField>
               <EditField label="Année de naissance">
                 <input type="number" name="birthYear" defaultValue={stats.birthYear} className={editInputClass} />
               </EditField>
@@ -708,6 +715,22 @@ export default async function FichePage({
               <button type="submit" className="w-full h-8 border border-line rounded-md text-xs font-semibold text-muted hover:border-red hover:text-red">
                 {player.archived ? "Réactiver ce joueur" : "Archiver ce joueur"}
               </button>
+            </form>
+          </div>
+
+          <div className="bg-surface border border-line rounded-lg px-3.5 py-[13px]">
+            <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted mb-[11px]">Infos parents</div>
+            <form action={updateParentContact.bind(null, id)} className="flex flex-col gap-2.5">
+              <EditField label="Nom du parent">
+                <input name="parentName" defaultValue={player.parentName ?? ""} placeholder="Non renseigné" className={editInputClass} />
+              </EditField>
+              <EditField label="Téléphone">
+                <input name="parentPhone" defaultValue={player.parentPhone ?? ""} placeholder="Non renseigné" className={editInputClass} />
+              </EditField>
+              <EditField label="Email">
+                <input type="email" name="parentEmail" defaultValue={player.parentEmail ?? ""} placeholder="Non renseigné" className={editInputClass} />
+              </EditField>
+              <button type="submit" className={editButtonClass}>Enregistrer</button>
             </form>
           </div>
 

@@ -84,8 +84,8 @@ export default async function MatchDetailPage({
   const whatsappText = [
     `Convocation ${match.team.code} — vs ${match.opponent ?? "adversaire à définir"}`,
     `${formatDateFull(match.date)}${match.time ? ` à ${match.time}` : ""}`,
-    match.meetTime ? `Rendez-vous : ${match.meetTime}` : null,
-    match.location ? `Lieu : ${match.location}` : null,
+    match.meetTime ? `Rendez-vous : ${match.meetTime}${match.meetLocation ? ` — ${match.meetLocation}` : ""}` : null,
+    match.location ? `Lieu du match : ${match.location}` : null,
     "",
     `Confirmez votre présence ici : ${shareUrl}`,
   ]
@@ -124,6 +124,12 @@ export default async function MatchDetailPage({
           {formatDateFull(match.date)} · {match.competition} · {match.isHome ? "Domicile" : "Extérieur"} ·{" "}
           {match.location ?? "lieu à définir"} · coup d&apos;envoi {match.time ?? "—"}
         </div>
+        {(match.meetTime || match.meetLocation) && (
+          <div className="text-muted text-[12.5px] mt-0.5">
+            Rendez-vous {match.meetTime ? `à ${match.meetTime}` : ""}
+            {match.meetLocation ? ` · ${match.meetLocation}` : ""}
+          </div>
+        )}
         {match.preMatchObjective && (
           <div className="text-[12.5px] mt-1.5">
             <span className="text-muted-2">Objectif :</span> <span className="font-semibold">{match.preMatchObjective}</span>
@@ -198,6 +204,12 @@ export default async function MatchDetailPage({
             <input type="date" name="date" defaultValue={match.date.toISOString().slice(0, 10)} className={matchInputClass} />
             <input type="time" name="time" defaultValue={match.time ?? ""} className={matchInputClass} />
             <input name="location" defaultValue={match.location ?? ""} placeholder="Lieu" className={matchInputClass} />
+            <input
+              name="meetLocation"
+              defaultValue={match.meetLocation ?? ""}
+              placeholder="Lieu du rendez-vous (si différent du terrain)"
+              className={matchInputClass}
+            />
             <input type="number" name="needed" defaultValue={match.needed} min={7} max={16} className={matchInputClass} />
             <input
               name="preMatchObjective"

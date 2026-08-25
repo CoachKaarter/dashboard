@@ -53,7 +53,11 @@ export default async function CoachMatchDetailPage({ params }: { params: Promise
         <div className="text-[11px] font-bold tracking-[0.06em] uppercase text-green">{match.team.code}</div>
         <div className="text-[18px] font-bold mt-0.5">{match.opponent ?? "Adversaire à définir"}</div>
         <div className="text-[13px] text-[#6E7178] mt-1">
-          {[match.time ? `Coup d'envoi ${match.time}` : null, match.meetTime ? `RDV ${match.meetTime}` : null, match.location]
+          {[
+            match.time ? `Coup d'envoi ${match.time}` : null,
+            match.meetTime ? `RDV ${match.meetTime}${match.meetLocation ? ` (${match.meetLocation})` : ""}` : null,
+            match.location,
+          ]
             .filter(Boolean)
             .join(" · ")}
         </div>

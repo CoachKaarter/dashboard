@@ -129,6 +129,13 @@ model Player {
   joinedLabel String // "Août 2022" (display string, matches prototype)
   archived    Boolean @default(false) // joueur parti du club — masqué des listes actives, historique conservé
 
+  // Coordonnées administratives d'un parent/responsable légal, saisies par
+  // le staff — distinctes de ParentAccount (identifiants de connexion à
+  // l'espace parents, aucun rapport avec ces champs).
+  parentName  String?
+  parentPhone String?
+  parentEmail String?
+
   notes              PlayerNote[]
   attendances        Attendance[]
   convocations       MatchConvocation[]
@@ -529,7 +536,8 @@ model Match {
   competition  String // "Championnat" | "Amical" | "Tournoi" | "Coupe" | "Plateau" | "Autre"
   date         DateTime
   time         String? // "10:30"
-  meetTime     String? // rendez-vous
+  meetTime     String? // heure de rendez-vous
+  meetLocation String? // lieu de rendez-vous — peut différer du terrain (location), ex. parking du club avant un déplacement
   isHome       Boolean  @default(true)
   location     String?
   status       String // "Planifié" | "Joué"
@@ -957,5 +965,12 @@ model Club {
   primaryColor   String   @default("#3F8F5B")
   secondaryColor String   @default("#3C6E9F")
   accentColor    String   @default("#C97A17")
-  updatedAt      DateTime @updatedAt
+
+  // Modèles éditables des messages "à copier" pour les parents (Paramètres).
+  // null = texte par défaut codé en dur (src/lib/message-templates.ts).
+  // Placeholders substitués à l'affichage, jamais interprétés côté club.
+  availabilityMessageTemplate String? // /disponibilites — ouverture des pointages/dispos
+  convocationMessageTemplate  String? // /week-end — annonce des convocations publiées
+
+  updatedAt DateTime @updatedAt
 }
