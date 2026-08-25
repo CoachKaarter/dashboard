@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getPlayerStatsByTeam } from "@/lib/stats";
+import { getAllPlayerStats } from "@/lib/stats";
 import { getSettings } from "@/lib/settings";
 import { FilterChip } from "@/components/ui/FilterChip";
 import { Avatar } from "@/components/ui/Avatar";
@@ -27,20 +27,40 @@ export default async function TempsDeJeuPage({ searchParams }: { searchParams: P
   const scope = scopedTeamIds(user);
   const allTeams = await prisma.team.findMany({ orderBy: { code: "asc" } });
   const teams = scope === "ALL" ? allTeams : allTeams.filter((t) => scope.includes(t.id));
-  const team = teams.some((t) => t.code === sp.team) ? sp.team! : teams[0]?.code;
-  if (!team) {
+  const availableCategories = [...new Set(teams.map((t) => t.category))].sort();
+  if (availableCategories.length === 0) {
     return <div className="max-w-[1620px] mx-auto animate-fadein text-muted text-[13px]">Aucune équipe autorisée pour votre compte.</div>;
   }
+  const categoryOptions = ["Toutes", ...availableCategories];
+  // Defaults to a specific category rather than "Toutes" — a player floats
+  // between the teams of ONE category (V5.2 équipe fluide), but U12 and
+  // U13 minutes aren't comparable to each other, so a focused view is the
+  // sane default; "Toutes" stays a click away for anyone who wants it.
+  const category = categoryOptions.includes(sp.team ?? "") ? sp.team! : availableCategories[0];
   const periode = PERIODS.some((p) => p.key === sp.periode) ? sp.periode! : "saison";
 
-  const [players, settings] = await Promise.all([getPlayerStatsByTeam(team), getSettings()]);
+  const allStats = await getAllPlayerStats();
+  const players = allStats.filter(
+    (p) => (scope === "ALL" || scope.includes(p.teamId)) && (category === "Toutes" || p.category === category)
+  );
+  const settings = await getSettings();
 
-  const recentMatches = await prisma.match.findMany({
-    where: { team: { code: team }, status: "Joué" },
+  // Pooled across every team of the category (or every scoped team for
+  // "Toutes") — a player can appear in any of these matches regardless of
+  // which team they're nominally on, so the match list can't be scoped to
+  // a single team's fixtures anymore.
+  const matchWhere = {
+    status: "Joué",
+    ...(scope === "ALL" ? {} : { teamId: { in: scope } }),
+    ...(category === "Toutes" ? {} : { team: { category } }),
+  };
+  const recentMatchesForCalc = await prisma.match.findMany({
+    where: matchWhere,
     orderBy: { date: "desc" },
-    take: 5,
-    include: { stats: true },
+    take: 30,
+    include: { team: true, stats: true },
   });
+  const recentMatches = recentMatchesForCalc.slice(0, 5);
   const matchCols = recentMatches.slice().reverse();
 
   const cutoff30j = new Date();
@@ -49,7 +69,7 @@ export default async function TempsDeJeuPage({ searchParams }: { searchParams: P
   function periodMinutes(playerId: string, seasonTotal: number) {
     if (periode === "5m") return matchCols.reduce((s, m) => s + (m.stats.find((st) => st.playerId === playerId)?.minutes ?? 0), 0);
     if (periode === "30j")
-      return recentMatches
+      return recentMatchesForCalc
         .filter((m) => m.date >= cutoff30j)
         .reduce((s, m) => s + (m.stats.find((st) => st.playerId === playerId)?.minutes ?? 0), 0);
     return seasonTotal;
@@ -79,14 +99,14 @@ export default async function TempsDeJeuPage({ searchParams }: { searchParams: P
   return (
     <div className="max-w-[1620px] mx-auto animate-fadein">
       <div className="flex items-center gap-2.5 mb-2 flex-wrap">
-        {teams.map((t) => (
-          <FilterChip key={t.code} href={toQueryString({ team: t.code, periode: sp.periode })} active={team === t.code} mono>
-            {t.code}
+        {categoryOptions.map((c) => (
+          <FilterChip key={c} href={toQueryString({ team: c === availableCategories[0] ? undefined : c, periode: sp.periode })} active={category === c}>
+            {c}
           </FilterChip>
         ))}
         <div className="w-px h-[22px] bg-line mx-1" />
         {PERIODS.map((p) => (
-          <FilterChip key={p.key} href={toQueryString({ team, periode: p.key === "saison" ? undefined : p.key })} active={periode === p.key}>
+          <FilterChip key={p.key} href={toQueryString({ team: category, periode: p.key === "saison" ? undefined : p.key })} active={periode === p.key}>
             {p.label}
           </FilterChip>
         ))}
@@ -94,7 +114,7 @@ export default async function TempsDeJeuPage({ searchParams }: { searchParams: P
       <div className="flex items-center gap-2.5 mb-3.5 flex-wrap">
         <span className="flex-1" />
         {[
-          ["Moyenne équipe", `${teamAvg}'`],
+          [category === "Toutes" ? "Moyenne" : "Moyenne catégorie", `${teamAvg}'`],
           ["Écart max", `${ecartMax}'`],
           ["Sous le seuil", String(sousLeSeuil)],
           ["À faire jouer samedi", String(Math.min(3, players.length))],
@@ -115,8 +135,9 @@ export default async function TempsDeJeuPage({ searchParams }: { searchParams: P
           <div>Joueur</div>
           <div>Poste</div>
           {matchCols.map((m) => (
-            <div key={m.id} className="text-center">
-              {formatDateShort(m.date)}
+            <div key={m.id} className="text-center leading-tight">
+              <div>{formatDateShort(m.date)}</div>
+              <div className="text-[9px] font-normal normal-case text-muted-2">{m.team.code}</div>
             </div>
           ))}
           {matchCols.length === 0 && <div className="text-center">—</div>}

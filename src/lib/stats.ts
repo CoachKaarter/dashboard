@@ -142,11 +142,6 @@ export const getPlayerStatsById = cache(async (id: string) => {
   return all.find((p) => p.id === id) ?? null;
 });
 
-export const getPlayerStatsByTeam = cache(async (teamCode: string) => {
-  const all = await getAllPlayerStats();
-  return all.filter((p) => p.teamCode === teamCode);
-});
-
 // A player floats freely between the teams of their category — so a match's
 // candidate pool (who could plausibly be convoked/composed for it) is every
 // player in that category, never just the ones nominally on that exact team.
