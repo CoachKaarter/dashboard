@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireUser, scopedTeamIds } from "@/lib/authz";
+import { requireUser, scopedTeamIds, getAccessibleCategories, canManageCategory } from "@/lib/authz";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Badge } from "@/components/ui/Badge";
 import { createTeam } from "./actions";
@@ -11,6 +11,9 @@ const inputClass =
 export default async function EquipesPage() {
   const user = await requireUser();
   const scope = scopedTeamIds(user);
+  const isAdmin = user.role === "ADMIN";
+  const managedCategories = getAccessibleCategories(user).filter((c) => canManageCategory(user, c));
+  const canCreateTeam = isAdmin || managedCategories.length > 0;
 
   const teams = await prisma.team.findMany({
     where: scope === "ALL" ? {} : { id: { in: scope } },
@@ -60,7 +63,7 @@ export default async function EquipesPage() {
         })}
       </div>
 
-      {user.role === "ADMIN" && (
+      {canCreateTeam && (
         <details className="mt-3.5">
           <summary className="cursor-pointer text-[12.5px] font-semibold text-muted hover:text-ink select-none">
             + Nouvelle équipe
@@ -72,7 +75,17 @@ export default async function EquipesPage() {
             </label>
             <label className="flex flex-col gap-1.5">
               <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-muted">Catégorie</span>
-              <input name="category" required placeholder="U8" className={inputClass} />
+              {isAdmin ? (
+                <input name="category" required placeholder="U8" className={inputClass} />
+              ) : (
+                <select name="category" required className={inputClass}>
+                  {managedCategories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              )}
             </label>
             <label className="flex flex-col gap-1.5">
               <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-muted">Format</span>

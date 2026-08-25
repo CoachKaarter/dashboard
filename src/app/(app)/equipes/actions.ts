@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireUser, requireAdmin, canAccessTeam } from "@/lib/authz";
+import { requireUser, requireAdmin, canAccessTeam, canManageCategory } from "@/lib/authz";
 import { logActivity } from "@/lib/activity";
 
 export async function updateTeamTarget(teamId: string, formData: FormData) {
@@ -28,17 +28,23 @@ export async function updateTeamFormat(teamId: string, formData: FormData) {
   revalidatePath(`/equipes/${teamId}`);
 }
 
+// Team creation isn't ADMIN-only: a Responsable de catégorie has genuine
+// pilotage of their perimeter and shouldn't need an admin to create a team
+// mid-season (e.g. Davy adding U9C). Non-admins are restricted to
+// categories they actually manage — the UI only offers those as options,
+// this is the server-side backstop.
 export async function createTeam(formData: FormData) {
-  const admin = await requireAdmin();
+  const user = await requireUser();
   const code = String(formData.get("code") ?? "").trim();
   const category = String(formData.get("category") ?? "").trim();
   const format = String(formData.get("format") ?? "");
   const rawTarget = String(formData.get("targetSize") ?? "").trim();
   if (!code || !category || !TEAM_FORMATS.includes(format)) return;
+  if (user.role !== "ADMIN" && !canManageCategory(user, category)) redirect("/");
   const targetSize = rawTarget ? Number(rawTarget) : null;
 
   const team = await prisma.team.create({ data: { code, category, format, targetSize } });
-  await logActivity({ actorId: admin.id, summary: `a créé l'équipe ${team.code} (${team.category})`, entityType: "Team", entityId: team.id });
+  await logActivity({ actorId: user.id, summary: `a créé l'équipe ${team.code} (${team.category})`, entityType: "Team", entityId: team.id });
   revalidatePath("/equipes");
   redirect(`/equipes/${team.id}`);
 }
