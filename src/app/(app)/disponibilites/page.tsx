@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { requireUser, scopedTeamIds } from "@/lib/authz";
+import { requireUser, scopedTeamIds, buildCategorySwitcherGroups } from "@/lib/authz";
+import { getActiveCategoryGroup } from "@/lib/active-category";
 import { getWeekStart, addDays, getWindowForWeek } from "@/lib/availability";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { FilterChip } from "@/components/ui/FilterChip";
@@ -10,7 +11,6 @@ import { toQueryString } from "@/lib/query";
 import { openWindow, closeWindow, reopenWindow, setAvailabilityByStaff } from "./actions";
 
 const DAY_NAMES = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
-const TEAM_FILTERS = ["Tous", "U12", "U13"];
 
 export default async function DisponibilitesPage({
   searchParams,
@@ -20,6 +20,11 @@ export default async function DisponibilitesPage({
   const sp = await searchParams;
   const user = await requireUser();
   const scope = scopedTeamIds(user);
+  const groups = buildCategorySwitcherGroups(user);
+  const activeGroup = await getActiveCategoryGroup(user);
+  const selectedKey = sp.team ?? activeGroup?.key ?? "Tous";
+  const selectedGroup = groups.find((g) => g.key === selectedKey) ?? null;
+  const selectedTeamCode = !selectedGroup && selectedKey !== "Tous" ? selectedKey : null;
 
   const baseWeek = sp.week ? getWeekStart(new Date(sp.week)) : getWeekStart(new Date());
   const weekStartIso = baseWeek.toISOString();
@@ -50,7 +55,9 @@ export default async function DisponibilitesPage({
     "",
     `🔗 ${parentUrl}`,
   ].join("\n");
-  const teams = scope === "ALL" ? allTeams : allTeams.filter((t) => scope.includes(t.id));
+  const teams = (scope === "ALL" ? allTeams : allTeams.filter((t) => scope.includes(t.id))).filter(
+    (t) => !activeGroup || activeGroup.categories.includes(t.category)
+  );
 
   // One column per distinct calendar date that has at least one session, plus Samedi (weekend) at the end.
   const dateKeys = [...new Set(sessionsAll.map((s) => s.date.toISOString().slice(0, 10)))].sort();
@@ -64,7 +71,11 @@ export default async function DisponibilitesPage({
     where: {
       archived: false,
       teamId: scope === "ALL" ? undefined : { in: scope },
-      team: sp.team && sp.team !== "Tous" ? { OR: [{ code: sp.team }, { category: sp.team }] } : undefined,
+      team: selectedGroup
+        ? { category: { in: selectedGroup.categories } }
+        : selectedTeamCode
+          ? { OR: [{ code: selectedTeamCode }, { category: selectedTeamCode }] }
+          : undefined,
     },
     include: { team: true },
     orderBy: [{ team: { code: "asc" } }, { lastName: "asc" }],
@@ -161,13 +172,16 @@ export default async function DisponibilitesPage({
           ))}
         </div>
         <span className="flex-1" />
-        {TEAM_FILTERS.map((t) => (
-          <FilterChip key={t} href={toQueryString({ week: sp.week, team: t === "Tous" ? undefined : t, missing: sp.missing })} active={(sp.team ?? "Tous") === t}>
-            {t}
+        <FilterChip href={toQueryString({ week: sp.week, team: undefined, missing: sp.missing })} active={selectedKey === "Tous"}>
+          Tous
+        </FilterChip>
+        {groups.map((g) => (
+          <FilterChip key={g.key} href={toQueryString({ week: sp.week, team: g.key, missing: sp.missing })} active={selectedKey === g.key}>
+            {g.label}
           </FilterChip>
         ))}
         {teams.map((t) => (
-          <FilterChip key={t.id} href={toQueryString({ week: sp.week, team: t.code, missing: sp.missing })} active={sp.team === t.code} mono>
+          <FilterChip key={t.id} href={toQueryString({ week: sp.week, team: t.code, missing: sp.missing })} active={selectedKey === t.code} mono>
             {t.code}
           </FilterChip>
         ))}
