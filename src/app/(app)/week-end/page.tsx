@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { requireUser, scopedTeamIdsInCategory, canManageCategory, getAccessibleCategories } from "@/lib/authz";
 import { getActiveCategoryGroup } from "@/lib/active-category";
-import { getWeekStart, addDays, getWindowForWeek } from "@/lib/availability";
+import { getWeekStart, addDays } from "@/lib/availability";
 import { getWeekendBoard } from "@/lib/weekend";
 import { toQueryString } from "@/lib/query";
 import { Badge } from "@/components/ui/Badge";
@@ -23,26 +23,15 @@ export default async function WeekEndPage({
   const baseWeek = sp.week ? getWeekStart(new Date(sp.week)) : getWeekStart(new Date());
   const weekStartIso = baseWeek.toISOString();
 
-  const [allTeams, staffUsers, window, hdrs] = await Promise.all([
+  const [allTeams, staffUsers, hdrs] = await Promise.all([
     prisma.team.findMany({ select: { id: true, code: true, category: true } }),
     prisma.user.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
-    getWindowForWeek(baseWeek),
     headers(),
   ]);
   const host = hdrs.get("host");
   const proto = hdrs.get("x-forwarded-proto") ?? "https";
   const parentUrl = `${proto}://${host}/parent`;
-  const sundayMessage = [
-    "Bonjour à tous,",
-    "",
-    "Les pointages de présence de la semaine sont désormais ouverts.",
-    "",
-    "Vous pouvez dès à présent renseigner les présences de votre enfant aux séances ainsi que sa disponibilité pour le week-end depuis l'espace parents.",
-    "",
-    `Merci de compléter les informations avant ${window?.closesAt ? `le ${formatDT(new Date(window.closesAt))}` : "la date limite indiquée"}.`,
-    "",
-    `🔗 ${parentUrl}`,
-  ].join("\n");
+  const CLUB_SITE_URL = "https://ssfc.fr/";
   const scope = scopedTeamIdsInCategory(user, allTeams, activeGroup?.categories ?? null);
   const board = await getWeekendBoard(baseWeek, scope);
   const { plan, weekendDate, teamCards, unassignedAvailable, assignedButUnavailable, counts } = board;
@@ -118,6 +107,16 @@ export default async function WeekEndPage({
       : getAccessibleCategories(user).some((c) => canManageCategory(user, c));
 
   const dateLabel = `${weekendDate.getDate()} ${MONTH_LABEL(weekendDate)}`;
+  const convocationsMessage = [
+    "Bonjour à tous,",
+    "",
+    `Les convocations pour le week-end du ${dateLabel} sont disponibles.`,
+    "",
+    "Vous pouvez les consulter dès à présent depuis l'espace parents ainsi que sur le site du club.",
+    "",
+    `🔗 Espace parents : ${parentUrl}`,
+    `🔗 Site du club : ${CLUB_SITE_URL}`,
+  ].join("\n");
 
   return (
     <div className="max-w-[1400px] mx-auto animate-fadein">
@@ -132,11 +131,13 @@ export default async function WeekEndPage({
         {status === "DRAFT" && <Badge tone="orange">Brouillon</Badge>}
         {status === "VALIDATED" && <Badge tone="blue">Validé</Badge>}
         {status === "PUBLISHED" && <Badge tone="green">Convocations publiées</Badge>}
-        <CopyButton
-          text={sundayMessage}
-          label="Copier le message du dimanche"
-          className="h-8 px-3 border border-line rounded-md text-xs font-semibold text-ink-soft hover:border-ink"
-        />
+        {status === "PUBLISHED" && (
+          <CopyButton
+            text={convocationsMessage}
+            label="Copier le message du dimanche"
+            className="h-8 px-3 border border-line rounded-md text-xs font-semibold text-ink-soft hover:border-ink"
+          />
+        )}
         <a
           href={toQueryString({ week: addDays(baseWeek, -7).toISOString().slice(0, 10) })}
           className="h-8 px-3 border border-line rounded-md text-xs font-semibold text-ink-soft hover:border-ink flex items-center transition-all duration-100 active:scale-95"
@@ -235,7 +236,4 @@ export default async function WeekEndPage({
 
 function MONTH_LABEL(d: Date) {
   return ["jan.", "fév.", "mar.", "avr.", "mai", "juin", "juil.", "août", "sep.", "oct.", "nov.", "déc."][d.getMonth()];
-}
-function formatDT(d: Date) {
-  return `${d.getDate()} ${MONTH_LABEL(d)} à ${String(d.getHours()).padStart(2, "0")}h${String(d.getMinutes()).padStart(2, "0")}`;
 }
