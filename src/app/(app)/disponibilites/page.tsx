@@ -194,7 +194,7 @@ export default async function DisponibilitesPage({
             style={{ gridTemplateColumns: `minmax(180px,1fr) repeat(${dayColumns.length + 1}, 72px)` }}
           >
             <div className="flex items-center gap-2 min-w-0">
-              <TeamChip code={r.player.team.code} />
+              <TeamChip code={r.player.team.category} />
               <span className="font-semibold truncate">{r.player.firstName} {r.player.lastName}</span>
             </div>
             {r.cells.map((c, i) =>

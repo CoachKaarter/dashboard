@@ -1,5 +1,12 @@
 export const TEAM_FILTERS = ["Toutes", "U13", "U12", "U13A", "U13B", "U13C", "U12A", "U12B", "U12C"];
 
+// Un joueur n'appartient plus qu'à une catégorie (U12/U13), pas à une équipe
+// précise — utilisé pour tout filtre/affichage centré sur l'identité d'un
+// joueur (liste, fiche, évaluations, disponibilités...). TEAM_FILTERS reste
+// utile tel quel pour ce qui concerne une équipe en tant qu'entité réelle
+// (Planning, matchs, séances ciblées, gestion des équipes).
+export const CATEGORY_FILTERS = ["Toutes", "U12", "U13"];
+
 export const POSITIONS = [
   "Gardien",
   "Défenseur central",

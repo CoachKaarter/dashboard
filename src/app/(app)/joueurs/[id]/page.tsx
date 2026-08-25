@@ -91,7 +91,6 @@ export default async function FichePage({
         <div className="min-w-0">
           <div className="flex items-center gap-2.5 flex-wrap">
             <div className="text-[22px] font-bold tracking-[-0.02em]">{stats.name}</div>
-            <TeamChip code={stats.teamCode} />
             <Badge tone={statutTone(stats.status)}>{stats.status}</Badge>
             {player.archived && <Badge tone="neutral">Archivé</Badge>}
           </div>

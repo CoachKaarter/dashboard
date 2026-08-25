@@ -310,7 +310,7 @@ export default async function CockpitPage() {
                       {p.firstName} {p.lastName}
                     </div>
                     <div className="text-[11.5px] text-muted">
-                      {p.team.code} · {p.status}
+                      {p.team.category} · {p.status}
                     </div>
                   </div>
                 </Link>

@@ -122,7 +122,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
       const key = `low-attendance:${p.id}`;
       traiter.push({
         key,
-        tag: p.teamCode,
+        tag: p.category,
         title: `${p.firstName} — assiduité sous le seuil`,
         detail: `${Math.round(p.attendanceRate * 100)}% de présence sur ${p.seances} séances (seuil fixé à ${settings.seuilPresence}%).`,
         meta: `${p.anj} ANJ`,
@@ -136,7 +136,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
       const key = `anj-recent:${p.id}`;
       urgent.push({
         key,
-        tag: p.teamCode,
+        tag: p.category,
         title: `${p.firstName} — absences non justifiées répétées`,
         detail: `${p.recentANJ} absences non justifiées sur les ${settings.fenetreSeances} dernières séances (seuil fixé à ${settings.seuilANJ}).`,
         meta: `${p.recentANJ} ANJ`,
@@ -149,7 +149,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
       const key = `abs-recent:${p.id}`;
       traiter.push({
         key,
-        tag: p.teamCode,
+        tag: p.category,
         title: `${p.firstName} — absences récentes`,
         detail: `${p.recentAbsences} absences sur les ${settings.fenetreSeances} dernières séances (seuil fixé à ${settings.absRecentes}).`,
         meta: `${p.recentAbsences} abs.`,
@@ -163,7 +163,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
       const key = `no-convoc:${p.id}`;
       surveiller.push({
         key,
-        tag: p.teamCode,
+        tag: p.category,
         title: p.lastConvocDaysAgo === null ? `${p.firstName} — jamais convoqué` : `${p.firstName} — non convoqué depuis ${p.lastConvocDaysAgo} jours`,
         detail: `Délai sans convocation fixé à ${settings.delaiConvoc} jours.`,
         meta: "Convoc.",
@@ -177,7 +177,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
       const key = `low-rotation:${p.id}`;
       surveiller.push({
         key,
-        tag: p.teamCode,
+        tag: p.category,
         title: `${p.firstName} — sous le minimum de rotation`,
         detail: `${Math.round(p.minutes / p.matchsJoues)} minutes en moyenne par match, sous le repère de ${settings.minMinutes} minutes.`,
         meta: `${p.matchsJoues} matchs`,
@@ -221,9 +221,9 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
       const pctVsAvg = p.teamAvgMinutes ? Math.round((100 * p.ecart) / p.teamAvgMinutes) : 0;
       surveiller.push({
         key,
-        tag: p.teamCode,
+        tag: p.category,
         title: `${p.firstName} — temps de jeu faible`,
-        detail: `${p.minutes} minutes sur la saison, soit ${pctVsAvg}% par rapport à la moyenne ${p.teamCode}.`,
+        detail: `${p.minutes} minutes sur la saison, soit ${pctVsAvg}% par rapport à la moyenne ${p.category}.`,
         meta: `${p.matchsJoues} matchs`,
         action: "Voir le joueur",
         href: `/joueurs/${p.id}`,
@@ -241,9 +241,9 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
       const pctVsAvg = p.teamAvgMinutes ? Math.round((100 * p.ecart) / p.teamAvgMinutes) : 0;
       surveiller.push({
         key,
-        tag: p.teamCode,
+        tag: p.category,
         title: `${p.firstName} — temps de jeu très au-dessus de la moyenne`,
-        detail: `${p.minutes} minutes sur la saison, soit +${pctVsAvg}% par rapport à la moyenne ${p.teamCode}. Pense à faire tourner.`,
+        detail: `${p.minutes} minutes sur la saison, soit +${pctVsAvg}% par rapport à la moyenne ${p.category}. Pense à faire tourner.`,
         meta: `${p.matchsJoues} matchs`,
         action: "Voir le joueur",
         href: `/joueurs/${p.id}`,
@@ -259,7 +259,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
       const key = `decroche:${p.id}`;
       traiter.push({
         key,
-        tag: p.teamCode,
+        tag: p.category,
         title: `${p.firstName} — décroche`,
         detail: `Temps de jeu récent nettement inférieur à son total saison — signe de perte de rythme ou de motivation à surveiller.`,
         meta: "Tendance",
@@ -359,7 +359,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
       const key = `pain-reported:${f.id}`;
       urgent.push({
         key,
-        tag: f.player.team.code,
+        tag: f.player.team.category,
         title: `${f.player.firstName} ${f.player.lastName} — douleur signalée`,
         detail: f.painLocation ? `Douleur signalée : ${f.painLocation}` : "Douleur signalée avant la séance, sans précision.",
         meta: "Douleur",
@@ -373,7 +373,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
       const key = `high-rpe:${f.id}`;
       traiter.push({
         key,
-        tag: f.player.team.code,
+        tag: f.player.team.category,
         title: `${f.player.firstName} ${f.player.lastName} — difficulté perçue très élevée`,
         detail: `RPE ${f.rpe}/10 rapporté après la séance.`,
         meta: `RPE ${f.rpe}`,
@@ -398,7 +398,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
     const key = `repeated-fatigue:${playerId}`;
     traiter.push({
       key,
-      tag: player.team.code,
+      tag: player.team.category,
       title: `${player.firstName} ${player.lastName} — fatigue élevée répétée`,
       detail: `${count} séances récentes avec une fatigue déclarée "Beaucoup".`,
       meta: "Fatigue",
@@ -419,7 +419,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
     const key = `pending-unavailability:${u.id}`;
     urgent.push({
       key,
-      tag: u.player.team.code,
+      tag: u.player.team.category,
       title: `${u.player.firstName} ${u.player.lastName} — indisponibilité déclarée par la famille`,
       detail: `${u.type}, depuis le ${formatDateShort(u.startDate)} — en attente de validation.`,
       meta: "À valider",
@@ -463,7 +463,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
       const key = `stale-eval:${p.id}`;
       information.push({
         key,
-        tag: p.teamCode,
+        tag: p.category,
         title:
           p.lastEvalDaysAgo === null
             ? `${p.firstName} — jamais évalué`
@@ -524,7 +524,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
     const key = `interview-due:${iv.playerId}`;
     (overdue ? traiter : surveiller).push({
       key,
-      tag: iv.player.team.code,
+      tag: iv.player.team.category,
       title: overdue
         ? `${iv.player.firstName} ${iv.player.lastName} — point de suivi dépassé`
         : `${iv.player.firstName} ${iv.player.lastName} — point de suivi à prévoir bientôt`,

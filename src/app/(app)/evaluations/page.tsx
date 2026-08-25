@@ -5,7 +5,7 @@ import { FilterChip } from "@/components/ui/FilterChip";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Avatar } from "@/components/ui/Avatar";
 import { NumField } from "@/components/ui/NumField";
-import { EVAL_PERIODS, TEAM_FILTERS } from "@/lib/constants";
+import { EVAL_PERIODS, CATEGORY_FILTERS } from "@/lib/constants";
 import { toQueryString } from "@/lib/query";
 import { requireUser, scopedTeamIds } from "@/lib/authz";
 import { upsertEvaluation } from "./actions";
@@ -31,7 +31,7 @@ export default async function EvaluationsPage({
   const players = allStats.filter(
     (p) =>
       (scope === "ALL" || scope.includes(p.teamId)) &&
-      (team === "Toutes" || p.teamCode === team || p.category === team)
+      (team === "Toutes" || p.category === team)
   );
 
   return (
@@ -43,7 +43,7 @@ export default async function EvaluationsPage({
           </FilterChip>
         ))}
         <div className="w-px h-[22px] bg-line mx-1" />
-        {TEAM_FILTERS.map((t) => (
+        {CATEGORY_FILTERS.map((t) => (
           <FilterChip key={t} href={toQueryString({ period: sp.period, team: t === "Toutes" ? undefined : t })} active={team === t}>
             {t}
           </FilterChip>
@@ -80,7 +80,7 @@ export default async function EvaluationsPage({
                 <div className="font-semibold truncate">{p.name}</div>
               </div>
               <div>
-                <TeamChip code={p.teamCode} />
+                <TeamChip code={p.category} />
               </div>
               {(["technique", "tactique", "physique", "comportement"] as const).map((k) => (
                 <NumField key={k} name={k} defaultValue={ev ? ev[k] : ""} step="0.1" />

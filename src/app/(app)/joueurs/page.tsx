@@ -7,7 +7,7 @@ import { TextFilter } from "@/components/ui/TextFilter";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
-import { TEAM_FILTERS, POSITIONS, PLAYER_STATUSES } from "@/lib/constants";
+import { CATEGORY_FILTERS, POSITIONS, PLAYER_STATUSES } from "@/lib/constants";
 import { codeTone, statutTone } from "@/lib/format";
 import { toQueryString } from "@/lib/query";
 
@@ -30,16 +30,16 @@ export default async function JoueursPage({
   const players = all.filter(
     (p) =>
       (scope === "ALL" || scope.includes(p.teamId)) &&
-      (team === "Toutes" || p.teamCode === team || p.category === team) &&
+      (team === "Toutes" || p.category === team) &&
       (pos === "Tous" || p.position === pos) &&
       (statut === "Tous" || p.status === statut) &&
-      (!q || p.name.toLowerCase().includes(q) || p.teamCode.toLowerCase().includes(q))
+      (!q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q))
   );
 
   return (
     <div className="max-w-[1560px] mx-auto animate-fadein">
       <div className="flex items-center gap-2.5 mb-3.5 flex-wrap">
-        {TEAM_FILTERS.map((t) => (
+        {CATEGORY_FILTERS.map((t) => (
           <FilterChip key={t} href={toQueryString({ team: t === "Toutes" ? undefined : t, pos: sp.pos, statut: sp.statut, q: sp.q })} active={team === t}>
             {t}
           </FilterChip>
@@ -74,7 +74,7 @@ export default async function JoueursPage({
           <div></div>
           <div>Joueur</div>
           <div>Année</div>
-          <div>Équipe</div>
+          <div>Catégorie</div>
           <div>Poste</div>
           <div>Statut</div>
           <div>Assiduité</div>
@@ -99,7 +99,7 @@ export default async function JoueursPage({
             </div>
             <div className="font-mono text-muted">{p.birthYear}</div>
             <div>
-              <TeamChip code={p.teamCode} />
+              <TeamChip code={p.category} />
             </div>
             <div className="text-ink-soft truncate">{p.position}</div>
             <div>

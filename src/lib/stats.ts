@@ -24,12 +24,19 @@ async function computeAllPlayerStats() {
   for (const p of players) {
     minutesByPlayer.set(p.id, p.matchStats.reduce((s, m) => s + m.minutes, 0));
   }
-  const teamMinutesTotals = new Map<string, { sum: number; count: number }>();
+  // Grouped by category, not by Player.teamId: a player floats freely between
+  // the teams of their category (U12/U13), so "the team's average minutes"
+  // would silently move a player's whole comparison baseline the moment
+  // their administrative team assignment changed, even with zero real change
+  // in how much they actually play. teamAvgMinutes/ecart below keep their
+  // established field names (consumed across alerts.ts, temps-de-jeu,
+  // recommend.ts) — only what they're averaged over changes.
+  const categoryMinutesTotals = new Map<string, { sum: number; count: number }>();
   for (const p of players) {
-    const cur = teamMinutesTotals.get(p.teamId) ?? { sum: 0, count: 0 };
+    const cur = categoryMinutesTotals.get(p.team.category) ?? { sum: 0, count: 0 };
     cur.sum += minutesByPlayer.get(p.id) ?? 0;
     cur.count += 1;
-    teamMinutesTotals.set(p.teamId, cur);
+    categoryMinutesTotals.set(p.team.category, cur);
   }
 
   const recentCutoff = new Date(now);
@@ -57,8 +64,8 @@ async function computeAllPlayerStats() {
     const matchsJoues = p.matchStats.length;
     const titularisations = p.matchStats.filter((m) => m.role === "Titulaire").length;
 
-    const teamTotals = teamMinutesTotals.get(p.teamId)!;
-    const teamAvgMinutes = teamTotals.count ? Math.round(teamTotals.sum / teamTotals.count) : 0;
+    const categoryTotals = categoryMinutesTotals.get(p.team.category)!;
+    const teamAvgMinutes = categoryTotals.count ? Math.round(categoryTotals.sum / categoryTotals.count) : 0;
     const ecart = minutes - teamAvgMinutes;
     const trend: "décroche" | "en tête" | "stable" =
       matchsJoues >= 2 && minutesRecent < minutes * 0.25
@@ -138,4 +145,12 @@ export const getPlayerStatsById = cache(async (id: string) => {
 export const getPlayerStatsByTeam = cache(async (teamCode: string) => {
   const all = await getAllPlayerStats();
   return all.filter((p) => p.teamCode === teamCode);
+});
+
+// A player floats freely between the teams of their category — so a match's
+// candidate pool (who could plausibly be convoked/composed for it) is every
+// player in that category, never just the ones nominally on that exact team.
+export const getPlayerStatsByCategory = cache(async (category: string) => {
+  const all = await getAllPlayerStats();
+  return all.filter((p) => p.category === category);
 });

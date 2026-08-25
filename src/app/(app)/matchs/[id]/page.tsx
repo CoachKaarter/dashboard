@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { CopyButton } from "@/components/CopyButton";
 import { prisma } from "@/lib/prisma";
-import { getPlayerStatsByTeam } from "@/lib/stats";
+import { getPlayerStatsByCategory } from "@/lib/stats";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Avatar } from "@/components/ui/Avatar";
 import { CompositionBoard } from "@/components/CompositionBoard";
@@ -58,7 +58,7 @@ export default async function MatchDetailPage({
   const defaultTab = match.status === "Joué" ? "feuille" : "convocation";
   const tab = TABS.some((t) => t.key === rawTab) ? rawTab! : defaultTab;
 
-  const [squad, hdrs] = await Promise.all([getPlayerStatsByTeam(match.team.code), headers()]);
+  const [squad, hdrs] = await Promise.all([getPlayerStatsByCategory(match.team.category), headers()]);
   const convocatedIds = new Set(match.convocations.map((c) => c.playerId));
   const host = hdrs.get("host");
   const proto = hdrs.get("x-forwarded-proto") ?? "https";

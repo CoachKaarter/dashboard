@@ -207,7 +207,7 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
       <div className="bg-surface border border-line rounded-lg overflow-auto">
         <div className="grid grid-cols-[minmax(190px,1fr)_76px_140px_300px_180px] gap-3 items-center px-3.5 h-[34px] bg-[#FAFAF8] border-b border-line text-[10.5px] font-bold tracking-[0.08em] uppercase text-muted">
           <div>Joueur</div>
-          <div>Équipe</div>
+          <div>Catégorie</div>
           <div>Poste</div>
           <div>Pointage</div>
           <div>Motif</div>
@@ -229,7 +229,7 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
                 </div>
               </div>
               <div>
-                <TeamChip code={p.team.code} />
+                <TeamChip code={p.team.category} />
               </div>
               <div className="text-[12.5px] text-ink-soft">{p.position}</div>
               <div className="flex gap-[5px]">

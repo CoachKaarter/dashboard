@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
   );
 
   return NextResponse.json({
-    players: playersRaw.map((p) => ({ id: p.id, label: `${p.firstName} ${p.lastName}`, sub: p.team.code, href: `/joueurs/${p.id}` })),
+    players: playersRaw.map((p) => ({ id: p.id, label: `${p.firstName} ${p.lastName}`, sub: p.team.category, href: `/joueurs/${p.id}` })),
     teams: teams.map((t) => ({ id: t.id, label: t.code, sub: t.category, href: `/equipes/${t.id}` })),
     matches: matchesRaw.map((m) => ({
       id: m.id,

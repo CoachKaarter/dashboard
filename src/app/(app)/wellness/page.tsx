@@ -91,7 +91,7 @@ function Row({
 }: {
   tone: "red" | "orange";
   icon: string;
-  player: { id: string; firstName: string; lastName: string; team: { code: string } };
+  player: { id: string; firstName: string; lastName: string; team: { category: string } };
   detail: string;
   date: Date | null;
 }) {
@@ -101,7 +101,7 @@ function Row({
       className="flex items-center gap-2.5 px-3.5 py-2.5 border-b border-line-soft-2 last:border-b-0 hover:bg-[#FAFAF8]"
     >
       <span>{icon}</span>
-      <TeamChip code={player.team.code} />
+      <TeamChip code={player.team.category} />
       <span className="text-[12.5px] font-semibold">{player.firstName} {player.lastName}</span>
       <span className={`text-[12px] ${tone === "red" ? "text-red" : "text-orange"}`}>{detail}</span>
       <span className="flex-1" />
