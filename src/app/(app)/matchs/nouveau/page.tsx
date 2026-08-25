@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireUser, scopedTeamIds } from "@/lib/authz";
+import { requireUser, scopedTeamIds, canManageCategory } from "@/lib/authz";
 import { createMatch } from "../actions";
 
 const inputClass =
@@ -10,7 +10,13 @@ export default async function NouveauMatchPage() {
   const user = await requireUser();
   const scope = scopedTeamIds(user);
   const allTeams = await prisma.team.findMany({ orderBy: { code: "asc" } });
-  const teams = scope === "ALL" ? allTeams : allTeams.filter((t) => scope.includes(t.id));
+  // Creating a fixture needs Responsable-level coverage of the team's
+  // category (or the ADMIN technical role) — a Coach-only team never
+  // appears here, mirroring createMatch's own server-side check.
+  const isAdmin = user.role === "ADMIN";
+  const teams = (scope === "ALL" ? allTeams : allTeams.filter((t) => scope.includes(t.id))).filter(
+    (t) => isAdmin || canManageCategory(user, t.category)
+  );
 
   return (
     <div className="max-w-[560px] mx-auto animate-fadein">
@@ -19,6 +25,11 @@ export default async function NouveauMatchPage() {
       </Link>
       <div className="bg-surface border border-line rounded-lg p-5">
         <div className="text-lg font-bold tracking-[-0.01em] mb-4">Nouveau match</div>
+        {teams.length === 0 ? (
+          <div className="text-[12.5px] text-muted-2 py-2">
+            Aucune équipe pour laquelle vous êtes Responsable de catégorie — seul un Responsable peut créer un match.
+          </div>
+        ) : (
         <form action={createMatch} className="flex flex-col gap-3.5">
           <Field label="Équipe">
             <select name="teamId" required className={inputClass}>
@@ -69,6 +80,7 @@ export default async function NouveauMatchPage() {
             Créer le match
           </button>
         </form>
+        )}
       </div>
     </div>
   );

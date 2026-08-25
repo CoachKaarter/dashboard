@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireUser, canAccessTeam } from "@/lib/authz";
+import { requireUser, canAccessTeam, canManageCategory } from "@/lib/authz";
 import { getSettings } from "@/lib/settings";
 import { logActivity } from "@/lib/activity";
 import {
@@ -289,10 +289,18 @@ export async function deleteMatch(matchId: string) {
   redirect("/matchs");
 }
 
+// Creating a fixture is a categoy-management decision (which weekend the
+// team plays, against whom), not day-to-day coaching — so it needs
+// Responsable-level coverage of the team's category, the same bar as
+// createTeam. A Coach-only grant (e.g. Davy on U12) can see and prepare
+// matches created for them, but not add new ones themselves.
 export async function createMatch(formData: FormData) {
   const user = await requireUser();
   const teamId = String(formData.get("teamId"));
   if (!canAccessTeam(user, teamId)) return;
+  const team = await prisma.team.findUnique({ where: { id: teamId } });
+  if (!team) return;
+  if (user.role !== "ADMIN" && !canManageCategory(user, team.category)) redirect("/matchs");
   const opponent = String(formData.get("opponent") || "") || null;
   const competitionParsed = competitionSchema.safeParse(String(formData.get("competition")));
   const date = new Date(String(formData.get("date")));

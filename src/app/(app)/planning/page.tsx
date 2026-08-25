@@ -5,7 +5,7 @@ import { TeamChip } from "@/components/ui/TeamChip";
 import { toQueryString } from "@/lib/query";
 import { getPlanEvents, KIND_COLOR, startOfWeek, startOfMonth } from "@/lib/planning";
 import { formatDateShort } from "@/lib/format";
-import { requireUser, scopedTeamIds } from "@/lib/authz";
+import { requireUser, scopedTeamIds, getAccessibleCategories } from "@/lib/authz";
 import { getActiveCategoryGroup } from "@/lib/active-category";
 
 const VIEWS = ["semaine", "mois", "agenda"];
@@ -26,20 +26,24 @@ export default async function PlanningPage({
   const user = await requireUser();
   const scope = scopedTeamIds(user);
   const activeGroup = await getActiveCategoryGroup(user);
+  const accessibleCategories = getAccessibleCategories(user).sort();
   let allowed: string[] | "ALL" = "ALL";
   let visibleTeamFilters: string[];
   if (scope !== "ALL") {
     const teams = await prisma.team.findMany({ where: { id: { in: scope } } });
     allowed = teams.map((t) => t.code);
-    visibleTeamFilters = ["Toutes", ...allowed];
+    visibleTeamFilters = ["Toutes", ...accessibleCategories, ...allowed];
   } else {
     const allTeams = await prisma.team.findMany({ orderBy: { code: "asc" } });
-    visibleTeamFilters = ["Toutes", ...allTeams.map((t) => t.code)];
+    const allCategories = [...new Set(allTeams.map((t) => t.category))].sort();
+    visibleTeamFilters = ["Toutes", ...allCategories, ...allTeams.map((t) => t.code)];
   }
   // This picker is single-category (prefix-matched against team codes, see
   // getPlanEvents/visible() in src/lib/planning.ts) — a bundled Responsable
-  // group (e.g. "U8/U9") defaults here to its first category; the chips
-  // below still let you switch to the others in the group individually.
+  // group (e.g. "U8/U9") defaults here to its first category on the very
+  // first visit only; the "Toutes" chip is always passed explicitly in the
+  // URL once clicked (never omitted) precisely so it doesn't collapse back
+  // into "no selection yet" and re-trigger that default.
   const team = sp.team ?? activeGroup?.categories[0] ?? "Toutes";
 
   const today = new Date();
@@ -58,7 +62,7 @@ export default async function PlanningPage({
         ))}
         <div className="w-px h-[22px] bg-line mx-1" />
         {visibleTeamFilters.map((t) => (
-          <FilterChip key={t} href={baseHref({ team: t === "Toutes" ? undefined : t })} active={team === t}>
+          <FilterChip key={t} href={baseHref({ team: t })} active={team === t} mono={t !== "Toutes" && !accessibleCategories.includes(t)}>
             {t}
           </FilterChip>
         ))}

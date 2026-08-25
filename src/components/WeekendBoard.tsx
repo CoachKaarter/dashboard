@@ -24,6 +24,7 @@ type TeamCard = {
   keeper: { player: BoardPlayer } | null;
   staff: { id: string; role: string; user: { name: string } }[];
   needed: number;
+  canManageCategory: boolean;
 };
 
 const STAFF_ROLES = ["Coach", "Adjoint", "Dirigeant", "Entraîneur gardien", "Vidéo", "Autre"];
@@ -95,9 +96,17 @@ export function WeekendBoard({
                           {count} / {c.needed}
                         </span>
                         <span className="flex-1" />
-                        <Link href={c.match ? `/matchs/${c.match.id}` : "/matchs"} className="text-[11px] text-blue hover:underline">
-                          {c.match ? "Voir le match" : "Créer un match"}
-                        </Link>
+                        {c.match ? (
+                          <Link href={`/matchs/${c.match.id}`} className="text-[11px] text-blue hover:underline">
+                            Voir le match
+                          </Link>
+                        ) : (
+                          c.canManageCategory && (
+                            <Link href="/matchs" className="text-[11px] text-blue hover:underline">
+                              Créer un match
+                            </Link>
+                          )
+                        )}
                       </div>
                       <div className="text-[12px] text-muted mt-1">
                         {c.match ? (
