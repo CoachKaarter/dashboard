@@ -4,7 +4,18 @@ import { canViewContentItem, canEditContentItem } from "./training-content-scope
 import type { AuthedUser } from "./authz";
 
 function user(overrides: Partial<AuthedUser>): AuthedUser {
-  return { id: "u1", username: "coach", name: "Coach", role: "COACH", jobTitle: "Coach", teamIds: [], ...overrides };
+  return {
+    id: "u1",
+    username: "coach",
+    name: "Coach",
+    role: "COACH",
+    jobTitle: "Coach",
+    onboardingCompletedAt: new Date(),
+    teamIds: [],
+    hasFullAccess: false,
+    scopes: [],
+    ...overrides,
+  };
 }
 
 // Case 92 — Coach A's PERSONAL item is refused to Coach B.

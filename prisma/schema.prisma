@@ -19,12 +19,18 @@ model User {
   username     String   @unique
   passwordHash String
   name         String
-  role         String // "ADMIN" | "COACH" | "STAFF"
+  role         String // "ADMIN" | "COACH" | "STAFF" — TECHNICAL role only (staff CRUD, club branding, paramètres). Does NOT by itself grant sporting data access anymore — see StaffAccess.
   accessLabel  String // free text shown in Staff screen, e.g. "Équipes autorisées"
   jobTitle     String // e.g. "Responsable de catégorie", "Coach", "Entraîneur des gardiens"
   email        String?
   active       Boolean  @default(true) // false = compte désactivé, connexion bloquée
-  teamIds      String[] @default([]) // équipes autorisées pour un COACH/STAFF ; ignoré pour ADMIN (accès total)
+  // Legacy sporting scope, superseded by StaffAccess (multi-catégories staff
+  // permissions pass). Frozen: no longer written to by new code, kept only
+  // so the one-time migration that derived each user's StaffAccess rows has
+  // a record of what it read. Do not add new call sites reading this field —
+  // use getAccessibleTeamIds(user)/StaffAccess instead.
+  teamIds      String[] @default([])
+  onboardingCompletedAt DateTime? // null = show the first-login onboarding flow
 
   teams                  Team[]                 @relation("TeamCoach")
   notes                  PlayerNote[]
@@ -46,8 +52,42 @@ model User {
   templatesCreated       SessionTemplate[]
   announcementsPosted    StaffAnnouncement[]
   physicalTestsRecorded  PhysicalTestResult[]
+  staffAccess            StaffAccess[]          @relation("StaffAccessUser")
+  staffAccessGranted     StaffAccess[]          @relation("StaffAccessGrantedBy")
 
   createdAt DateTime @default(now())
+}
+
+// A user's real sporting permissions: one row per (level × scope) grant,
+// cumulative — Davy is RESPONSABLE on U8, RESPONSABLE on U9, and COACH on
+// one team, all at once, via three separate rows. See src/lib/authz.ts for
+// how these are turned into effective team/category access; nothing reads
+// this table directly outside that module.
+model StaffAccess {
+  id     String @id @default(cuid())
+  user   User   @relation("StaffAccessUser", fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  level String // "COACH" | "RESPONSABLE" — day-to-day operation vs. full pilotage of the scope
+  scope String // "TEAM" | "CATEGORY" | "SCHOOL"
+
+  // Exactly one of category/teamId is set, matching `scope` — enforced at
+  // the application layer (Zod) since Postgres can't express "exactly one
+  // of these two columns" declaratively without a CHECK constraint we'd
+  // rather keep out of a hand-rolled migration.
+  category String? // set when scope = "CATEGORY" ("U8", "U12"...)
+  team     Team?   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId   String? // set when scope = "TEAM"
+  // scope = "SCHOOL" sets neither — it expands to every category listed in
+  // Settings.schoolFootballCategories at read time, so the perimeter can be
+  // redefined in Paramètres without touching every school-wide grant.
+
+  grantedBy   User?    @relation("StaffAccessGrantedBy", fields: [grantedById], references: [id])
+  grantedById String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([teamId])
 }
 
 // ---------- Teams & players ----------
@@ -72,6 +112,7 @@ model Team {
   historyFrom        TeamHistoryEntry[]  @relation("HistoryFromTeam")
   historyTo          TeamHistoryEntry[]  @relation("HistoryToTeam")
   weekendAssignments WeekendAssignment[]
+  staffAccess        StaffAccess[]
 }
 
 model Player {
@@ -892,6 +933,12 @@ model Settings {
   horizonMatch   Int @default(10) // days
   minMinutes     Int @default(30)
   delaiRdv       Int @default(60) // minutes before kickoff
+
+  // Which Team.category values make up "l'école de foot" for the purposes of
+  // a StaffAccess SCHOOL-scope grant (Responsable école de foot) — configured
+  // here rather than hardcoded, since which age groups exist changes over
+  // time (see StaffAccess below).
+  schoolFootballCategories String[] @default(["U6", "U7", "U8", "U9", "U10", "U11", "U12", "U13"])
 }
 
 // ---------- Club (single row: identité visuelle) ----------

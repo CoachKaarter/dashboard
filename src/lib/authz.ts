@@ -1,57 +1,135 @@
 /**
  * Central authorization helper. The JWT session only carries id/role/jobTitle
  * for cheap display; every real permission decision re-reads the User row so
- * that a deactivated account or a changed team assignment takes effect on
- * the very next request, not at next login.
+ * that a deactivated account or a changed grant takes effect on the very
+ * next request, not at next login.
+ *
+ * Two separate things are deliberately kept apart (staff permissions pass,
+ * see StaffAccess in prisma/schema.prisma):
+ *  - `role` is a TECHNICAL role (ADMIN/COACH/STAFF) — it gates staff CRUD,
+ *    club branding, paramètres. It no longer implies anything about which
+ *    players/séances/matchs a user can see.
+ *  - sporting access — which teams/categories a user can operate on, and at
+ *    what level (COACH day-to-day vs RESPONSABLE full pilotage) — comes
+ *    entirely from that user's StaffAccess grants, cumulative. An ADMIN with
+ *    zero grants sees zero sporting data, same as anyone else.
  */
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { getSettings } from "@/lib/settings";
 import { redirect } from "next/navigation";
+
+export type AccessLevel = "COACH" | "RESPONSABLE";
+
+export type TeamRef = { id: string; code: string; category: string };
+
+export type RawGrant = {
+  level: AccessLevel;
+  scope: "TEAM" | "CATEGORY" | "SCHOOL";
+  category: string | null;
+  teamId: string | null;
+};
+
+export type AccessibleScope =
+  | { kind: "category"; category: string; level: AccessLevel }
+  | { kind: "team"; teamId: string; teamCode: string; category: string; level: AccessLevel };
 
 export type AuthedUser = {
   id: string;
   username: string;
   name: string;
-  role: string; // "ADMIN" | "COACH" | "STAFF"
+  role: string; // "ADMIN" | "COACH" | "STAFF" — technical role, see module doc
   jobTitle: string;
-  teamIds: string[]; // ignored for ADMIN, who always has full access
+  onboardingCompletedAt: Date | null;
+  teamIds: string[]; // effective, fully-expanded team ids — ignored when hasFullAccess
+  hasFullAccess: boolean; // true only if teamIds provably covers every team that currently exists
+  scopes: AccessibleScope[]; // granular grants, for building per-user filter UIs
 };
+
+// ---------- Pure, unit-tested grant → scope → team-id expansion ----------
+
+/**
+ * Turns raw StaffAccess rows into display-friendly scopes: a CATEGORY grant
+ * stays a category ("U8"), a TEAM grant stays that one team ("U12A") — no
+ * expansion here, that's expandScopesToTeamIds()'s job. A SCHOOL grant
+ * expands into one category-scope per entry of `schoolCategories` (the
+ * club's configured "école de foot" perimeter — Settings.schoolFootballCategories),
+ * so redefining that list in Paramètres immediately reshapes every
+ * Responsable-école-de-foot grant without touching the grants themselves.
+ * When the same team/category is reachable through more than one grant
+ * (e.g. a CATEGORY RESPONSABLE grant and a TEAM COACH grant on a team of
+ * that category), the higher level wins.
+ */
+export function buildAccessibleScopes(grants: RawGrant[], allTeams: TeamRef[], schoolCategories: string[]): AccessibleScope[] {
+  const byTeamId = new Map(allTeams.map((t) => [t.id, t]));
+  const raw: AccessibleScope[] = [];
+  for (const g of grants) {
+    if (g.scope === "TEAM" && g.teamId) {
+      const t = byTeamId.get(g.teamId);
+      if (t) raw.push({ kind: "team", teamId: t.id, teamCode: t.code, category: t.category, level: g.level });
+    } else if (g.scope === "CATEGORY" && g.category) {
+      raw.push({ kind: "category", category: g.category, level: g.level });
+    } else if (g.scope === "SCHOOL") {
+      for (const category of schoolCategories) raw.push({ kind: "category", category, level: g.level });
+    }
+  }
+
+  const keyOf = (s: AccessibleScope) => (s.kind === "category" ? `category:${s.category}` : `team:${s.teamId}`);
+  const byKey = new Map<string, AccessibleScope>();
+  for (const s of raw) {
+    const existing = byKey.get(keyOf(s));
+    if (!existing || (existing.level === "COACH" && s.level === "RESPONSABLE")) byKey.set(keyOf(s), s);
+  }
+  return [...byKey.values()];
+}
+
+/** Fully expands scopes into concrete team ids — a category-scope pulls in every team of that category. */
+export function expandScopesToTeamIds(scopes: AccessibleScope[], allTeams: TeamRef[]): string[] {
+  const ids = new Set<string>();
+  for (const s of scopes) {
+    if (s.kind === "team") ids.add(s.teamId);
+    else for (const t of allTeams) if (t.category === s.category) ids.add(t.id);
+  }
+  return [...ids];
+}
+
+// ---------- Session → AuthedUser ----------
 
 export async function getAuthedUser(): Promise<AuthedUser | null> {
   const session = await auth();
   if (!session?.user?.id) return null;
-  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    include: { staffAccess: true },
+  });
   if (!user || !user.active) return null;
+
+  const [allTeams, settings] = await Promise.all([
+    prisma.team.findMany({ select: { id: true, code: true, category: true } }),
+    getSettings(),
+  ]);
+
+  const grants: RawGrant[] = user.staffAccess.map((g) => ({
+    level: g.level as AccessLevel,
+    scope: g.scope as RawGrant["scope"],
+    category: g.category,
+    teamId: g.teamId,
+  }));
+  const scopes = buildAccessibleScopes(grants, allTeams, settings.schoolFootballCategories);
+  const teamIds = expandScopesToTeamIds(scopes, allTeams);
+  const hasFullAccess = allTeams.length > 0 && teamIds.length === allTeams.length;
+
   return {
     id: user.id,
     username: user.username,
     name: user.name,
     role: user.role,
     jobTitle: user.jobTitle,
-    teamIds: await effectiveTeamScope(user.role, user.teamIds),
+    onboardingCompletedAt: user.onboardingCompletedAt,
+    teamIds,
+    hasFullAccess,
+    scopes,
   };
-}
-
-/**
- * A coach isn't administratively attached to a fixed team anymore in any way
- * that limits what they can see: a player belongs to a category (U12/U13),
- * not a specific team, so a coach nominally assigned to one team (User.teamIds,
- * still the raw admin assignment edited on /staff) must see and manage every
- * team in that team's category, not just the exact one. Expanding it once
- * here — rather than in scopedTeamIds()/teamScopeWhere()/canAccessTeam() — means
- * every one of their ~40 call sites across the app gets category-wide scope
- * for free, with no per-call-site change needed.
- */
-export function expandScopeToCategories(assignedTeamIds: string[], allTeams: { id: string; category: string }[]): string[] {
-  const categories = new Set(allTeams.filter((t) => assignedTeamIds.includes(t.id)).map((t) => t.category));
-  if (categories.size === 0) return assignedTeamIds;
-  return allTeams.filter((t) => categories.has(t.category)).map((t) => t.id);
-}
-
-async function effectiveTeamScope(role: string, rawTeamIds: string[]): Promise<string[]> {
-  if (role === "ADMIN" || rawTeamIds.length === 0) return rawTeamIds;
-  const allTeams = await prisma.team.findMany({ select: { id: true, category: true } });
-  return expandScopeToCategories(rawTeamIds, allTeams);
 }
 
 export async function requireUser(): Promise<AuthedUser> {
@@ -60,15 +138,16 @@ export async function requireUser(): Promise<AuthedUser> {
   return user;
 }
 
+/** Technical admin gate only — staff CRUD, club branding, paramètres. Never use this to gate sporting data. */
 export async function requireAdmin(): Promise<AuthedUser> {
   const user = await requireUser();
   if (user.role !== "ADMIN") redirect("/");
   return user;
 }
 
-/** "ALL" for ADMIN, otherwise the explicit list of authorized Team ids (may be empty). */
+/** "ALL" only when the user's grants provably cover every team that exists, otherwise the explicit list (may be empty). */
 export function scopedTeamIds(user: AuthedUser): string[] | "ALL" {
-  return user.role === "ADMIN" ? "ALL" : user.teamIds;
+  return user.hasFullAccess ? "ALL" : user.teamIds;
 }
 
 /** Prisma `where` fragment restricting rows to the user's authorized teams via `field`. */
@@ -80,6 +159,28 @@ export function teamScopeWhere(user: AuthedUser, field = "teamId") {
 export function canAccessTeam(user: AuthedUser, teamId: string) {
   const scope = scopedTeamIds(user);
   return scope === "ALL" || scope.includes(teamId);
+}
+
+export function assertTeamAccess(user: AuthedUser, teamId: string) {
+  if (!canAccessTeam(user, teamId)) redirect("/");
+}
+
+/** Every category the user has at least some standing in — RESPONSABLE/SCHOOL fully, or COACH through a single team of it. */
+export function getAccessibleCategories(user: AuthedUser): string[] {
+  return [...new Set(user.scopes.map((s) => s.category))];
+}
+
+export function canAccessCategory(user: AuthedUser, category: string): boolean {
+  return user.scopes.some((s) => s.category === category);
+}
+
+export function assertCategoryAccess(user: AuthedUser, category: string) {
+  if (!canAccessCategory(user, category)) redirect("/");
+}
+
+/** RESPONSABLE-level (or school-wide) coverage of the category — full pilotage, not just a team inside it. */
+export function canManageCategory(user: AuthedUser, category: string): boolean {
+  return user.scopes.some((s) => s.kind === "category" && s.category === category && s.level === "RESPONSABLE");
 }
 
 /**
