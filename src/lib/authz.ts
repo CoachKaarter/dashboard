@@ -28,8 +28,30 @@ export async function getAuthedUser(): Promise<AuthedUser | null> {
     name: user.name,
     role: user.role,
     jobTitle: user.jobTitle,
-    teamIds: user.teamIds,
+    teamIds: await effectiveTeamScope(user.role, user.teamIds),
   };
+}
+
+/**
+ * A coach isn't administratively attached to a fixed team anymore in any way
+ * that limits what they can see: a player belongs to a category (U12/U13),
+ * not a specific team, so a coach nominally assigned to one team (User.teamIds,
+ * still the raw admin assignment edited on /staff) must see and manage every
+ * team in that team's category, not just the exact one. Expanding it once
+ * here — rather than in scopedTeamIds()/teamScopeWhere()/canAccessTeam() — means
+ * every one of their ~40 call sites across the app gets category-wide scope
+ * for free, with no per-call-site change needed.
+ */
+export function expandScopeToCategories(assignedTeamIds: string[], allTeams: { id: string; category: string }[]): string[] {
+  const categories = new Set(allTeams.filter((t) => assignedTeamIds.includes(t.id)).map((t) => t.category));
+  if (categories.size === 0) return assignedTeamIds;
+  return allTeams.filter((t) => categories.has(t.category)).map((t) => t.id);
+}
+
+async function effectiveTeamScope(role: string, rawTeamIds: string[]): Promise<string[]> {
+  if (role === "ADMIN" || rawTeamIds.length === 0) return rawTeamIds;
+  const allTeams = await prisma.team.findMany({ select: { id: true, category: true } });
+  return expandScopeToCategories(rawTeamIds, allTeams);
 }
 
 export async function requireUser(): Promise<AuthedUser> {
