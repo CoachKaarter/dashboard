@@ -66,7 +66,7 @@ export default async function JoueursPage({
           href="/joueurs/importer"
           className="h-8 px-3 border border-line rounded-md bg-[#FCFCFB] text-xs font-semibold text-ink-soft flex items-center hover:border-ink hover:text-ink"
         >
-          Importer CSV
+          Importer
         </Link>
         <Link
           href="/joueurs/nouveau"
