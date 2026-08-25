@@ -2,17 +2,21 @@ import { prisma } from "@/lib/prisma";
 import { getAlertGroups } from "@/lib/alerts";
 import { getClub } from "@/lib/club";
 import { NavLink } from "@/components/NavLink";
-import { auth } from "@/auth";
+import { CategorySwitcher } from "@/components/CategorySwitcher";
+import { getAuthedUser, getAccessibleCategories } from "@/lib/authz";
+import { getActiveCategory } from "@/lib/active-category";
 import { signOutAction } from "@/lib/actions/auth";
 
 export async function Sidebar() {
-  const [session, club, playerCount, upcomingMatches, alertGroups] = await Promise.all([
-    auth(),
+  const [user, club, playerCount, upcomingMatches, alertGroups] = await Promise.all([
+    getAuthedUser(),
     getClub(),
     prisma.player.count(),
     prisma.match.count({ where: { status: "Planifié" } }),
     getAlertGroups(),
   ]);
+  const accessibleCategories = user ? getAccessibleCategories(user).sort() : [];
+  const activeCategory = user ? await getActiveCategory(user) : null;
   const totalAlerts = alertGroups.reduce((n, g) => n + g.items.filter((i) => !i.treated).length, 0);
   const urgentCount = alertGroups.find((g) => g.key === "urgent")?.items.filter((i) => !i.treated).length ?? 0;
 
@@ -39,7 +43,7 @@ export async function Sidebar() {
     { href: "/parametres", label: "Paramètres" },
   ];
 
-  const initials = (session?.user?.name ?? "??")
+  const initials = (user?.name ?? "??")
     .split(" ")
     .map((s) => s[0])
     .slice(0, 2)
@@ -56,7 +60,11 @@ export async function Sidebar() {
           <div className="w-[22px] h-[22px] rounded-[5px] bg-club-primary shrink-0" />
         )}
         <div>
-          <div className="text-white font-bold text-xs tracking-[0.04em]">U12 / U13</div>
+          {accessibleCategories.length > 1 ? (
+            <CategorySwitcher categories={accessibleCategories} active={activeCategory ?? accessibleCategories[0]} />
+          ) : (
+            <div className="text-white font-bold text-xs tracking-[0.04em]">{accessibleCategories[0] ?? "—"}</div>
+          )}
           <div className="text-[10px] text-muted tracking-[0.06em] truncate max-w-[150px]">{club.name.toUpperCase()}</div>
         </div>
       </div>
@@ -70,8 +78,8 @@ export async function Sidebar() {
           {initials}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-sidebar-text-hover text-xs font-semibold truncate">{session?.user?.name}</div>
-          <div className="text-[10px] text-muted truncate">{session?.user?.jobTitle}</div>
+          <div className="text-sidebar-text-hover text-xs font-semibold truncate">{user?.name}</div>
+          <div className="text-[10px] text-muted truncate">{user?.jobTitle}</div>
         </div>
         <form action={signOutAction}>
           <button

@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { getAllPlayerStats } from "@/lib/stats";
-import { requireUser, scopedTeamIds } from "@/lib/authz";
+import { requireUser, scopedTeamIds, getAccessibleCategories } from "@/lib/authz";
+import { getActiveCategory } from "@/lib/active-category";
 import { FilterChip } from "@/components/ui/FilterChip";
 import { QuerySelect } from "@/components/ui/QuerySelect";
 import { TextFilter } from "@/components/ui/TextFilter";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
-import { CATEGORY_FILTERS, POSITIONS, PLAYER_STATUSES } from "@/lib/constants";
+import { POSITIONS, PLAYER_STATUSES } from "@/lib/constants";
 import { codeTone, statutTone } from "@/lib/format";
 import { toQueryString } from "@/lib/query";
 
@@ -19,13 +20,15 @@ export default async function JoueursPage({
   searchParams: Promise<{ team?: string; pos?: string; statut?: string; q?: string }>;
 }) {
   const sp = await searchParams;
-  const team = sp.team ?? "Toutes";
   const pos = sp.pos ?? "Tous";
   const statut = sp.statut ?? "Tous";
   const q = (sp.q ?? "").trim().toLowerCase();
 
   const user = await requireUser();
   const scope = scopedTeamIds(user);
+  const activeCategory = await getActiveCategory(user);
+  const categoryFilters = ["Toutes", ...getAccessibleCategories(user).sort()];
+  const team = sp.team ?? activeCategory ?? "Toutes";
   const all = await getAllPlayerStats();
   const players = all.filter(
     (p) =>
@@ -39,7 +42,7 @@ export default async function JoueursPage({
   return (
     <div className="max-w-[1560px] mx-auto animate-fadein">
       <div className="flex items-center gap-2.5 mb-3.5 flex-wrap">
-        {CATEGORY_FILTERS.map((t) => (
+        {categoryFilters.map((t) => (
           <FilterChip key={t} href={toQueryString({ team: t === "Toutes" ? undefined : t, pos: sp.pos, statut: sp.statut, q: sp.q })} active={team === t}>
             {t}
           </FilterChip>

@@ -3,15 +3,19 @@ import { prisma } from "@/lib/prisma";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Badge } from "@/components/ui/Badge";
 import { formatDateShort } from "@/lib/format";
-import { requireUser, teamScopeWhere } from "@/lib/authz";
+import { requireUser, scopedTeamIdsInCategory } from "@/lib/authz";
+import { getActiveCategory } from "@/lib/active-category";
 import { computeMatchResult } from "@/lib/match-phase";
 
 const GRID = "grid-cols-[70px_76px_minmax(190px,1fr)_110px_140px_62px_68px_130px_24px]";
 
 export default async function MatchsPage() {
   const user = await requireUser();
+  const activeCategory = await getActiveCategory(user);
+  const allTeams = await prisma.team.findMany({ select: { id: true, code: true, category: true } });
+  const categoryTeamIds = scopedTeamIdsInCategory(user, allTeams, activeCategory);
   const matches = await prisma.match.findMany({
-    where: teamScopeWhere(user),
+    where: { teamId: { in: categoryTeamIds } },
     include: { team: true, convocations: true, _count: { select: { stats: true } } },
     orderBy: { date: "asc" },
   });

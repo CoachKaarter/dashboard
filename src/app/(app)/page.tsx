@@ -6,7 +6,8 @@ import { StatTile } from "@/components/ui/StatTile";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Avatar } from "@/components/ui/Avatar";
 import { formatDateLong, formatDayShort } from "@/lib/format";
-import { requireUser, scopedTeamIds, teamScopeWhere } from "@/lib/authz";
+import { requireUser, scopedTeamIdsInCategory } from "@/lib/authz";
+import { getActiveCategory } from "@/lib/active-category";
 import { getClub } from "@/lib/club";
 
 const ALERT_HEAD_TONE: Record<string, string> = {
@@ -30,16 +31,18 @@ const ALERT_TAG_TONE: Record<string, string> = {
 
 export default async function CockpitPage() {
   const user = await requireUser();
-  const scope = scopedTeamIds(user);
-  const teamFilter = teamScopeWhere(user);
+  const activeCategory = await getActiveCategory(user);
+  const allTeams = await prisma.team.findMany({ select: { id: true, code: true, category: true } });
+  const categoryTeamIds = scopedTeamIdsInCategory(user, allTeams, activeCategory);
+  const teamFilter = { teamId: { in: categoryTeamIds } };
 
-  const [playerCount, teamCount, alertGroups, dataChecks, club] = await Promise.all([
+  const [playerCount, alertGroups, dataChecks, club] = await Promise.all([
     prisma.player.count({ where: { archived: false, ...teamFilter } }),
-    scope === "ALL" ? prisma.team.count() : Promise.resolve(scope.length),
-    getAlertGroups(scope),
-    getDataChecks(scope),
+    getAlertGroups(categoryTeamIds),
+    getDataChecks(categoryTeamIds),
     getClub(),
   ]);
+  const teamCount = categoryTeamIds.length;
   const clubUnconfigured = user.role === "ADMIN" && club.name === "Mon club" && !club.hasLogo;
 
   const upcomingMatches = await prisma.match.findMany({
@@ -50,18 +53,13 @@ export default async function CockpitPage() {
   const matchDay = upcomingMatches[0]?.date ?? new Date();
   const completeConvocs = upcomingMatches.filter((m) => m.opponent && m.convocations.length >= m.needed).length;
 
-  let allowedCategories: Set<string> | null = null;
-  if (scope !== "ALL") {
-    const teams = await prisma.team.findMany({ where: { id: { in: scope } } });
-    allowedCategories = new Set(teams.map((t) => t.category));
-  }
   const allNextSessions = await prisma.trainingSession.findMany({
     where: { status: "Prévue" },
     include: { scopeTeam: true },
     orderBy: { date: "asc" },
   });
   const nextSessions = allNextSessions
-    .filter((s) => scope === "ALL" || (s.scopeTeamId ? scope.includes(s.scopeTeamId) : allowedCategories!.has(s.category)))
+    .filter((s) => (s.scopeTeamId ? categoryTeamIds.includes(s.scopeTeamId) : s.category === activeCategory))
     .slice(0, 4);
   const sessionExpected = await Promise.all(
     nextSessions.map((s) =>

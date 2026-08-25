@@ -161,6 +161,21 @@ export function canAccessTeam(user: AuthedUser, teamId: string) {
   return scope === "ALL" || scope.includes(teamId);
 }
 
+/**
+ * The user's accessible team ids, narrowed to one category — the "active
+ * category" a multi-category Responsable/Coach is currently working in
+ * (see src/lib/active-category.ts). Pass `category: null` to skip the
+ * narrowing and get every accessible team, same as scopedTeamIds would
+ * (still as a concrete array, never "ALL", since callers use this to build
+ * a category-aware `where` directly).
+ */
+export function scopedTeamIdsInCategory(user: AuthedUser, allTeams: TeamRef[], category: string | null): string[] {
+  const scope = scopedTeamIds(user);
+  return allTeams
+    .filter((t) => (scope === "ALL" || scope.includes(t.id)) && (category === null || t.category === category))
+    .map((t) => t.id);
+}
+
 export function assertTeamAccess(user: AuthedUser, teamId: string) {
   if (!canAccessTeam(user, teamId)) redirect("/");
 }

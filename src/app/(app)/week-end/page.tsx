@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { requireUser, scopedTeamIds, canManageCategory, getAccessibleCategories } from "@/lib/authz";
+import { requireUser, scopedTeamIdsInCategory, canManageCategory, getAccessibleCategories } from "@/lib/authz";
+import { getActiveCategory } from "@/lib/active-category";
 import { getWeekStart, addDays } from "@/lib/availability";
 import { getWeekendBoard } from "@/lib/weekend";
 import { toQueryString } from "@/lib/query";
@@ -15,15 +16,17 @@ export default async function WeekEndPage({
 }) {
   const sp = await searchParams;
   const user = await requireUser();
-  const scope = scopedTeamIds(user);
+  const activeCategory = await getActiveCategory(user);
 
   const baseWeek = sp.week ? getWeekStart(new Date(sp.week)) : getWeekStart(new Date());
   const weekStartIso = baseWeek.toISOString();
 
-  const [board, staffUsers] = await Promise.all([
-    getWeekendBoard(baseWeek, scope),
+  const [allTeams, staffUsers] = await Promise.all([
+    prisma.team.findMany({ select: { id: true, code: true, category: true } }),
     prisma.user.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
+  const scope = scopedTeamIdsInCategory(user, allTeams, activeCategory);
+  const board = await getWeekendBoard(baseWeek, scope);
   const { plan, weekendDate, teamCards, unassignedAvailable, assignedButUnavailable, counts } = board;
 
   const status = plan?.status ?? "DRAFT";

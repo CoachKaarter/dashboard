@@ -2,11 +2,11 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { FilterChip } from "@/components/ui/FilterChip";
 import { TeamChip } from "@/components/ui/TeamChip";
-import { TEAM_FILTERS } from "@/lib/constants";
 import { toQueryString } from "@/lib/query";
 import { getPlanEvents, KIND_COLOR, startOfWeek, startOfMonth } from "@/lib/planning";
 import { formatDateShort } from "@/lib/format";
 import { requireUser, scopedTeamIds } from "@/lib/authz";
+import { getActiveCategory } from "@/lib/active-category";
 
 const VIEWS = ["semaine", "mois", "agenda"];
 const DAY_NAMES = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
@@ -20,18 +20,23 @@ export default async function PlanningPage({
 }) {
   const sp = await searchParams;
   const view = VIEWS.includes(sp.view ?? "") ? sp.view! : "semaine";
-  const team = sp.team ?? "Toutes";
   const weekOffset = Number(sp.week ?? 0) || 0;
   const monthOffset = Number(sp.month ?? 0) || 0;
 
   const user = await requireUser();
   const scope = scopedTeamIds(user);
+  const activeCategory = await getActiveCategory(user);
   let allowed: string[] | "ALL" = "ALL";
+  let visibleTeamFilters: string[];
   if (scope !== "ALL") {
     const teams = await prisma.team.findMany({ where: { id: { in: scope } } });
     allowed = teams.map((t) => t.code);
+    visibleTeamFilters = ["Toutes", ...allowed];
+  } else {
+    const allTeams = await prisma.team.findMany({ orderBy: { code: "asc" } });
+    visibleTeamFilters = ["Toutes", ...allTeams.map((t) => t.code)];
   }
-  const visibleTeamFilters = allowed === "ALL" ? TEAM_FILTERS : ["Toutes", ...allowed];
+  const team = sp.team ?? activeCategory ?? "Toutes";
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);

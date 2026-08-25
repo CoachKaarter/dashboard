@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireUser, scopedTeamIds, getAccessibleCategories, canManageCategory } from "@/lib/authz";
+import { requireUser, scopedTeamIdsInCategory, getAccessibleCategories, canManageCategory } from "@/lib/authz";
+import { getActiveCategory } from "@/lib/active-category";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Badge } from "@/components/ui/Badge";
 import { createTeam } from "./actions";
@@ -10,13 +11,15 @@ const inputClass =
 
 export default async function EquipesPage() {
   const user = await requireUser();
-  const scope = scopedTeamIds(user);
+  const activeCategory = await getActiveCategory(user);
   const isAdmin = user.role === "ADMIN";
   const managedCategories = getAccessibleCategories(user).filter((c) => canManageCategory(user, c));
   const canCreateTeam = isAdmin || managedCategories.length > 0;
 
+  const allTeams = await prisma.team.findMany({ select: { id: true, code: true, category: true } });
+  const categoryTeamIds = scopedTeamIdsInCategory(user, allTeams, activeCategory);
   const teams = await prisma.team.findMany({
-    where: scope === "ALL" ? {} : { id: { in: scope } },
+    where: { id: { in: categoryTeamIds } },
     include: {
       coach: true,
       _count: { select: { players: { where: { archived: false } } } },

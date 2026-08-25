@@ -6,6 +6,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { toQueryString } from "@/lib/query";
 import { formatDateShort, minuteTone } from "@/lib/format";
 import { requireUser, scopedTeamIds } from "@/lib/authz";
+import { getActiveCategory } from "@/lib/active-category";
 
 const MINUTE_COLORS: Record<string, { fg: string; bg: string }> = {
   none: { fg: "#9A9DA3", bg: "#F1F1EE" },
@@ -36,7 +37,14 @@ export default async function TempsDeJeuPage({ searchParams }: { searchParams: P
   // between the teams of ONE category (V5.2 équipe fluide), but U12 and
   // U13 minutes aren't comparable to each other, so a focused view is the
   // sane default; "Toutes" stays a click away for anyone who wants it.
-  const category = categoryOptions.includes(sp.team ?? "") ? sp.team! : availableCategories[0];
+  // Prefers the sidebar's active-category selection so this screen opens
+  // already on the category the user is currently working in.
+  const activeCategory = await getActiveCategory(user);
+  const category = categoryOptions.includes(sp.team ?? "")
+    ? sp.team!
+    : activeCategory && categoryOptions.includes(activeCategory)
+      ? activeCategory
+      : availableCategories[0];
   const periode = PERIODS.some((p) => p.key === sp.periode) ? sp.periode! : "saison";
 
   const allStats = await getAllPlayerStats();

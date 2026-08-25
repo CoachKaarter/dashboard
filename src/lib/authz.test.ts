@@ -1,6 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildAccessibleScopes, expandScopesToTeamIds, type RawGrant, type TeamRef } from "./authz";
+import { buildAccessibleScopes, expandScopesToTeamIds, scopedTeamIdsInCategory, type RawGrant, type TeamRef, type AuthedUser } from "./authz";
+
+function user(overrides: Partial<AuthedUser>): AuthedUser {
+  return {
+    id: "u1",
+    username: "staff",
+    name: "Staff",
+    role: "COACH",
+    jobTitle: "Staff",
+    onboardingCompletedAt: new Date(),
+    teamIds: [],
+    hasFullAccess: false,
+    scopes: [],
+    ...overrides,
+  };
+}
 
 const ALL_TEAMS: TeamRef[] = [
   { id: "u8a", code: "U8A", category: "U8" },
@@ -83,4 +98,32 @@ test("buildAccessibleScopes: no grants at all means no access — never defaults
   const scopes = buildAccessibleScopes([], ALL_TEAMS, SCHOOL_CATEGORIES);
   assert.deepEqual(scopes, []);
   assert.deepEqual(expandScopesToTeamIds(scopes, ALL_TEAMS), []);
+});
+
+// scopedTeamIdsInCategory — the active-category narrowing behind the sidebar
+// switcher (src/lib/active-category.ts): every screen it feeds must still
+// respect the underlying StaffAccess grant, never just the category name.
+test("scopedTeamIdsInCategory: Davy on active category U8 sees only U8 teams, never U12 even though he's also a coach there", () => {
+  const davy = user({ teamIds: ["u8a", "u9a", "u12a"] });
+  assert.deepEqual(new Set(scopedTeamIdsInCategory(davy, ALL_TEAMS, "U8")), new Set(["u8a"]));
+});
+
+test("scopedTeamIdsInCategory: switching active category to U9 shows U9 and nothing else", () => {
+  const davy = user({ teamIds: ["u8a", "u9a", "u12a"] });
+  assert.deepEqual(scopedTeamIdsInCategory(davy, ALL_TEAMS, "U9"), ["u9a"]);
+});
+
+test("scopedTeamIdsInCategory: a category the user has no grant for at all yields nothing, even if named explicitly", () => {
+  const davy = user({ teamIds: ["u8a", "u9a", "u12a"] });
+  assert.deepEqual(scopedTeamIdsInCategory(davy, ALL_TEAMS, "U13"), []);
+});
+
+test("scopedTeamIdsInCategory: full access (hasFullAccess) still narrows to just the active category's real teams", () => {
+  const admin = user({ hasFullAccess: true, teamIds: ALL_TEAMS.map((t) => t.id) });
+  assert.deepEqual(new Set(scopedTeamIdsInCategory(admin, ALL_TEAMS, "U13")), new Set(["u13a", "u13b", "u13c"]));
+});
+
+test("scopedTeamIdsInCategory: category null skips the narrowing and returns every accessible team", () => {
+  const davy = user({ teamIds: ["u8a", "u9a", "u12a"] });
+  assert.deepEqual(new Set(scopedTeamIdsInCategory(davy, ALL_TEAMS, null)), new Set(["u8a", "u9a", "u12a"]));
 });
