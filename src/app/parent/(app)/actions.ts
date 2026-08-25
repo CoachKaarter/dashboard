@@ -3,7 +3,7 @@
 import { parentSignOut } from "@/parent-auth";
 import { requireParent } from "@/lib/parent-session";
 import { prisma } from "@/lib/prisma";
-import { getWeekStart, getWindowForWeek, upsertAvailability } from "@/lib/availability";
+import { getWeekStart, getWeekendDate, getWindowForWeek, upsertAvailability } from "@/lib/availability";
 import { availabilityStatusSchema, absenceReasonSchema } from "@/lib/parent-validation";
 import { sessionInParentScope } from "@/lib/parent-scope";
 import { revalidatePath } from "next/cache";
@@ -79,8 +79,7 @@ export async function setWeekendAvailability(weekStartIso: string, statusRaw: st
 
   const weekStart = new Date(weekStartIso);
   if (!(await assertWindowOpenNow(weekStart))) return;
-  const eventDate = new Date(weekStart);
-  eventDate.setDate(eventDate.getDate() + 5); // samedi
+  const eventDate = getWeekendDate(weekStart);
 
   await upsertAvailability({
     playerId: parent.playerId,
@@ -98,8 +97,7 @@ export async function setWeekendAbsenceReason(weekStartIso: string, formData: Fo
   const parent = await requireParent();
   const weekStart = new Date(weekStartIso);
   if (!(await assertWindowOpenNow(weekStart))) return;
-  const eventDate = new Date(weekStart);
-  eventDate.setDate(eventDate.getDate() + 5);
+  const eventDate = getWeekendDate(weekStart);
 
   const reasonParsed = absenceReasonSchema.safeParse(formData.get("absenceReason"));
   const absenceReason = reasonParsed.success ? reasonParsed.data : null;

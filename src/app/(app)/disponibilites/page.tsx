@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { requireUser, scopedTeamIds, buildCategorySwitcherGroups } from "@/lib/authz";
+import { requireUser, scopedTeamIds, getAccessibleCategories } from "@/lib/authz";
 import { getActiveCategoryGroup } from "@/lib/active-category";
 import { getWeekStart, addDays, getWindowForWeek } from "@/lib/availability";
 import { TeamChip } from "@/components/ui/TeamChip";
@@ -20,11 +20,11 @@ export default async function DisponibilitesPage({
   const sp = await searchParams;
   const user = await requireUser();
   const scope = scopedTeamIds(user);
-  const groups = buildCategorySwitcherGroups(user);
+  const accessibleCategories = getAccessibleCategories(user).sort();
   const activeGroup = await getActiveCategoryGroup(user);
-  const selectedKey = sp.team ?? activeGroup?.key ?? "Tous";
-  const selectedGroup = groups.find((g) => g.key === selectedKey) ?? null;
-  const selectedTeamCode = !selectedGroup && selectedKey !== "Tous" ? selectedKey : null;
+  const selectedKey = sp.team ?? activeGroup?.categories[0] ?? "Tous";
+  const selectedCategory = accessibleCategories.includes(selectedKey) ? selectedKey : null;
+  const selectedTeamCode = !selectedCategory && selectedKey !== "Tous" ? selectedKey : null;
 
   const baseWeek = sp.week ? getWeekStart(new Date(sp.week)) : getWeekStart(new Date());
   const weekStartIso = baseWeek.toISOString();
@@ -71,8 +71,8 @@ export default async function DisponibilitesPage({
     where: {
       archived: false,
       teamId: scope === "ALL" ? undefined : { in: scope },
-      team: selectedGroup
-        ? { category: { in: selectedGroup.categories } }
+      team: selectedCategory
+        ? { category: selectedCategory }
         : selectedTeamCode
           ? { OR: [{ code: selectedTeamCode }, { category: selectedTeamCode }] }
           : undefined,
@@ -172,12 +172,12 @@ export default async function DisponibilitesPage({
           ))}
         </div>
         <span className="flex-1" />
-        <FilterChip href={toQueryString({ week: sp.week, team: undefined, missing: sp.missing })} active={selectedKey === "Tous"}>
+        <FilterChip href={toQueryString({ week: sp.week, team: "Tous", missing: sp.missing })} active={selectedKey === "Tous"}>
           Tous
         </FilterChip>
-        {groups.map((g) => (
-          <FilterChip key={g.key} href={toQueryString({ week: sp.week, team: g.key, missing: sp.missing })} active={selectedKey === g.key}>
-            {g.label}
+        {accessibleCategories.map((c) => (
+          <FilterChip key={c} href={toQueryString({ week: sp.week, team: c, missing: sp.missing })} active={selectedKey === c}>
+            {c}
           </FilterChip>
         ))}
         {teams.map((t) => (
