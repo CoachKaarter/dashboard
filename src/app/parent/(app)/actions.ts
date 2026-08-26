@@ -6,7 +6,47 @@ import { prisma } from "@/lib/prisma";
 import { getWeekStart, getWeekendDate, getWindowForWeek, upsertAvailability } from "@/lib/availability";
 import { availabilityStatusSchema, absenceReasonSchema } from "@/lib/parent-validation";
 import { sessionInParentScope } from "@/lib/parent-scope";
+import { recordSeen, recordSeenSnapshot, sessionSnapshot } from "@/lib/parent-content-state";
 import { revalidatePath } from "next/cache";
+
+/**
+ * Accueil Parent v2 — éteint l'animation NEW une fois pour toutes (le
+ * parent vient de voir cette carte en Hero). Ne touche jamais lastSnapshot
+ * pour une convocation vue sans réponse : seule confirmMyConvocation
+ * (planning/actions.ts) ancre une nouvelle version comme "répondue" — voir
+ * le commentaire en tête de src/lib/parent-content-state.ts. Le serveur
+ * recalcule lui-même l'instantané des séances/annonces à partir de la
+ * base — jamais un JSON envoyé par le client.
+ */
+export async function markParentContentSeen(entityType: string, entityId: string) {
+  const parent = await requireParent();
+  const ref = { entityType, entityId };
+
+  if (entityType === "TRAINING_SESSION") {
+    const session = await prisma.trainingSession.findUnique({ where: { id: entityId } });
+    if (!session || !sessionInParentScope(session, parent)) return;
+    await recordSeenSnapshot(parent.parentAccountId, ref, sessionSnapshot(session));
+    return;
+  }
+
+  if (entityType === "CONVOCATION") {
+    const weekend = new Date(entityId);
+    if (Number.isNaN(weekend.getTime())) return;
+    const live = await prisma.matchConvocation.findFirst({ where: { playerId: parent.playerId, match: { date: weekend } } });
+    if (live) {
+      await recordSeen(parent.parentAccountId, ref);
+    } else {
+      // Rien de vivant ce week-end : la carte affichée était un retrait —
+      // l'acquitter pour de bon (sinon elle réapparaîtrait indéfiniment).
+      await recordSeenSnapshot(parent.parentAccountId, ref, { withdrawn: "true" });
+    }
+    return;
+  }
+
+  if (entityType === "AVAILABILITY_WEEK" || entityType === "ANNOUNCEMENT" || entityType === "OBJECTIVE" || entityType === "OBJECTIVE_UPDATE") {
+    await recordSeen(parent.parentAccountId, ref);
+  }
+}
 
 export async function parentSignOutAction() {
   await parentSignOut({ redirectTo: "/parent/login" });

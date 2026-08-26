@@ -15,28 +15,28 @@ datasource db {
 // ---------- Staff / auth ----------
 
 model User {
-  id           String   @id @default(cuid())
-  username     String   @unique
-  passwordHash String
-  name         String
-  role         String // "ADMIN" | "COACH" | "STAFF" — TECHNICAL role only (staff CRUD, club branding, paramètres). Does NOT by itself grant sporting data access anymore — see StaffAccess.
-  accessLabel  String // free text shown in Staff screen, e.g. "Équipes autorisées"
-  jobTitle     String // e.g. "Responsable de catégorie", "Coach", "Entraîneur des gardiens"
-  email        String?
-  active       Boolean  @default(true) // false = compte désactivé, connexion bloquée
+  id                    String    @id @default(cuid())
+  username              String    @unique
+  passwordHash          String
+  name                  String
+  role                  String // "ADMIN" | "COACH" | "STAFF" — TECHNICAL role only (staff CRUD, club branding, paramètres). Does NOT by itself grant sporting data access anymore — see StaffAccess.
+  accessLabel           String // free text shown in Staff screen, e.g. "Équipes autorisées"
+  jobTitle              String // e.g. "Responsable de catégorie", "Coach", "Entraîneur des gardiens"
+  email                 String?
+  active                Boolean   @default(true) // false = compte désactivé, connexion bloquée
   // Legacy sporting scope, superseded by StaffAccess (multi-catégories staff
   // permissions pass). Frozen: no longer written to by new code, kept only
   // so the one-time migration that derived each user's StaffAccess rows has
   // a record of what it read. Do not add new call sites reading this field —
   // use getAccessibleTeamIds(user)/StaffAccess instead.
-  teamIds      String[] @default([])
+  teamIds               String[]  @default([])
   onboardingCompletedAt DateTime? // null = show the first-login onboarding flow
 
-  teams                  Team[]                 @relation("TeamCoach")
+  teams                  Team[]                    @relation("TeamCoach")
   notes                  PlayerNote[]
   evaluations            EvaluationScore[]
-  treatedAlerts          AlertTreated[]         @relation("AlertTreatedBy")
-  assignedAlerts         AlertTreated[]         @relation("AlertAssignee")
+  treatedAlerts          AlertTreated[]            @relation("AlertTreatedBy")
+  assignedAlerts         AlertTreated[]            @relation("AlertAssignee")
   historyDecisions       TeamHistoryEntry[]
   unavailabilities       Unavailability[]
   activityLogs           ActivityLog[]
@@ -52,8 +52,8 @@ model User {
   templatesCreated       SessionTemplate[]
   announcementsPosted    StaffAnnouncement[]
   physicalTestsRecorded  PhysicalTestResult[]
-  staffAccess            StaffAccess[]          @relation("StaffAccessUser")
-  staffAccessGranted     StaffAccess[]          @relation("StaffAccessGrantedBy")
+  staffAccess            StaffAccess[]             @relation("StaffAccessUser")
+  staffAccessGranted     StaffAccess[]             @relation("StaffAccessGrantedBy")
 
   createdAt DateTime @default(now())
 }
@@ -183,16 +183,46 @@ model Unavailability {
 // une session cookie distincte (voir src/parent-auth.ts) pour qu'il n'y ait
 // jamais de confusion possible entre les deux systèmes d'identité.
 model ParentAccount {
-  id                 String    @id @default(cuid())
-  player             Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  playerId           String    @unique
-  username           String    @unique
+  id                 String               @id @default(cuid())
+  player             Player               @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId           String               @unique
+  username           String               @unique
   passwordHash       String
-  active             Boolean   @default(true)
-  mustChangePassword Boolean   @default(true)
+  active             Boolean              @default(true)
+  mustChangePassword Boolean              @default(true)
   lastLoginAt        DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  contentStates      ParentContentState[]
+}
+
+// Accueil Parent v2 — mémoire NEW/SEEN/COMPLETED d'un contenu pour un
+// compte parent donné, plus un instantané JSON minimal des champs
+// affichés au moment où le parent l'a vu. Une seule table générique
+// (spec §8 : "éviter de créer 15 champs seenAt différents") au lieu
+// d'ajouter un champ par modèle (Match, TrainingSession, PlayerObjective,
+// StaffAnnouncement... n'ont pas de seenAt et ne doivent pas en gagner
+// un chacun) — voir src/lib/parent-content-state.ts.
+//
+// lastSnapshot sert aussi à détecter les MODIFICATIONS (convocation
+// déplacée, séance dont l'horaire change) sans dépendre d'un
+// updatedAt sur Match/TrainingSession, qui n'existe pas : le moteur de
+// priorité recompare l'état actuel à ce dernier instantané connu à
+// chaque rendu — un écart = contenu modifié, remis en avant.
+model ParentContentState {
+  id              String        @id @default(cuid())
+  parentAccount   ParentAccount @relation(fields: [parentAccountId], references: [id], onDelete: Cascade)
+  parentAccountId String
+  entityType      String // "AVAILABILITY_WEEK" | "CONVOCATION" | "TRAINING_SESSION" | "OBJECTIVE" | "OBJECTIVE_UPDATE" | "ANNOUNCEMENT"
+  entityId        String // ex. weekStartDate ISO, MatchConvocation.id, TrainingSession.id, PlayerObjective.id...
+  seenAt          DateTime?
+  completedAt     DateTime?
+  lastSnapshot    Json?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([parentAccountId, entityType, entityId])
+  @@index([parentAccountId])
 }
 
 // Disponibilité PRÉVISIONNELLE déclarée par la famille — distincte
@@ -436,7 +466,7 @@ model TrainingContentItem {
   format                 String? // "Foot à 5" | "Foot à 8" | "Foot à 11" | "Tous"
   categories             String[] @default([]) // indicatif seulement, ex. ["U12", "U13"] — jamais bloquant
 
-  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdBy   User    @relation(fields: [createdById], references: [id])
   createdById String
   visibility  String  @default("PERSONAL") // "PERSONAL" | "SHARED"
   archived    Boolean @default(false)
@@ -726,10 +756,10 @@ model CompositionSlot {
 }
 
 model MatchPlayerStat {
-  id       String  @id @default(cuid())
-  match    Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  match    Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
   matchId  String
-  player   Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
   playerId String
 
   // Prévu vs réalité (V5.2 §5) : plannedRole est figé au moment où
@@ -957,14 +987,14 @@ model Settings {
 // Les couleurs par défaut reprennent l'identité actuelle de l'app (vert,
 // bleu, orange) — un club qui n'a rien configuré ne voit aucune différence.
 model Club {
-  id             Int      @id @default(1)
-  name           String   @default("Mon club")
+  id             Int     @id @default(1)
+  name           String  @default("Mon club")
   shortName      String?
   logoData       Bytes?
   logoMimeType   String?
-  primaryColor   String   @default("#3F8F5B")
-  secondaryColor String   @default("#3C6E9F")
-  accentColor    String   @default("#C97A17")
+  primaryColor   String  @default("#3F8F5B")
+  secondaryColor String  @default("#3C6E9F")
+  accentColor    String  @default("#C97A17")
 
   // Modèles éditables des messages "à copier" pour les parents (Paramètres).
   // null = texte par défaut codé en dur (src/lib/message-templates.ts).

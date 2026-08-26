@@ -27,9 +27,17 @@ test("getParentPlanItems (the shared parent match/session fetcher) never queries
 });
 
 test("parent home page never queries Match by parent.player.teamId", () => {
-  const src = read("../app/parent/(app)/page.tsx");
-  assert.match(src, /matchConvocation\.findFirst/, "must still source the weekend match via MatchConvocation");
-  assert.doesNotMatch(src, /teamId:\s*parent\.player\.teamId/, "must never filter Match by the player's administrative team");
+  // Accueil Parent v2 : l'agrégation vit désormais dans getParentHomeState
+  // (parent-home.ts), plus dans page.tsx lui-même — page.tsx ne fait plus
+  // que consommer son résultat et ne doit donc plus contenir de requête
+  // Prisma du tout.
+  const home = read("parent-home.ts");
+  assert.match(home, /matchConvocation\.findFirst/, "must still source the weekend match via MatchConvocation");
+  assert.doesNotMatch(home, /teamId:\s*parent\.player\.teamId/, "must never filter Match by the player's administrative team");
+
+  const page = read("../app/parent/(app)/page.tsx");
+  assert.doesNotMatch(page, /prisma\.match/i, "the page itself must not query Match directly — it only reads getParentHomeState's result");
+  assert.doesNotMatch(page, /teamId:\s*parent\.player\.teamId/, "must never filter Match by the player's administrative team");
 });
 
 test("parent matchs page never queries Match directly (must go through getParentPlanItems)", () => {

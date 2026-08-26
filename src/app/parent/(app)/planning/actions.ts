@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireParentReady } from "@/lib/parent-guard";
 import { notifyTeamStaff } from "@/lib/notifications";
+import { recordResponseSnapshot, convocationSnapshot } from "@/lib/parent-content-state";
 import { revalidatePath } from "next/cache";
 
 /**
@@ -22,6 +23,14 @@ export async function confirmMyConvocation(matchId: string, confirmed: boolean) 
   await prisma.matchConvocation.update({ where: { id: convocation.id }, data: { confirmed } });
 
   const match = await prisma.match.findUniqueOrThrow({ where: { id: matchId } });
+  // Ancre la réponse à CETTE version du match (Accueil Parent v2, Cycle 3) —
+  // si le staff modifie ensuite date/horaire/adversaire, la carte redemandera
+  // une confirmation au lieu de garder silencieusement une réponse obsolète.
+  await recordResponseSnapshot(
+    parent.parentAccountId,
+    { entityType: "CONVOCATION", entityId: match.date.toISOString() },
+    convocationSnapshot({ date: match.date, time: match.time, opponent: match.opponent, meetTime: match.meetTime, meetLocation: match.meetLocation, location: match.location })
+  );
   await notifyTeamStaff(match.teamId, {
     type: "convocation-response",
     title: `${parent.player.firstName} ${parent.player.lastName} a ${confirmed ? "confirmé" : "décliné"} sa convocation`,
