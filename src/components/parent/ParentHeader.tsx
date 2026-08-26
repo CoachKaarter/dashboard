@@ -9,17 +9,18 @@ export function ParentHeader({
   firstName,
   category,
   subtitle,
-  clubName,
 }: {
   firstName: string;
   category: string;
   subtitle?: string;
-  clubName: string;
+  /** @deprecated club identity now lives in the persistent ParentHeaderBar/ParentTopNav, not repeated here. */
+  clubName?: string;
 }) {
   return (
     <div>
-      <div className="text-[11px] font-bold tracking-[0.1em] uppercase text-[#9A9DA3]">{clubName}</div>
-      <div className="text-[24px] font-bold tracking-[-0.01em] mt-1">{greeting()}</div>
+      <div className="text-[27px] font-bold tracking-[-0.01em]" style={{ fontFamily: "var(--font-parent-display)" }}>
+        {greeting()}
+      </div>
       <div className="text-[15px] font-semibold text-green mt-0.5">
         {firstName} <span className="text-[#9A9DA3] font-medium">· {category}</span>
       </div>

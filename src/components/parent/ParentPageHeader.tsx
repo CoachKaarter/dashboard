@@ -20,7 +20,9 @@ export function ParentPageHeader({
           {backLabel ?? "Retour"}
         </Link>
       )}
-      <div className="text-[24px] font-bold tracking-[-0.01em]">{title}</div>
+      <div className="text-[24px] font-bold tracking-[-0.01em]" style={{ fontFamily: "var(--font-parent-display)" }}>
+        {title}
+      </div>
       {subtitle && <div className="text-[13px] text-[#8A8D93] mt-0.5">{subtitle}</div>}
     </div>
   );

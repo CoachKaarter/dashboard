@@ -8,7 +8,7 @@ export function ParentCard({
   style?: React.CSSProperties;
 }) {
   return (
-    <div className={`bg-white rounded-2xl border border-[#E7E7E2] p-4 ${className}`} style={style}>
+    <div className={`bg-white rounded-[18px] border border-[#E7E7E2] shadow-[0_2px_10px_rgba(23,31,62,0.06)] p-4 ${className}`} style={style}>
       {children}
     </div>
   );

@@ -5,18 +5,23 @@ import type { PriorityCard, PriorityCta, PriorityLevel } from "@/lib/parent-prio
 
 /**
  * Accueil Parent v2 — LE Hero unique de "Maintenant" (spec : jamais deux à
- * la fois). Une seule variante de carte, différenciée par la couleur/le
- * libellé/le CTA — pas douze composants différents. P1 (action requise)
- * reprend l'accent de marque du club (spec : "réutilise --club-primary
- * comme accent du Hero") ; les autres niveaux gardent la palette sobre déjà
- * utilisée ailleurs dans l'espace parent (ParentStatusBanner).
+ * la fois). Visuel repris de la maquette Claude Design "Espace Parent v2" :
+ * un bandeau carmin pleine largeur ("● RÉPONSE ATTENDUE") au-dessus d'une
+ * carte blanche pour tout ce qui demande une action (P0/P1), un titre en
+ * Barlow Condensed, un bouton principal bleu nuit plein + un secondaire en
+ * contour blanc. P2-P4 restent une simple carte blanche sobre — le carmin
+ * est réservé à "il faut agir", jamais un habillage par défaut.
  */
-const LEVEL_STYLE: Record<PriorityLevel, { bg: string; border: string; fg: string; fgSoft: string; btn: string }> = {
-  P0: { bg: "bg-red-bg", border: "border-[#F0C9C4]", fg: "text-red", fgSoft: "text-[#8A5049]", btn: "bg-red text-white" },
-  P1: { bg: "bg-club-primary-bg", border: "border-club-primary/25", fg: "text-club-primary", fgSoft: "text-[#4A5A50]", btn: "bg-club-primary text-club-primary-foreground" },
-  P2: { bg: "bg-blue-bg", border: "border-[#CBDCEC]", fg: "text-blue", fgSoft: "text-[#5C7B9A]", btn: "bg-blue text-white" },
-  P3: { bg: "bg-green-bg", border: "border-[#CFE6D6]", fg: "text-green", fgSoft: "text-[#5C8465]", btn: "bg-green text-white" },
-  P4: { bg: "bg-white", border: "border-[#E7E7E2]", fg: "text-[#6E7178]", fgSoft: "text-[#8A8D93]", btn: "bg-ink text-white" },
+const DISPLAY_FONT = { fontFamily: "var(--font-parent-display)" };
+
+const ATTENTION_LEVELS: PriorityLevel[] = ["P0", "P1"];
+
+const QUIET_STYLE: Record<PriorityLevel, { fg: string; fgSoft: string }> = {
+  P0: { fg: "text-parent-crimson", fgSoft: "text-[#8A5049]" },
+  P1: { fg: "text-parent-crimson", fgSoft: "text-[#8A5049]" },
+  P2: { fg: "text-blue", fgSoft: "text-[#5C7B9A]" },
+  P3: { fg: "text-green", fgSoft: "text-[#5C8465]" },
+  P4: { fg: "text-[#6E7178]", fgSoft: "text-[#8A8D93]" },
 };
 
 function eyebrow(card: PriorityCard): string | null {
@@ -27,28 +32,43 @@ function eyebrow(card: PriorityCard): string | null {
 }
 
 export function HeroCard({ card }: { card: PriorityCard }) {
-  const s = LEVEL_STYLE[card.priorityLevel];
+  const attention = ATTENTION_LEVELS.includes(card.priorityLevel);
+  const s = QUIET_STYLE[card.priorityLevel];
   const tag = eyebrow(card);
+  const anim = card.isNew ? "animate-slidedown" : "animate-fadein";
 
   return (
-    <div className={`rounded-2xl border p-5 ${s.bg} ${s.border} ${card.isNew ? "animate-slidedown" : "animate-fadein"}`}>
+    <div className={anim}>
       {card.ref && <MarkSeenOnMount entityType={card.ref.entityType} entityId={card.ref.entityId} />}
-      {tag && <div className={`text-[11px] font-bold tracking-[0.09em] uppercase ${s.fg}`}>{tag}</div>}
-      <div className={`text-[20px] font-bold leading-tight ${tag ? "mt-1" : ""}`}>{card.title}</div>
-      {card.description && <div className={`text-[14.5px] mt-1.5 ${s.fgSoft}`}>{card.description}</div>}
-      {card.detail && <div className={`text-[13px] mt-1 ${s.fgSoft}`}>{card.detail}</div>}
-      {(card.cta || card.secondaryCta) && (
-        <div className="flex flex-wrap gap-2 mt-4">
-          {card.cta && <CtaButton cta={card.cta} matchId={card.matchId} style={s.btn} />}
-          {card.secondaryCta && <CtaButton cta={card.secondaryCta} matchId={card.matchId} style={`bg-white border ${s.border} ${s.fg}`} />}
+
+      {attention && tag && (
+        <div className="bg-parent-crimson text-white rounded-t-[18px] px-5 py-2.5 flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-white shrink-0" aria-hidden />
+          <span className="text-[11px] font-bold tracking-[0.09em] uppercase">{tag}</span>
         </div>
       )}
+
+      <div className={`bg-white border border-[#E7E7E2] shadow-[0_2px_10px_rgba(23,31,62,0.06)] p-5 ${attention && tag ? "rounded-b-[18px]" : "rounded-[18px]"}`}>
+        {!attention && tag && <div className={`text-[11px] font-bold tracking-[0.09em] uppercase ${s.fg}`}>{tag}</div>}
+        <div className={`text-[22px] font-bold leading-[1.05] ${!attention && tag ? "mt-1" : ""}`} style={DISPLAY_FONT}>
+          {card.title}
+        </div>
+        {card.description && <div className={`text-[14.5px] mt-2 ${s.fgSoft}`}>{card.description}</div>}
+        {card.detail && <div className={`text-[13px] mt-1 ${s.fgSoft}`}>{card.detail}</div>}
+        {(card.cta || card.secondaryCta) && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            {card.cta && <CtaButton cta={card.cta} matchId={card.matchId} primary />}
+            {card.secondaryCta && <CtaButton cta={card.secondaryCta} matchId={card.matchId} />}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function CtaButton({ cta, matchId, style }: { cta: PriorityCta; matchId?: string; style: string }) {
-  const className = `h-11 px-4 rounded-xl text-[13.5px] font-bold inline-flex items-center justify-center active:scale-[0.98] transition-all duration-150 ${style}`;
+function CtaButton({ cta, matchId, primary }: { cta: PriorityCta; matchId?: string; primary?: boolean }) {
+  const style = primary ? "bg-parent-navy text-white" : "bg-white border border-[#DADCE3] text-parent-navy";
+  const className = `h-12 px-4 rounded-xl text-[14px] font-bold inline-flex items-center justify-center active:scale-[0.98] transition-all duration-150 ${style}`;
 
   if (cta.href) {
     return (

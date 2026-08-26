@@ -43,6 +43,19 @@
 
   --font-sans: var(--font-archivo), Helvetica, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  /* Espace Parent uniquement — identité visuelle reprise de la maquette
+     Claude Design "Espace Parent v2" (visuel seulement, voir
+     src/app/parent/(app)/layout.tsx pour où ces tokens sont appliqués).
+     Bleu nuit + carmin en accent de marque, jamais utilisés hors de
+     l'espace parent. */
+  --font-parent-body: var(--font-barlow), Helvetica, sans-serif;
+  --font-parent-display: var(--font-barlow-condensed), var(--font-barlow), Helvetica, sans-serif;
+  --color-parent-navy: #171f3e;
+  --color-parent-navy-2: #212b54;
+  --color-parent-crimson: #e23a56;
+  --color-parent-crimson-bg: #fde7eb;
+  --color-parent-crimson-line: #f6b9c4;
 }
 
 /* Fallback so bg-club-* / text-club-* never resolve to nothing if some page

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Archivo, JetBrains_Mono } from "next/font/google";
+import { Archivo, JetBrains_Mono, Barlow, Barlow_Condensed } from "next/font/google";
 import { getClub } from "@/lib/club";
 import { pickForeground } from "@/lib/contrast";
 import "./globals.css";
@@ -14,6 +14,23 @@ const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
   subsets: ["latin"],
   weight: ["400", "500", "700"],
+});
+
+// Espace Parent uniquement (voir src/app/parent/(app)/layout.tsx) — identité
+// visuelle reprise de la maquette Claude Design "Espace Parent v2" (Barlow /
+// Barlow Condensed). N'affecte pas Cockpit/Coach : déclarées ici (racine
+// partagée par next/font) mais seulement appliquées via la classe posée sur
+// le shell Parent, jamais sur <body>.
+const barlow = Barlow({
+  variable: "--font-barlow",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const barlowCondensed = Barlow_Condensed({
+  variable: "--font-barlow-condensed",
+  subsets: ["latin"],
+  weight: ["600", "700"],
 });
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -36,7 +53,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const themeCss = `:root{--club-primary:${club.primaryColor};--club-primary-foreground:${pickForeground(club.primaryColor)};--club-secondary:${club.secondaryColor};--club-secondary-foreground:${pickForeground(club.secondaryColor)};--club-accent:${club.accentColor};--club-accent-foreground:${pickForeground(club.accentColor)};}`;
 
   return (
-    <html lang="fr" className={`${archivo.variable} ${jetbrainsMono.variable} h-full`}>
+    <html lang="fr" className={`${archivo.variable} ${jetbrainsMono.variable} ${barlow.variable} ${barlowCondensed.variable} h-full`}>
       <head>
         <style dangerouslySetInnerHTML={{ __html: themeCss }} />
       </head>
