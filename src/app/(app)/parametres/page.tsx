@@ -141,7 +141,7 @@ export default async function ParametresPage() {
 
             <span className="text-[11px] text-muted-2">
               Variables : <code>{"{{date_limite}}"}</code> (date de clôture), <code>{"{{lien_parent}}"}</code> (lien espace parents),{" "}
-              <code>{"{{resultats}}"}</code> (résultats des matchs joués du week-end). Laisser vide pour revenir au texte par défaut.
+              <code>{"{{resultats}}"}</code> (résultats des matchs joués la semaine précédente). Laisser vide pour revenir au texte par défaut.
             </span>
             <textarea
               name="availabilityMessageTemplate"

@@ -97,6 +97,15 @@ test("selectWeekendResultLines: plusieurs matchs joués apparaissent tous", () =
   ]);
 });
 
+test("selectWeekendResultLines: une équipe avec deux matchs dans la semaine (amical + championnat) donne deux lignes", () => {
+  const matches: WeekendResultMatch[] = [
+    { ...base, teamId: "t1", teamCode: "U13A", competition: "Amical", opponent: "Châteaubriant", scoreFor: 3, scoreAgainst: 1 },
+    { ...base, teamId: "t1", teamCode: "U13A", competition: "Championnat", opponent: "Rezé", scoreFor: 2, scoreAgainst: 0 },
+  ];
+  const lines = selectWeekendResultLines(matches, ["t1"]);
+  assert.deepEqual(lines, ["U13A — Victoire 3-1 vs Châteaubriant", "U13A — Victoire 2-0 vs Rezé"]);
+});
+
 // CAS 8
 test("selectWeekendResultLines: aucun résultat exploitable renvoie une liste vide", () => {
   const matches: WeekendResultMatch[] = [

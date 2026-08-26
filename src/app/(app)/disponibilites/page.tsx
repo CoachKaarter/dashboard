@@ -33,6 +33,7 @@ export default async function DisponibilitesPage({
   const weekStartIso = baseWeek.toISOString();
   const weekEndExclusive = addDays(baseWeek, 7);
   const weekend = addDays(baseWeek, 5);
+  const previousWeekStart = addDays(baseWeek, -7);
 
   const [window, allTeams, sessionsAll, hdrs, clubTemplates] = await Promise.all([
     getWindowForWeek(baseWeek),
@@ -53,10 +54,13 @@ export default async function DisponibilitesPage({
   );
   // Same permission scope + active category the rest of this page already
   // uses for its own roster (teams above) — never the raw, unfiltered
-  // club-wide list. weekend === getWeekendDate(baseWeek), the same Saturday
-  // boundary getWeekendBoard uses, not a "last 7 days" window (§13).
+  // club-wide list. The range is the week BEFORE the one shown on screen
+  // (baseWeek), not the current calendar date: a responsable who navigates
+  // to "Semaine suivante" to open next week's pointage, then copies the
+  // Sunday message, expects the week they just closed out (midweek
+  // friendlies included, not just Saturday) — see weekend-results.ts.
   const weekendResultLines = clubTemplates.includeWeekendResultsInAvailabilityMessage
-    ? await getWeekendResults(weekend, teams.map((t) => t.id))
+    ? await getWeekendResults(previousWeekStart, baseWeek, teams.map((t) => t.id))
     : [];
   const sundayMessage = renderMessageTemplate(clubTemplates.availabilityMessageTemplate ?? DEFAULT_AVAILABILITY_MESSAGE_TEMPLATE, {
     date_limite: window?.closesAt ? `le ${formatDT(new Date(window.closesAt))}` : "la date limite indiquée",

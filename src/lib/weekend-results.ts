@@ -1,8 +1,16 @@
 /**
- * Résultats des matchs joués un week-end donné, formatés pour le message
- * d'ouverture des disponibilités (src/lib/message-templates.ts, variable
- * {{resultats}}) — voir "Ajoute les résultats du week-end" côté /parametres
- * et /disponibilites.
+ * Résultats des matchs joués la semaine précédente (amicaux de semaine
+ * compris, pas seulement le samedi), formatés pour le message d'ouverture
+ * des disponibilités (src/lib/message-templates.ts, variable {{resultats}})
+ * — voir "Ajoute les résultats du week-end" côté /parametres et
+ * /disponibilites.
+ *
+ * "La semaine précédente" est relative à la semaine actuellement affichée
+ * sur /disponibilites (baseWeek), pas à la date du jour : un responsable
+ * qui navigue vers "Semaine suivante" pour ouvrir le pointage de la semaine
+ * à venir, puis copie le message du dimanche, doit y retrouver les
+ * résultats de la semaine qu'il vient de refermer (ex. amical du mercredi
+ * + match du samedi), pas ceux d'une semaine qui n'a pas encore eu lieu.
  *
  * Une seule source de vérité pour le résultat (Victoire/Nul/Défaite) :
  * computeMatchResult (src/lib/match-phase.ts), la même que la feuille de
@@ -60,14 +68,15 @@ export function selectWeekendResultLines(matches: WeekendResultMatch[], teamIds:
 }
 
 /**
- * Résultats pour UN samedi (weekendDate — même notion que getWeekendDate /
- * getWeekendBoard, jamais "les 7 derniers jours"), restreints à teamIds.
- * Une seule requête, colonnes minimales — pas de N+1 par équipe.
+ * Résultats pour une semaine entière (weekStart inclus à weekEndExclusive
+ * exclu — typiquement un lundi à lundi, 7 jours, calculé par l'appelant
+ * avec addDays(baseWeek, -7) et baseWeek : voir /disponibilites), restreints
+ * à teamIds. Une seule requête, colonnes minimales — pas de N+1 par équipe.
  */
-export async function getWeekendResults(weekendDate: Date, teamIds: string[]): Promise<string[]> {
+export async function getWeekendResults(weekStart: Date, weekEndExclusive: Date, teamIds: string[]): Promise<string[]> {
   if (teamIds.length === 0) return [];
   const matches = await prisma.match.findMany({
-    where: { teamId: { in: teamIds }, date: weekendDate, status: "Joué" },
+    where: { teamId: { in: teamIds }, date: { gte: weekStart, lt: weekEndExclusive }, status: "Joué" },
     select: {
       teamId: true,
       status: true,
@@ -79,7 +88,7 @@ export async function getWeekendResults(weekendDate: Date, teamIds: string[]): P
       tournamentTeamsCount: true,
       team: { select: { code: true } },
     },
-    orderBy: { team: { code: "asc" } },
+    orderBy: [{ team: { code: "asc" } }, { date: "asc" }],
   });
   const rows: WeekendResultMatch[] = matches.map((m) => ({
     teamId: m.teamId,
