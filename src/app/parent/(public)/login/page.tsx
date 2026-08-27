@@ -1,6 +1,7 @@
 import { parentLoginAction } from "./actions";
 import { PasswordField } from "@/components/parent/PasswordField";
 import { SubmitButton } from "@/components/SubmitButton";
+import { OnzevoMark } from "@/components/OnzevoMark";
 
 export default async function ParentLoginPage({
   searchParams,
@@ -53,6 +54,10 @@ export default async function ParentLoginPage({
         </form>
         <div className="text-[12.5px] text-[#8A8D93] text-center mt-4">
           Identifiants oubliés ? Contacte le staff U12/U13.
+        </div>
+        <div className="flex items-center justify-center gap-1.5 mt-7 opacity-60">
+          <span className="text-[11px] text-[#8A8D93]">Propulsé par</span>
+          <OnzevoMark variant="dark" size="sm" />
         </div>
       </div>
     </div>

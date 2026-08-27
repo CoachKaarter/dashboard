@@ -36,7 +36,7 @@ const barlowCondensed = Barlow_Condensed({
 export async function generateMetadata(): Promise<Metadata> {
   const club = await getClub();
   return {
-    title: `Cockpit U12/U13 — ${club.name}`,
+    title: `Onzevo — ${club.name}`,
     description: "Outil interne de pilotage de saison — catégorie U12/U13.",
   };
 }
