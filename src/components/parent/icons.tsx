@@ -159,3 +159,43 @@ export function MegaphoneIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function ClipboardIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <rect x="5" y="4.5" width="14" height="17" rx="2" />
+      <rect x="9" y="2.5" width="6" height="3.5" rx="1" />
+      <line x1="8.5" y1="11" x2="15.5" y2="11" />
+      <line x1="8.5" y1="15" x2="15.5" y2="15" />
+    </svg>
+  );
+}
+
+export function UsersIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3 20.5v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1" />
+      <path d="M16.2 4.3a3.2 3.2 0 0 1 0 6.2" />
+      <path d="M18 20.5v-1a5 5 0 0 0-3-4.6" />
+    </svg>
+  );
+}
+
+export function BellIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M6 10a6 6 0 0 1 12 0v4.5l1.7 2.5H4.3L6 14.5Z" />
+      <path d="M10 20a2.2 2.2 0 0 0 4 0" />
+    </svg>
+  );
+}
+
+export function ShieldCheckIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M12 2.5 20 6v6c0 5-3.4 8.3-8 9.5-4.6-1.2-8-4.5-8-9.5V6Z" />
+      <polyline points="8.5 12 11 14.5 15.5 9.5" />
+    </svg>
+  );
+}
