@@ -7,15 +7,34 @@ import { ColorField } from "@/components/ui/ColorField";
 import { Badge } from "@/components/ui/Badge";
 import { formatDateFull } from "@/lib/format";
 import { DEFAULT_AVAILABILITY_MESSAGE_TEMPLATE, DEFAULT_CONVOCATION_MESSAGE_TEMPLATE } from "@/lib/message-templates";
-import { updateSettings, createSeason, setCurrentSeason, updateClub, updateMessageTemplates } from "./actions";
+import { COMPETITION_TYPES } from "@/lib/match-validation";
+import { TRANSPORT_MODES, TRANSPORT_MODE_LABELS } from "@/lib/equipment";
+import {
+  updateSettings,
+  createSeason,
+  setCurrentSeason,
+  updateClub,
+  updateMessageTemplates,
+  createVenue,
+  updateVenue,
+  deleteVenue,
+  createMatchTemplate,
+  updateMatchTemplate,
+  deleteMatchTemplate,
+} from "./actions";
+
+const settingsInputClass =
+  "h-9 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg";
 
 export default async function ParametresPage() {
-  const [settings, admin, seasons, club, messageTemplates] = await Promise.all([
+  const [settings, admin, seasons, club, messageTemplates, venues, matchTemplates] = await Promise.all([
     getSettings(),
     requireAdmin(),
     prisma.season.findMany({ orderBy: { startDate: "desc" } }),
     getClub(),
     getClubMessageTemplates(),
+    prisma.venue.findMany({ orderBy: { name: "asc" } }),
+    prisma.matchTemplate.findMany({ orderBy: { name: "asc" } }),
   ]);
   const currentSeason = seasons.find((s) => s.isCurrent) ?? seasons[0] ?? null;
 
@@ -200,6 +219,114 @@ export default async function ParametresPage() {
           ))}
         </section>
       </form>
+
+      <section className="bg-surface border border-line rounded-lg overflow-hidden">
+        <div className="px-3.5 py-[11px] border-b border-line-soft text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Lieux enregistrés</div>
+        <div className="px-3.5 pt-2.5 text-[11.5px] text-muted-2 leading-relaxed">
+          Préremplit l&apos;adresse d&apos;un match en le sélectionnant sur sa fiche — jamais imposé, jamais dupliqué automatiquement.
+        </div>
+        {venues.length === 0 && <div className="px-3.5 py-3 text-[12.5px] text-muted">Aucun lieu enregistré.</div>}
+        {venues.map((v) => (
+          <details key={v.id} className="border-b border-line-soft-2 last:border-b-0">
+            <summary className="cursor-pointer px-3.5 py-2.5 text-[12.5px] font-semibold hover:text-ink select-none flex items-center gap-2">
+              {v.name}
+              {v.city && <span className="text-muted font-normal">— {v.city}</span>}
+            </summary>
+            <div className="px-3.5 pb-3 flex flex-col gap-2.5">
+              <form action={updateVenue.bind(null, v.id)} className="grid grid-cols-2 gap-2.5">
+                <input name="name" defaultValue={v.name} placeholder="Nom du lieu" required className={`${settingsInputClass} col-span-2`} />
+                <input name="address" defaultValue={v.address ?? ""} placeholder="Adresse" className={`${settingsInputClass} col-span-2`} />
+                <input name="postalCode" defaultValue={v.postalCode ?? ""} placeholder="Code postal" className={settingsInputClass} />
+                <input name="city" defaultValue={v.city ?? ""} placeholder="Ville" className={settingsInputClass} />
+                <input name="meetingPoint" defaultValue={v.meetingPoint ?? ""} placeholder="Point de rendez-vous précis" className={`${settingsInputClass} col-span-2`} />
+                <input name="parkingInfo" defaultValue={v.parkingInfo ?? ""} placeholder="Info parking" className={settingsInputClass} />
+                <input name="accessInfo" defaultValue={v.accessInfo ?? ""} placeholder="Accès" className={settingsInputClass} />
+                <input name="notes" defaultValue={v.notes ?? ""} placeholder="Notes" className={`${settingsInputClass} col-span-2`} />
+                <button type="submit" className="h-9 px-3 rounded-md bg-ink text-white text-xs font-semibold hover:bg-[#2A2E36] self-start">Enregistrer</button>
+              </form>
+              <form action={deleteVenue.bind(null, v.id)}>
+                <button type="submit" className="h-8 px-3 border border-line rounded-md text-xs font-semibold text-red hover:border-red">Supprimer ce lieu</button>
+              </form>
+            </div>
+          </details>
+        ))}
+        <form action={createVenue} className="px-3.5 py-3 grid grid-cols-2 gap-2.5 border-t border-line-soft">
+          <input name="name" placeholder="Nom du nouveau lieu" required className={`${settingsInputClass} col-span-2`} />
+          <input name="address" placeholder="Adresse" className={`${settingsInputClass} col-span-2`} />
+          <input name="postalCode" placeholder="Code postal" className={settingsInputClass} />
+          <input name="city" placeholder="Ville" className={settingsInputClass} />
+          <button type="submit" className="col-span-2 h-9 px-3 rounded-md bg-ink text-white text-xs font-semibold hover:bg-[#2A2E36] self-start">+ Ajouter un lieu</button>
+        </form>
+      </section>
+
+      <section className="bg-surface border border-line rounded-lg overflow-hidden">
+        <div className="px-3.5 py-[11px] border-b border-line-soft text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Modèles de match</div>
+        <div className="px-3.5 pt-2.5 text-[11.5px] text-muted-2 leading-relaxed">
+          Sélectionné automatiquement à la création d&apos;un match selon sa compétition et domicile/extérieur (toujours modifiable ensuite sur le match).
+        </div>
+        {matchTemplates.length === 0 && <div className="px-3.5 py-3 text-[12.5px] text-muted">Aucun modèle enregistré.</div>}
+        {matchTemplates.map((t) => (
+          <details key={t.id} className="border-b border-line-soft-2 last:border-b-0">
+            <summary className="cursor-pointer px-3.5 py-2.5 text-[12.5px] font-semibold hover:text-ink select-none flex items-center gap-2">
+              {t.name}
+              {t.competition && (
+                <span className="text-muted font-normal">
+                  — {t.competition}
+                  {t.isHome === true ? " · domicile" : t.isHome === false ? " · extérieur" : ""}
+                </span>
+              )}
+            </summary>
+            <div className="px-3.5 pb-3 flex flex-col gap-2.5">
+              <form action={updateMatchTemplate.bind(null, t.id)} className="grid grid-cols-2 gap-2.5">
+                <input name="name" defaultValue={t.name} placeholder="Nom du modèle" required className={`${settingsInputClass} col-span-2`} />
+                <select name="competition" defaultValue={t.competition ?? ""} className={settingsInputClass}>
+                  <option value="">Compétition — toutes</option>
+                  {COMPETITION_TYPES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <select name="isHome" defaultValue={t.isHome === true ? "true" : t.isHome === false ? "false" : ""} className={settingsInputClass}>
+                  <option value="">Domicile/extérieur — les deux</option>
+                  <option value="true">Domicile</option>
+                  <option value="false">Extérieur</option>
+                </select>
+                <input type="number" name="meetTimeDeltaMinutes" min={0} max={240} defaultValue={t.meetTimeDeltaMinutes ?? ""} placeholder="RDV avant coup d'envoi (min)" className={settingsInputClass} />
+                <input type="number" name="durationMinutes" min={0} max={240} defaultValue={t.durationMinutes ?? ""} placeholder="Durée du match (min)" className={settingsInputClass} />
+                <input type="number" name="returnDelayMinutes" min={0} max={240} defaultValue={t.returnDelayMinutes ?? ""} placeholder="Délai de retour (min)" className={settingsInputClass} />
+                <select name="transportMode" defaultValue={t.transportMode ?? ""} className={settingsInputClass}>
+                  <option value="">Transport — non précisé</option>
+                  {TRANSPORT_MODES.map((m) => (
+                    <option key={m} value={m}>{TRANSPORT_MODE_LABELS[m]}</option>
+                  ))}
+                </select>
+                <input name="dressCode" defaultValue={t.dressCode ?? ""} placeholder="Tenue demandée" className={settingsInputClass} />
+                <input name="personalGear" defaultValue={t.personalGear ?? ""} placeholder="Matériel personnel" className={settingsInputClass} />
+                <input name="mealInfo" defaultValue={t.mealInfo ?? ""} placeholder="Repas / collation" className={settingsInputClass} />
+                <input name="parentInstructions" defaultValue={t.parentInstructions ?? ""} placeholder="Consignes pour les parents" className={`${settingsInputClass} col-span-2`} />
+                <button type="submit" className="h-9 px-3 rounded-md bg-ink text-white text-xs font-semibold hover:bg-[#2A2E36] self-start">Enregistrer</button>
+              </form>
+              <form action={deleteMatchTemplate.bind(null, t.id)}>
+                <button type="submit" className="h-8 px-3 border border-line rounded-md text-xs font-semibold text-red hover:border-red">Supprimer ce modèle</button>
+              </form>
+            </div>
+          </details>
+        ))}
+        <form action={createMatchTemplate} className="px-3.5 py-3 grid grid-cols-2 gap-2.5 border-t border-line-soft">
+          <input name="name" placeholder="Nom du nouveau modèle" required className={`${settingsInputClass} col-span-2`} />
+          <select name="competition" defaultValue="" className={settingsInputClass}>
+            <option value="">Compétition — toutes</option>
+            {COMPETITION_TYPES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <select name="isHome" defaultValue="" className={settingsInputClass}>
+            <option value="">Domicile/extérieur — les deux</option>
+            <option value="true">Domicile</option>
+            <option value="false">Extérieur</option>
+          </select>
+          <button type="submit" className="col-span-2 h-9 px-3 rounded-md bg-ink text-white text-xs font-semibold hover:bg-[#2A2E36] self-start">+ Ajouter un modèle</button>
+        </form>
+      </section>
 
       <section className="bg-surface border border-line rounded-lg overflow-hidden">
         <div className="px-3.5 py-[11px] border-b border-line-soft text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Gestion des saisons</div>

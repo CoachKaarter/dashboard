@@ -165,7 +165,22 @@ export async function getParentHomeState(parent: AuthedParent): Promise<ParentHo
   let convocationCard: PriorityCard | null = null;
   if (weekendConvocation) {
     const m = weekendConvocation.match;
-    const snapshot = convocationSnapshot({ date: m.date, time: m.time, opponent: m.opponent, meetTime: m.meetTime, meetLocation: m.meetLocation, location: m.location });
+    const snapshot = convocationSnapshot({
+      date: m.date,
+      time: m.time,
+      opponent: m.opponent,
+      meetTime: m.meetTime,
+      meetLocation: m.meetLocation,
+      location: m.location,
+      estimatedEndTime: m.estimatedEndTime,
+      estimatedReturnTime: m.estimatedReturnTime,
+      venueAddress: m.venueAddress,
+      transportMode: m.transportMode,
+      dressCode: m.dressCode,
+      personalGear: m.personalGear,
+      mealInfo: m.mealInfo,
+      parentInstructions: m.parentInstructions,
+    });
     const changes = diffSnapshot(weekendConvState?.lastSnapshot, snapshot);
     convocationCard = buildConvocationCard({
       id: weekendConvocation.id,

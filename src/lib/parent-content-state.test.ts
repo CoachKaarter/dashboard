@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { diffSnapshot, isMajorConvocationChange } from "./parent-content-state";
+import { diffSnapshot, isMajorConvocationChange, convocationSnapshot } from "./parent-content-state";
 
 test("diffSnapshot: aucun instantané connu (jamais vu/répondu) → pas de changement, c'est un NEW pas un MODIFIED", () => {
   assert.deepEqual(diffSnapshot(null, { time: "10:00" }), []);
@@ -32,4 +32,32 @@ test("isMajorConvocationChange: lieu de rendez-vous seul = changement mineur →
   assert.equal(isMajorConvocationChange([{ field: "meetLocation", from: "a", to: "b" }]), false);
   assert.equal(isMajorConvocationChange([{ field: "meetTime", from: "a", to: "b" }]), false);
   assert.equal(isMajorConvocationChange([{ field: "location", from: "a", to: "b" }]), false);
+});
+
+// Infos pratiques héritées (Team/MatchTemplate) — un transport ou une tenue
+// modifiée doit apparaître comme "modifié" (§22) mais reste mineur : la
+// réponse déjà donnée par le parent n'est pas invalidée pour autant.
+test("convocationSnapshot: couvre les infos pratiques héritées, absentes si non fournies", () => {
+  const withExtras = convocationSnapshot({
+    date: new Date("2026-09-06T00:00:00Z"),
+    time: "10:00",
+    opponent: "US Rivale",
+    meetTime: "09:15",
+    meetLocation: null,
+    location: "Stade municipal",
+    transportMode: "COVOITURAGE",
+    dressCode: "Tenue du club",
+  });
+  assert.equal(withExtras.transportMode, "COVOITURAGE");
+  assert.equal(withExtras.dressCode, "Tenue du club");
+  assert.equal(withExtras.mealInfo, null);
+});
+
+test("isMajorConvocationChange: transport/tenue/matériel modifiés = changement mineur", () => {
+  const changes = [
+    { field: "transportMode", from: "RDV_SUR_PLACE", to: "COVOITURAGE" },
+    { field: "dressCode", from: "a", to: "b" },
+    { field: "mealInfo", from: "a", to: "b" },
+  ];
+  assert.equal(isMajorConvocationChange(changes), false);
 });

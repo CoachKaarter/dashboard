@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser, requireAdmin, canAccessTeam, canManageCategory } from "@/lib/authz";
 import { logActivity } from "@/lib/activity";
+import { TRANSPORT_MODES } from "@/lib/equipment";
 
 export async function updateTeamTarget(teamId: string, formData: FormData) {
   const user = await requireUser();
@@ -59,6 +60,40 @@ export async function createTeam(formData: FormData) {
   await logActivity({ actorId: user.id, summary: `a créé l'équipe ${team.code} (${team.category})`, entityType: "Team", entityId: team.id });
   revalidatePath("/equipes");
   redirect(`/equipes/${team.id}`);
+}
+
+// Valeurs par défaut de l'équipe pour les infos parents d'un match
+// (héritage Match > MatchTemplate > Team > réglages généraux — voir
+// src/lib/match-parent-info.ts). Même niveau de permission que
+// updateTeamLevel/updateTeamFormat : quiconque a accès à l'équipe peut
+// régler ses habitudes, pas seulement son Responsable.
+export async function updateTeamDefaults(teamId: string, formData: FormData) {
+  const user = await requireUser();
+  if (!canAccessTeam(user, teamId)) return;
+  const intOrNull = (name: string) => {
+    const raw = String(formData.get(name) ?? "").trim();
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
+  };
+  const strOrNull = (name: string) => String(formData.get(name) ?? "").trim() || null;
+  const transportRaw = String(formData.get("defaultTransportMode") ?? "");
+  const defaultTransportMode = TRANSPORT_MODES.includes(transportRaw as (typeof TRANSPORT_MODES)[number]) ? transportRaw : null;
+
+  await prisma.team.update({
+    where: { id: teamId },
+    data: {
+      meetTimeDeltaMinutes: intOrNull("meetTimeDeltaMinutes"),
+      defaultDurationMinutes: intOrNull("defaultDurationMinutes"),
+      defaultReturnDelayMinutes: intOrNull("defaultReturnDelayMinutes"),
+      defaultTransportMode,
+      defaultDressCode: strOrNull("defaultDressCode"),
+      defaultPersonalGear: strOrNull("defaultPersonalGear"),
+      defaultMealInfo: strOrNull("defaultMealInfo"),
+      defaultParentInstructions: strOrNull("defaultParentInstructions"),
+    },
+  });
+  revalidatePath(`/equipes/${teamId}`);
 }
 
 export async function updateTeamCoach(teamId: string, formData: FormData) {

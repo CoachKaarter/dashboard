@@ -16,6 +16,8 @@ import { Badge } from "@/components/ui/Badge";
 import { POSITIONS } from "@/lib/constants";
 import { MATCH_ROLES, SURFACE_TYPES } from "@/lib/match-validation";
 import { TRANSPORT_MODES, TRANSPORT_MODE_LABELS } from "@/lib/equipment";
+import { getSettings } from "@/lib/settings";
+import { resolveMeetTime, resolveEstimatedEnd, resolveEstimatedReturn, resolveField, selectMatchTemplate, type Resolved } from "@/lib/match-parent-info";
 import {
   toggleConvocation,
   recordScore,
@@ -61,7 +63,7 @@ export default async function MatchDetailPage({
 
   const dayStart = new Date(Date.UTC(match.date.getUTCFullYear(), match.date.getUTCMonth(), match.date.getUTCDate()));
   const dayEnd = new Date(dayStart.getTime() + 86400000);
-  const [squad, hdrs, sameDayElsewhere] = await Promise.all([
+  const [squad, hdrs, sameDayElsewhere, venues, matchTemplates, settings] = await Promise.all([
     getPlayerStatsByCategory(match.team.category),
     headers(),
     prisma.matchConvocation.findMany({
@@ -71,7 +73,50 @@ export default async function MatchDetailPage({
       },
       include: { match: { include: { team: true } } },
     }),
+    prisma.venue.findMany({ orderBy: { name: "asc" } }),
+    prisma.matchTemplate.findMany({ orderBy: { name: "asc" } }),
+    getSettings(),
   ]);
+
+  // Hérité de quoi ? (§13) — recalculé à la volée à partir du modèle de
+  // match retenu (explicite, sinon la même sélection automatique que les
+  // Server Actions) et des habitudes de l'équipe, jamais stocké séparément.
+  const activeTemplate = match.matchTemplateId
+    ? matchTemplates.find((t) => t.id === match.matchTemplateId) ?? null
+    : selectMatchTemplate(matchTemplates, { competition: match.competition, isHome: match.isHome });
+  const suggestedMeetTime = resolveMeetTime({
+    kickoffTime: match.time,
+    override: null,
+    templateDeltaMinutes: activeTemplate?.meetTimeDeltaMinutes ?? null,
+    teamDeltaMinutes: match.team.meetTimeDeltaMinutes,
+    globalDeltaMinutes: settings.delaiRdv,
+  });
+  const suggestedEnd = resolveEstimatedEnd({
+    kickoffTime: match.time,
+    override: null,
+    templateDurationMinutes: activeTemplate?.durationMinutes ?? null,
+    teamDurationMinutes: match.team.defaultDurationMinutes,
+  });
+  const suggestedReturn = resolveEstimatedReturn({
+    estimatedEnd: suggestedEnd.value,
+    override: null,
+    templateReturnDelayMinutes: activeTemplate?.returnDelayMinutes ?? null,
+    teamReturnDelayMinutes: match.team.defaultReturnDelayMinutes,
+  });
+  const suggestedTransport = resolveField(null, activeTemplate?.transportMode, match.team.defaultTransportMode);
+  const suggestedDressCode = resolveField(null, activeTemplate?.dressCode, match.team.defaultDressCode);
+  const suggestedPersonalGear = resolveField(null, activeTemplate?.personalGear, match.team.defaultPersonalGear);
+  const suggestedMealInfo = resolveField(null, activeTemplate?.mealInfo, match.team.defaultMealInfo);
+  const suggestedParentInstructions = resolveField(null, activeTemplate?.parentInstructions, match.team.defaultParentInstructions);
+  const SOURCE_LABEL: Record<string, string> = {
+    template: `Hérité du modèle « ${activeTemplate?.name} »`,
+    team: "Hérité des habitudes de l'équipe",
+    global: "Hérité des réglages généraux du club",
+  };
+  const hint = (current: string | null, resolved: Resolved<string | null>) => {
+    if (!current || resolved.source === "none" || resolved.source === "match") return null;
+    return current === resolved.value ? SOURCE_LABEL[resolved.source] : "Valeur personnalisée pour ce match";
+  };
   const convocatedIds = new Set(match.convocations.map((c) => c.playerId));
   // A player can't be at two matches on the same day — surfaces the other
   // team's match as the reason a candidate can't be picked here (see
@@ -258,16 +303,41 @@ export default async function MatchDetailPage({
             </div>
             <div className="col-span-2 pt-2 border-t border-line-soft grid grid-cols-2 gap-2.5">
               <div className="col-span-2 text-[11px] font-bold tracking-[0.08em] uppercase text-muted-2">
-                Fiche de convocation parent — infos pratiques (facultatif)
+                Fiche de convocation parent — infos pratiques (facultatif, préremplies automatiquement)
               </div>
-              <input name="estimatedEndTime" type="time" defaultValue={match.estimatedEndTime ?? ""} placeholder="Heure de fin estimée" className={matchInputClass} />
-              <input name="estimatedReturnTime" type="time" defaultValue={match.estimatedReturnTime ?? ""} placeholder="Heure de retour estimée" className={matchInputClass} />
-              <input
-                name="venueAddress"
-                defaultValue={match.venueAddress ?? ""}
-                placeholder="Adresse complète du lieu"
-                className={`${matchInputClass} col-span-2`}
-              />
+              <label className="flex flex-col gap-1">
+                <span className="text-[10.5px] text-muted">Modèle de match</span>
+                <select name="matchTemplateId" defaultValue={match.matchTemplateId ?? ""} className={matchInputClass}>
+                  <option value="">— sélection automatique —</option>
+                  {matchTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10.5px] text-muted">Lieu enregistré</span>
+                <select name="venueId" defaultValue={match.venueId ?? ""} className={matchInputClass}>
+                  <option value="">— aucun / adresse libre —</option>
+                  {venues.map((v) => (
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10.5px] text-muted">Heure de rendez-vous (RDV)</span>
+                <input name="meetTime" type="time" defaultValue={match.meetTime ?? ""} className={matchInputClass} />
+                {hint(match.meetTime, suggestedMeetTime) && <FieldHint text={hint(match.meetTime, suggestedMeetTime)!} />}
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10.5px] text-muted">Heure de fin estimée</span>
+                <input name="estimatedEndTime" type="time" defaultValue={match.estimatedEndTime ?? ""} className={matchInputClass} />
+                {hint(match.estimatedEndTime, suggestedEnd) && <FieldHint text={hint(match.estimatedEndTime, suggestedEnd)!} />}
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10.5px] text-muted">Heure de retour estimée</span>
+                <input name="estimatedReturnTime" type="time" defaultValue={match.estimatedReturnTime ?? ""} className={matchInputClass} />
+                {hint(match.estimatedReturnTime, suggestedReturn) && <FieldHint text={hint(match.estimatedReturnTime, suggestedReturn)!} />}
+              </label>
               <select name="surface" defaultValue={match.surface ?? ""} className={matchInputClass}>
                 <option value="">Surface — non précisée</option>
                 {SURFACE_TYPES.map((s) => (
@@ -276,24 +346,49 @@ export default async function MatchDetailPage({
                   </option>
                 ))}
               </select>
-              <select name="transportMode" defaultValue={match.transportMode ?? ""} className={matchInputClass}>
-                <option value="">Transport — non précisé</option>
-                {TRANSPORT_MODES.map((m) => (
-                  <option key={m} value={m}>
-                    {TRANSPORT_MODE_LABELS[m]}
-                  </option>
-                ))}
-              </select>
-              <input name="dressCode" defaultValue={match.dressCode ?? ""} placeholder="Tenue demandée" className={matchInputClass} />
-              <input name="personalGear" defaultValue={match.personalGear ?? ""} placeholder="Matériel personnel à prévoir" className={matchInputClass} />
-              <input name="mealInfo" defaultValue={match.mealInfo ?? ""} placeholder="Repas / collation à prévoir" className={matchInputClass} />
-              <textarea
-                name="parentInstructions"
-                defaultValue={match.parentInstructions ?? ""}
-                placeholder="Consignes du staff pour les parents"
-                rows={2}
-                className={`${matchInputClass} col-span-2 h-auto py-2 resize-y`}
+              <input
+                name="venueAddress"
+                defaultValue={match.venueAddress ?? ""}
+                placeholder="Adresse complète du lieu (ou choisir un lieu enregistré ci-dessus)"
+                className={`${matchInputClass} col-span-2`}
               />
+              <label className="flex flex-col gap-1">
+                <span className="text-[10.5px] text-muted">Transport</span>
+                <select name="transportMode" defaultValue={match.transportMode ?? ""} className={matchInputClass}>
+                  <option value="">Transport — non précisé</option>
+                  {TRANSPORT_MODES.map((m) => (
+                    <option key={m} value={m}>
+                      {TRANSPORT_MODE_LABELS[m]}
+                    </option>
+                  ))}
+                </select>
+                {hint(match.transportMode, suggestedTransport) && <FieldHint text={hint(match.transportMode, suggestedTransport)!} />}
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10.5px] text-muted">Tenue demandée</span>
+                <input name="dressCode" defaultValue={match.dressCode ?? ""} className={matchInputClass} />
+                {hint(match.dressCode, suggestedDressCode) && <FieldHint text={hint(match.dressCode, suggestedDressCode)!} />}
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10.5px] text-muted">Matériel personnel à prévoir</span>
+                <input name="personalGear" defaultValue={match.personalGear ?? ""} className={matchInputClass} />
+                {hint(match.personalGear, suggestedPersonalGear) && <FieldHint text={hint(match.personalGear, suggestedPersonalGear)!} />}
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10.5px] text-muted">Repas / collation à prévoir</span>
+                <input name="mealInfo" defaultValue={match.mealInfo ?? ""} className={matchInputClass} />
+                {hint(match.mealInfo, suggestedMealInfo) && <FieldHint text={hint(match.mealInfo, suggestedMealInfo)!} />}
+              </label>
+              <label className="flex flex-col gap-1 col-span-2">
+                <span className="text-[10.5px] text-muted">Consignes du staff pour les parents</span>
+                <textarea
+                  name="parentInstructions"
+                  defaultValue={match.parentInstructions ?? ""}
+                  rows={2}
+                  className={`${matchInputClass} h-auto py-2 resize-y`}
+                />
+                {hint(match.parentInstructions, suggestedParentInstructions) && <FieldHint text={hint(match.parentInstructions, suggestedParentInstructions)!} />}
+              </label>
               <textarea
                 name="parentNotes"
                 defaultValue={match.parentNotes ?? ""}
@@ -613,6 +708,10 @@ export default async function MatchDetailPage({
 
 const matchInputClass =
   "h-9 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none w-full focus:border-blue focus:ring-[3px] focus:ring-blue-bg";
+
+function FieldHint({ text }: { text: string }) {
+  return <span className="text-[10.5px] text-muted-2 italic">{text}</span>;
+}
 
 function BilanField({
   name,

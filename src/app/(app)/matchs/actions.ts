@@ -19,6 +19,7 @@ import {
 } from "@/lib/match-validation";
 import { readXlsxFirstSheetGrid, extractMatchRows, buildMatchImportCandidates } from "@/lib/match-import";
 import { TRANSPORT_MODES } from "@/lib/equipment";
+import { resolveMeetTime, resolveEstimatedEnd, resolveEstimatedReturn, resolveField, selectMatchTemplate } from "@/lib/match-parent-info";
 
 function computeMeetTime(time: string | null, delaiRdv: number): string | null {
   if (!time) return null;
@@ -28,11 +29,102 @@ function computeMeetTime(time: string | null, delaiRdv: number): string | null {
   return `${String(Math.floor(wrapped / 60)).padStart(2, "0")}:${String(wrapped % 60).padStart(2, "0")}`;
 }
 
+/**
+ * Résout les infos parents d'un match à partir de ce qui a été saisi sur le
+ * formulaire (override), du modèle de match retenu et des habitudes de
+ * l'équipe (voir src/lib/match-parent-info.ts pour la hiérarchie complète).
+ * Les valeurs résolues sont matérialisées directement dans les colonnes
+ * Match existantes au moment de l'enregistrement — un changement ultérieur
+ * des habitudes de l'équipe ou du modèle ne modifie donc jamais
+ * rétroactivement un match déjà enregistré (§15 : pas de second champ
+ * "snapshot", la matérialisation à l'écriture suffit).
+ */
+function resolveParentInfoFields(input: {
+  kickoffTime: string | null;
+  meetTimeOverride: string | null;
+  estimatedEndOverride: string | null;
+  estimatedReturnOverride: string | null;
+  transportModeOverride: string | null;
+  dressCodeOverride: string | null;
+  personalGearOverride: string | null;
+  mealInfoOverride: string | null;
+  parentInstructionsOverride: string | null;
+  template: {
+    meetTimeDeltaMinutes: number | null;
+    durationMinutes: number | null;
+    returnDelayMinutes: number | null;
+    transportMode: string | null;
+    dressCode: string | null;
+    personalGear: string | null;
+    mealInfo: string | null;
+    parentInstructions: string | null;
+  } | null;
+  team: {
+    meetTimeDeltaMinutes: number | null;
+    defaultDurationMinutes: number | null;
+    defaultReturnDelayMinutes: number | null;
+    defaultTransportMode: string | null;
+    defaultDressCode: string | null;
+    defaultPersonalGear: string | null;
+    defaultMealInfo: string | null;
+    defaultParentInstructions: string | null;
+  };
+  globalDelaiRdv: number;
+}) {
+  const meetTime = resolveMeetTime({
+    kickoffTime: input.kickoffTime,
+    override: input.meetTimeOverride,
+    templateDeltaMinutes: input.template?.meetTimeDeltaMinutes ?? null,
+    teamDeltaMinutes: input.team.meetTimeDeltaMinutes,
+    globalDeltaMinutes: input.globalDelaiRdv,
+  }).value;
+  const estimatedEndTime = resolveEstimatedEnd({
+    kickoffTime: input.kickoffTime,
+    override: input.estimatedEndOverride,
+    templateDurationMinutes: input.template?.durationMinutes ?? null,
+    teamDurationMinutes: input.team.defaultDurationMinutes,
+  }).value;
+  const estimatedReturnTime = resolveEstimatedReturn({
+    estimatedEnd: estimatedEndTime,
+    override: input.estimatedReturnOverride,
+    templateReturnDelayMinutes: input.template?.returnDelayMinutes ?? null,
+    teamReturnDelayMinutes: input.team.defaultReturnDelayMinutes,
+  }).value;
+  const transportMode = resolveField(input.transportModeOverride, input.template?.transportMode, input.team.defaultTransportMode).value;
+  const dressCode = resolveField(input.dressCodeOverride, input.template?.dressCode, input.team.defaultDressCode).value;
+  const personalGear = resolveField(input.personalGearOverride, input.template?.personalGear, input.team.defaultPersonalGear).value;
+  const mealInfo = resolveField(input.mealInfoOverride, input.template?.mealInfo, input.team.defaultMealInfo).value;
+  const parentInstructions = resolveField(
+    input.parentInstructionsOverride,
+    input.template?.parentInstructions,
+    input.team.defaultParentInstructions
+  ).value;
+  return { meetTime, estimatedEndTime, estimatedReturnTime, transportMode, dressCode, personalGear, mealInfo, parentInstructions };
+}
+
 async function assertMatchAccess(matchId: string) {
   const user = await requireUser();
   const match = await prisma.match.findUniqueOrThrow({
     where: { id: matchId },
-    select: { teamId: true, date: true, formation: true, team: { select: { format: true, category: true } } },
+    select: {
+      teamId: true,
+      date: true,
+      formation: true,
+      team: {
+        select: {
+          format: true,
+          category: true,
+          meetTimeDeltaMinutes: true,
+          defaultTransportMode: true,
+          defaultDressCode: true,
+          defaultPersonalGear: true,
+          defaultMealInfo: true,
+          defaultParentInstructions: true,
+          defaultDurationMinutes: true,
+          defaultReturnDelayMinutes: true,
+        },
+      },
+    },
   });
   if (!canAccessTeam(user, match.teamId)) throw new Error("Accès refusé.");
   return { user, match };
@@ -225,7 +317,7 @@ export async function updateBilan(matchId: string, formData: FormData) {
 }
 
 export async function updateMatch(matchId: string, formData: FormData) {
-  await assertMatchAccess(matchId);
+  const { match: current } = await assertMatchAccess(matchId);
   const opponent = String(formData.get("opponent") || "") || null;
   const competitionParsed = competitionSchema.safeParse(String(formData.get("competition")));
   const date = new Date(String(formData.get("date")));
@@ -249,28 +341,69 @@ export async function updateMatch(matchId: string, formData: FormData) {
   const needed = neededParsed.data;
   const settings = await getSettings();
 
-  // Fiche de convocation parent (Cockpit v1.1 §3) — infos pratiques
-  // distinctes des champs tactiques (preMatchObjective/mainInstructions/
-  // preMatchNotes ci-dessus, jamais montrés aux parents).
-  const estimatedEndTime = String(formData.get("estimatedEndTime") || "").trim() || null;
-  const estimatedReturnTime = String(formData.get("estimatedReturnTime") || "").trim() || null;
-  const venueAddress = String(formData.get("venueAddress") || "").trim() || null;
+  // Modèle de match (§7-8) : "" = laisser le choix automatique se refaire
+  // à chaque enregistrement (compétition/domicile-extérieur ont pu changer) ;
+  // un choix explicite du formulaire est toujours respecté tel quel.
+  const venueId = String(formData.get("venueId") || "") || null;
+  const matchTemplateIdRaw = String(formData.get("matchTemplateId") || "");
+  const [venue, explicitTemplate, allTemplates] = await Promise.all([
+    venueId ? prisma.venue.findUnique({ where: { id: venueId } }) : Promise.resolve(null),
+    matchTemplateIdRaw ? prisma.matchTemplate.findUnique({ where: { id: matchTemplateIdRaw } }) : Promise.resolve(null),
+    matchTemplateIdRaw ? Promise.resolve([]) : prisma.matchTemplate.findMany(),
+  ]);
+  const template = explicitTemplate ?? (matchTemplateIdRaw ? null : selectMatchTemplate(allTemplates, { competition: competitionParsed.data, isHome }));
+
+  // Fiche de convocation parent (Cockpit v1.1 §3, étendu par le système
+  // d'héritage) — infos pratiques distinctes des champs tactiques
+  // (preMatchObjective/mainInstructions/preMatchNotes ci-dessus, jamais
+  // montrés aux parents).
+  const meetTimeOverride = String(formData.get("meetTime") || "").trim() || null;
+  const estimatedEndOverride = String(formData.get("estimatedEndTime") || "").trim() || null;
+  const estimatedReturnOverride = String(formData.get("estimatedReturnTime") || "").trim() || null;
+  const venueAddress = String(formData.get("venueAddress") || "").trim() || venue?.address || null;
   const transportModeRaw = String(formData.get("transportMode") || "");
-  const transportMode = TRANSPORT_MODES.includes(transportModeRaw as (typeof TRANSPORT_MODES)[number]) ? transportModeRaw : null;
-  const dressCode = String(formData.get("dressCode") || "").trim() || null;
-  const personalGear = String(formData.get("personalGear") || "").trim() || null;
-  const mealInfo = String(formData.get("mealInfo") || "").trim() || null;
-  const parentInstructions = String(formData.get("parentInstructions") || "").trim() || null;
+  const transportModeOverride = TRANSPORT_MODES.includes(transportModeRaw as (typeof TRANSPORT_MODES)[number]) ? transportModeRaw : null;
+  const dressCodeOverride = String(formData.get("dressCode") || "").trim() || null;
+  const personalGearOverride = String(formData.get("personalGear") || "").trim() || null;
+  const mealInfoOverride = String(formData.get("mealInfo") || "").trim() || null;
+  const parentInstructionsOverride = String(formData.get("parentInstructions") || "").trim() || null;
   const parentNotes = String(formData.get("parentNotes") || "").trim() || null;
+
+  const resolved = resolveParentInfoFields({
+    kickoffTime: time,
+    meetTimeOverride,
+    estimatedEndOverride,
+    estimatedReturnOverride,
+    transportModeOverride,
+    dressCodeOverride,
+    personalGearOverride,
+    mealInfoOverride,
+    parentInstructionsOverride,
+    template,
+    team: current.team,
+    globalDelaiRdv: settings.delaiRdv,
+  });
 
   await prisma.match.update({
     where: { id: matchId },
     data: {
       opponent, competition: competitionParsed.data, date, time,
-      meetTime: computeMeetTime(time, settings.delaiRdv),
+      meetTime: resolved.meetTime,
       meetLocation,
-      isHome, location, surface, needed, preMatchObjective, mainInstructions, preMatchNotes,
-      estimatedEndTime, estimatedReturnTime, venueAddress, transportMode, dressCode, personalGear, mealInfo, parentInstructions, parentNotes,
+      isHome,
+      location: location || venue?.name || null,
+      surface, needed, preMatchObjective, mainInstructions, preMatchNotes,
+      estimatedEndTime: resolved.estimatedEndTime,
+      estimatedReturnTime: resolved.estimatedReturnTime,
+      venueAddress,
+      transportMode: resolved.transportMode,
+      dressCode: resolved.dressCode,
+      personalGear: resolved.personalGear,
+      mealInfo: resolved.mealInfo,
+      parentInstructions: resolved.parentInstructions,
+      parentNotes,
+      venueId,
+      matchTemplateId: template?.id ?? null,
       ...tournamentParsed.data,
     },
   });
@@ -336,12 +469,61 @@ export async function createMatch(formData: FormData) {
   const needed = neededParsed.data;
   const settings = await getSettings();
 
+  // Modèle de match sélectionné automatiquement (§8) selon compétition +
+  // domicile/extérieur, sauf choix explicite sur le formulaire.
+  const venueId = String(formData.get("venueId") || "") || null;
+  const matchTemplateIdRaw = String(formData.get("matchTemplateId") || "");
+  const [venue, explicitTemplate, allTemplates] = await Promise.all([
+    venueId ? prisma.venue.findUnique({ where: { id: venueId } }) : Promise.resolve(null),
+    matchTemplateIdRaw ? prisma.matchTemplate.findUnique({ where: { id: matchTemplateIdRaw } }) : Promise.resolve(null),
+    matchTemplateIdRaw ? Promise.resolve([]) : prisma.matchTemplate.findMany(),
+  ]);
+  const template = explicitTemplate ?? (matchTemplateIdRaw ? null : selectMatchTemplate(allTemplates, { competition: competitionParsed.data, isHome }));
+
+  const meetTimeOverride = String(formData.get("meetTime") || "").trim() || null;
+  const estimatedEndOverride = String(formData.get("estimatedEndTime") || "").trim() || null;
+  const estimatedReturnOverride = String(formData.get("estimatedReturnTime") || "").trim() || null;
+  const venueAddress = String(formData.get("venueAddress") || "").trim() || venue?.address || null;
+  const transportModeRaw = String(formData.get("transportMode") || "");
+  const transportModeOverride = TRANSPORT_MODES.includes(transportModeRaw as (typeof TRANSPORT_MODES)[number]) ? transportModeRaw : null;
+  const dressCodeOverride = String(formData.get("dressCode") || "").trim() || null;
+  const personalGearOverride = String(formData.get("personalGear") || "").trim() || null;
+  const mealInfoOverride = String(formData.get("mealInfo") || "").trim() || null;
+  const parentInstructionsOverride = String(formData.get("parentInstructions") || "").trim() || null;
+
+  const resolved = resolveParentInfoFields({
+    kickoffTime: time,
+    meetTimeOverride,
+    estimatedEndOverride,
+    estimatedReturnOverride,
+    transportModeOverride,
+    dressCodeOverride,
+    personalGearOverride,
+    mealInfoOverride,
+    parentInstructionsOverride,
+    template,
+    team,
+    globalDelaiRdv: settings.delaiRdv,
+  });
+
   const match = await prisma.match.create({
     data: {
       teamId, opponent, competition: competitionParsed.data, date, time,
-      meetTime: computeMeetTime(time, settings.delaiRdv),
+      meetTime: resolved.meetTime,
       meetLocation,
-      isHome, location, surface, needed, status: "Planifié",
+      isHome,
+      location: location || venue?.name || null,
+      surface, needed, status: "Planifié",
+      estimatedEndTime: resolved.estimatedEndTime,
+      estimatedReturnTime: resolved.estimatedReturnTime,
+      venueAddress,
+      transportMode: resolved.transportMode,
+      dressCode: resolved.dressCode,
+      personalGear: resolved.personalGear,
+      mealInfo: resolved.mealInfo,
+      parentInstructions: resolved.parentInstructions,
+      venueId,
+      matchTemplateId: template?.id ?? null,
     },
   });
   revalidatePath("/matchs");

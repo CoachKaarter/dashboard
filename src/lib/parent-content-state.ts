@@ -88,7 +88,13 @@ export function diffSnapshot(prevSnapshot: unknown, next: Record<string, string 
   return changes;
 }
 
-/** Champs suivis pour détecter une modification de convocation (spec Cycle 3). */
+/**
+ * Champs suivis pour détecter une modification de convocation (spec Cycle 3
+ * ; étendu pour couvrir les infos pratiques issues de l'héritage
+ * Team/MatchTemplate — un match republié avec un nouveau transport ou une
+ * nouvelle adresse doit remonter comme "modifié" au même titre qu'un
+ * changement d'horaire).
+ */
 export function convocationSnapshot(m: {
   date: Date;
   time: string | null;
@@ -96,6 +102,14 @@ export function convocationSnapshot(m: {
   meetTime: string | null;
   meetLocation: string | null;
   location: string | null;
+  estimatedEndTime?: string | null;
+  estimatedReturnTime?: string | null;
+  venueAddress?: string | null;
+  transportMode?: string | null;
+  dressCode?: string | null;
+  personalGear?: string | null;
+  mealInfo?: string | null;
+  parentInstructions?: string | null;
 }): Record<string, string | null> {
   return {
     date: m.date.toISOString().slice(0, 10),
@@ -104,6 +118,14 @@ export function convocationSnapshot(m: {
     meetTime: m.meetTime,
     meetLocation: m.meetLocation,
     location: m.location,
+    estimatedEndTime: m.estimatedEndTime ?? null,
+    estimatedReturnTime: m.estimatedReturnTime ?? null,
+    venueAddress: m.venueAddress ?? null,
+    transportMode: m.transportMode ?? null,
+    dressCode: m.dressCode ?? null,
+    personalGear: m.personalGear ?? null,
+    mealInfo: m.mealInfo ?? null,
+    parentInstructions: m.parentInstructions ?? null,
   };
 }
 

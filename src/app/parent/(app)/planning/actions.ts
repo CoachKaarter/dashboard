@@ -29,7 +29,22 @@ export async function confirmMyConvocation(matchId: string, confirmed: boolean) 
   await recordResponseSnapshot(
     parent.parentAccountId,
     { entityType: "CONVOCATION", entityId: match.date.toISOString() },
-    convocationSnapshot({ date: match.date, time: match.time, opponent: match.opponent, meetTime: match.meetTime, meetLocation: match.meetLocation, location: match.location })
+    convocationSnapshot({
+      date: match.date,
+      time: match.time,
+      opponent: match.opponent,
+      meetTime: match.meetTime,
+      meetLocation: match.meetLocation,
+      location: match.location,
+      estimatedEndTime: match.estimatedEndTime,
+      estimatedReturnTime: match.estimatedReturnTime,
+      venueAddress: match.venueAddress,
+      transportMode: match.transportMode,
+      dressCode: match.dressCode,
+      personalGear: match.personalGear,
+      mealInfo: match.mealInfo,
+      parentInstructions: match.parentInstructions,
+    })
   );
   await notifyTeamStaff(match.teamId, {
     type: "convocation-response",

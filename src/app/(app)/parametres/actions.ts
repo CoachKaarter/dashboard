@@ -3,6 +3,8 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/authz";
+import { COMPETITION_TYPES } from "@/lib/match-validation";
+import { TRANSPORT_MODES } from "@/lib/equipment";
 
 const FIELDS = [
   "seuilPresence", "fenetreSeances", "absRecentes", "seuilANJ", "delaiEval",
@@ -100,6 +102,108 @@ export async function updateClub(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/coach");
   revalidatePath("/parent");
+}
+
+// Lieux réutilisables (§5-6 du système d'héritage des infos parents) —
+// simple registre servant à préremplir location/venueAddress d'un match,
+// jamais lu ailleurs en direct : voir src/lib/match-parent-info.ts.
+export async function createVenue(formData: FormData) {
+  await requireAdmin();
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return;
+  await prisma.venue.create({
+    data: {
+      name,
+      address: String(formData.get("address") ?? "").trim() || null,
+      city: String(formData.get("city") ?? "").trim() || null,
+      postalCode: String(formData.get("postalCode") ?? "").trim() || null,
+      meetingPoint: String(formData.get("meetingPoint") ?? "").trim() || null,
+      parkingInfo: String(formData.get("parkingInfo") ?? "").trim() || null,
+      accessInfo: String(formData.get("accessInfo") ?? "").trim() || null,
+      notes: String(formData.get("notes") ?? "").trim() || null,
+    },
+  });
+  revalidatePath("/parametres");
+}
+
+export async function updateVenue(venueId: string, formData: FormData) {
+  await requireAdmin();
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return;
+  await prisma.venue.update({
+    where: { id: venueId },
+    data: {
+      name,
+      address: String(formData.get("address") ?? "").trim() || null,
+      city: String(formData.get("city") ?? "").trim() || null,
+      postalCode: String(formData.get("postalCode") ?? "").trim() || null,
+      meetingPoint: String(formData.get("meetingPoint") ?? "").trim() || null,
+      parkingInfo: String(formData.get("parkingInfo") ?? "").trim() || null,
+      accessInfo: String(formData.get("accessInfo") ?? "").trim() || null,
+      notes: String(formData.get("notes") ?? "").trim() || null,
+    },
+  });
+  revalidatePath("/parametres");
+}
+
+export async function deleteVenue(venueId: string) {
+  await requireAdmin();
+  await prisma.venue.delete({ where: { id: venueId } });
+  revalidatePath("/parametres");
+}
+
+// Modèles de match (§7-8) — combinaison compétition + domicile/extérieur
+// sélectionnée automatiquement à la création d'un match (voir
+// selectMatchTemplate dans src/lib/match-parent-info.ts), toujours
+// modifiable ensuite sur le match lui-même.
+function matchTemplateData(formData: FormData) {
+  const competitionRaw = String(formData.get("competition") ?? "");
+  const competition = COMPETITION_TYPES.includes(competitionRaw as (typeof COMPETITION_TYPES)[number]) ? competitionRaw : null;
+  const isHomeRaw = String(formData.get("isHome") ?? "");
+  const isHome = isHomeRaw === "true" ? true : isHomeRaw === "false" ? false : null;
+  const intOrNull = (name: string) => {
+    const raw = String(formData.get(name) ?? "").trim();
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
+  };
+  const strOrNull = (name: string) => String(formData.get(name) ?? "").trim() || null;
+  const transportRaw = String(formData.get("transportMode") ?? "");
+  const transportMode = TRANSPORT_MODES.includes(transportRaw as (typeof TRANSPORT_MODES)[number]) ? transportRaw : null;
+  return {
+    competition,
+    isHome,
+    meetTimeDeltaMinutes: intOrNull("meetTimeDeltaMinutes"),
+    durationMinutes: intOrNull("durationMinutes"),
+    returnDelayMinutes: intOrNull("returnDelayMinutes"),
+    transportMode,
+    dressCode: strOrNull("dressCode"),
+    personalGear: strOrNull("personalGear"),
+    mealInfo: strOrNull("mealInfo"),
+    parentInstructions: strOrNull("parentInstructions"),
+  };
+}
+
+export async function createMatchTemplate(formData: FormData) {
+  await requireAdmin();
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return;
+  await prisma.matchTemplate.create({ data: { name, ...matchTemplateData(formData) } });
+  revalidatePath("/parametres");
+}
+
+export async function updateMatchTemplate(templateId: string, formData: FormData) {
+  await requireAdmin();
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return;
+  await prisma.matchTemplate.update({ where: { id: templateId }, data: { name, ...matchTemplateData(formData) } });
+  revalidatePath("/parametres");
+}
+
+export async function deleteMatchTemplate(templateId: string) {
+  await requireAdmin();
+  await prisma.matchTemplate.delete({ where: { id: templateId } });
+  revalidatePath("/parametres");
 }
 
 // Champ laissé vide = retour au texte par défaut codé en dur
