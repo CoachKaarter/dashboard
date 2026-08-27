@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 
 export type PlanEvent = {
   id: string;
-  kind: "seance" | "match" | "reunion" | "tournoi" | "autre";
+  kind: "seance" | "match" | "reunion" | "tournoi" | "cohesion" | "autre";
   date: Date;
   start: string;
   end: string;
@@ -18,6 +18,7 @@ export const KIND_COLOR: Record<PlanEvent["kind"], { fg: string; bg: string }> =
   match: { fg: "#3F8F5B", bg: "#ECF5EF" },
   reunion: { fg: "#7A5AA6", bg: "#F2EEF8" },
   tournoi: { fg: "#C97A17", bg: "#FDF3E4" },
+  cohesion: { fg: "#C2508F", bg: "#FBEBF3" },
   autre: { fg: "#6E7178", bg: "#F1F1EE" },
 };
 

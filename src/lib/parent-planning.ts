@@ -3,13 +3,14 @@ import { getWeekStart } from "@/lib/availability";
 import { matchTypeBadge } from "@/lib/match-phase";
 import type { AuthedParent } from "@/lib/parent-session";
 
-export type ParentPlanStatus = "entrainement" | "annule" | "aRepondre" | "dispoAVenir" | "convoque" | "neutral";
+export type ParentPlanStatus = "entrainement" | "annule" | "aRepondre" | "dispoAVenir" | "convoque" | "neutral" | "cohesion";
 
 export type ParentPlanItem = {
   date: Date;
-  kind: "entrainement" | "weekend" | "convocation";
+  kind: "entrainement" | "weekend" | "convocation" | "cohesion";
   label: string;
   sub?: string;
+  program?: string; // "cohesion" only — déroulé de la journée saisi par le staff
   matchId?: string;
   confirmed?: boolean | null;
   answer?: string; // "AVAILABLE" | "UNAVAILABLE"
@@ -28,7 +29,8 @@ export type ParentPlanItem = {
  * security boundary lives in exactly one function.
  */
 export async function getParentPlanItems(parent: AuthedParent, from: Date, to: Date): Promise<ParentPlanItem[]> {
-  const [sessions, myConvocations, myAvailability] = await Promise.all([
+  const myTeamId = parent.player.teamId; // CalendarEvent scoping only — see note below, never used to filter Match
+  const [sessions, myConvocations, myAvailability, cohesionDays] = await Promise.all([
     prisma.trainingSession.findMany({
       where: {
         date: { gte: from, lt: to },
@@ -45,6 +47,15 @@ export async function getParentPlanItems(parent: AuthedParent, from: Date, to: D
     }),
     prisma.playerAvailability.findMany({
       where: { playerId: parent.playerId, eventDate: { gte: from, lt: to } },
+    }),
+    // Seul kind de CalendarEvent exposé aux familles — réunion/tournoi/autre
+    // restent des événements internes au staff (voir /planning côté cockpit).
+    // "Toutes" (teamId null) ou l'équipe exacte du joueur, jamais les autres.
+    // (CalendarEvent, pas Match — parent.player.teamId ne filtre jamais un
+    // Match ici ; voir parent-match-visibility.test.ts.)
+    prisma.calendarEvent.findMany({
+      where: { kind: "cohesion", date: { gte: from, lt: to }, OR: [{ teamId: myTeamId }, { teamId: null }] },
+      orderBy: { date: "asc" },
     }),
   ]);
   const convocByDateKey = new Map(myConvocations.map((c) => [c.match.date.toISOString().slice(0, 10), c]));
@@ -71,6 +82,14 @@ export async function getParentPlanItems(parent: AuthedParent, from: Date, to: D
       sub: `${s.startTime} · ${s.location}`,
       answer: availBySession.get(s.id)?.status,
       status: (s.status === "Annulée" ? "annule" : "entrainement") as ParentPlanStatus,
+    })),
+    ...cohesionDays.map((e) => ({
+      date: e.date,
+      kind: "cohesion" as const,
+      label: e.title,
+      sub: [e.startTime, e.location].filter(Boolean).join(" · "),
+      program: e.program ?? undefined,
+      status: "cohesion" as ParentPlanStatus,
     })),
     ...saturdays.map((d) => {
       const conv = convocByDateKey.get(d.toISOString().slice(0, 10));

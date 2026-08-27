@@ -963,11 +963,17 @@ model EquipmentAssignment {
 model CalendarEvent {
   id        String   @id @default(cuid())
   title     String
-  kind      String // "reunion" | "tournoi" | "autre"
+  kind      String // "reunion" | "tournoi" | "cohesion" | "autre"
   date      DateTime
   startTime String
   endTime   String
   location  String?
+  // Déroulé de la journée (créneaux/activités) — surtout utile pour
+  // "cohesion" et "tournoi", laissé disponible pour tous les types plutôt
+  // que d'ajouter un champ par kind. "cohesion" est le seul kind visible
+  // côté espace parent (voir src/lib/parent-planning.ts) : réunion/autre
+  // restent des événements internes au staff.
+  program   String?
   team      Team?    @relation(fields: [teamId], references: [id])
   teamId    String?
   teamLabel String // display label when not tied to one Team row, e.g. "Toutes"

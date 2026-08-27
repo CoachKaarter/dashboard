@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser, canAccessTeam } from "@/lib/authz";
 
-const KINDS = ["reunion", "tournoi", "autre"];
+const KINDS = ["reunion", "tournoi", "cohesion", "autre"];
 
 export async function createEvent(formData: FormData) {
   const user = await requireUser();
@@ -18,11 +18,12 @@ export async function createEvent(formData: FormData) {
   const startTime = String(formData.get("startTime") ?? "");
   const endTime = String(formData.get("endTime") ?? "");
   const location = String(formData.get("location") || "") || null;
+  const program = String(formData.get("program") || "").trim() || null;
   const teamLabel = String(formData.get("teamLabel") || "").trim() || "Toutes";
   if (!title || !KINDS.includes(kind) || Number.isNaN(date.getTime()) || !startTime || !endTime) return;
 
   const event = await prisma.calendarEvent.create({
-    data: { title, kind, date, startTime, endTime, location, teamId, teamLabel },
+    data: { title, kind, date, startTime, endTime, location, program, teamId, teamLabel },
   });
   revalidatePath("/planning");
   revalidatePath("/");
@@ -44,12 +45,13 @@ export async function updateEvent(eventId: string, formData: FormData) {
   const startTime = String(formData.get("startTime") ?? "");
   const endTime = String(formData.get("endTime") ?? "");
   const location = String(formData.get("location") || "") || null;
+  const program = String(formData.get("program") || "").trim() || null;
   const teamLabel = String(formData.get("teamLabel") || "").trim() || "Toutes";
   if (!title || !KINDS.includes(kind) || Number.isNaN(date.getTime()) || !startTime || !endTime) return;
 
   await prisma.calendarEvent.update({
     where: { id: eventId },
-    data: { title, kind, date, startTime, endTime, location, teamLabel },
+    data: { title, kind, date, startTime, endTime, location, program, teamLabel },
   });
   revalidatePath("/planning");
   revalidatePath(`/planning/${eventId}`);

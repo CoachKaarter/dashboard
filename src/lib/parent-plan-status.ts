@@ -12,4 +12,5 @@ export const PARENT_PLAN_STATUS_STYLE: Record<ParentPlanStatus, { borderColor: s
   dispoAVenir: { borderColor: "#3C6E9F", chip: "text-blue bg-blue-bg", label: "DISPO À VENIR" },
   convoque: { borderColor: "#3F8F5B", chip: "text-green bg-green-bg", label: "CONVOQUÉ" },
   neutral: { borderColor: "#3A3D43", chip: "text-[#6E7178] bg-[#F1F1EE]", label: "" },
+  cohesion: { borderColor: "#C2508F", chip: "text-[#C2508F] bg-[#FBEBF3]", label: "COHÉSION" },
 };

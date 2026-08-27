@@ -28,6 +28,7 @@ export default async function NouvelEvenementPage() {
               <select name="kind" defaultValue="reunion" className={inputClass}>
                 <option value="reunion">Réunion</option>
                 <option value="tournoi">Tournoi</option>
+                <option value="cohesion">Journée cohésion</option>
                 <option value="autre">Autre</option>
               </select>
             </Field>
@@ -55,6 +56,17 @@ export default async function NouvelEvenementPage() {
           <Field label="Lieu (optionnel)">
             <input name="location" className={inputClass} />
           </Field>
+          <Field label="Programme de la journée (optionnel)">
+            <textarea
+              name="program"
+              rows={4}
+              placeholder={"10h Accueil\n11h Ateliers\n12h30 Repas\n14h Tournoi interne\n16h Fin"}
+              className={`${inputClass} h-auto py-2 resize-y`}
+            />
+          </Field>
+          <p className="text-[11px] text-muted -mt-1.5">
+            Visible par les familles dans leur planning uniquement pour une journée cohésion.
+          </p>
           <button
             type="submit"
             className="h-10 border-none rounded-md bg-ink text-white text-[13px] font-semibold cursor-pointer mt-1 hover:bg-[#2A2E36]"

@@ -346,6 +346,9 @@ function EventCard({ item, showDate = true }: { item: ParentPlanItem; showDate?:
       <div className="flex-1 min-w-0">
         <div className={`text-[14.5px] font-bold ${item.status === "annule" ? "line-through text-[#9A9DA3]" : ""}`}>{item.label}</div>
         {item.sub && <div className={`text-[12.5px] mt-0.5 ${item.status === "annule" ? "line-through text-[#B5B7BB]" : "text-[#6E7178]"}`}>{item.sub}</div>}
+        {item.program && (
+          <div className="text-[12.5px] text-[#6E7178] mt-1.5 whitespace-pre-wrap leading-relaxed">{item.program}</div>
+        )}
         {item.kind !== "convocation" && item.answer && (
           <div className={`flex items-center gap-1 text-[12px] font-semibold mt-1 ${item.answer === "AVAILABLE" ? "text-green" : "text-red"}`}>
             {item.answer === "AVAILABLE" ? <CheckIcon size={12} /> : <XIcon size={12} />}
