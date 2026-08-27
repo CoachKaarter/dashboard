@@ -18,7 +18,9 @@ export function ParentAccountPanel({
   const [createResult, createFormAction, creating] = useActionState(createParentAccountAction, null);
   const [resetResult, resetFormAction, resetting] = useActionState(resetParentPasswordAction, null);
 
-  const credentials = "username" in (createResult ?? {}) ? createResult : "username" in (resetResult ?? {}) ? resetResult : null;
+  const createCredentials = createResult && "username" in createResult ? createResult : null;
+  const resetCredentials = resetResult && "username" in resetResult ? resetResult : null;
+  const credentials = createCredentials ?? resetCredentials;
   const errorMsg =
     createResult && "error" in createResult ? createResult.error : resetResult && "error" in resetResult ? resetResult.error : null;
 
@@ -50,6 +52,7 @@ export function ParentAccountPanel({
           <div>
             Mot de passe temporaire : <span className="font-mono font-bold">{credentials.tempPassword}</span>
           </div>
+          <EmailStatusLine status={credentials.emailStatus} error={credentials.emailError} />
           <CopyButton
             text={`${playerName}\nIdentifiant : ${credentials.username}\nMot de passe temporaire : ${credentials.tempPassword}`}
             label="Copier les informations"
@@ -102,4 +105,18 @@ export function ParentAccountPanel({
       )}
     </div>
   );
+}
+
+function EmailStatusLine({ status, error }: { status: "sent" | "failed" | "none"; error?: string }) {
+  if (status === "sent") {
+    return <div className="mt-1.5 text-green font-semibold">✓ Email envoyé au parent avec ces identifiants.</div>;
+  }
+  if (status === "failed") {
+    return (
+      <div className="mt-1.5 text-red font-semibold">
+        Échec de l&apos;envoi de l&apos;email{error ? ` (${error})` : ""} — transmets ces identifiants toi-même.
+      </div>
+    );
+  }
+  return <div className="mt-1.5 text-muted">Aucun email parent renseigné — transmets ces identifiants toi-même.</div>;
 }

@@ -67,6 +67,14 @@ export default async function JoueursPage({
         >
           Importer
         </Link>
+        {user.role === "ADMIN" && (
+          <Link
+            href="/joueurs/comptes-familles"
+            className="h-8 px-3 border border-line rounded-md bg-[#FCFCFB] text-xs font-semibold text-ink-soft flex items-center hover:border-ink hover:text-ink"
+          >
+            Comptes familles
+          </Link>
+        )}
         <Link
           href="/joueurs/nouveau"
           className="h-8 px-3 border border-line rounded-md bg-[#FCFCFB] text-xs font-semibold text-ink-soft flex items-center hover:border-ink hover:text-ink"
