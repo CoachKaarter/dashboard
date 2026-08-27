@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/authz";
+import { requireAdmin, requireResponsableOrAdmin } from "@/lib/authz";
 import { COMPETITION_TYPES } from "@/lib/match-validation";
 import { TRANSPORT_MODES } from "@/lib/equipment";
 
@@ -108,7 +108,7 @@ export async function updateClub(formData: FormData) {
 // simple registre servant à préremplir location/venueAddress d'un match,
 // jamais lu ailleurs en direct : voir src/lib/match-parent-info.ts.
 export async function createVenue(formData: FormData) {
-  await requireAdmin();
+  await requireResponsableOrAdmin();
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
   await prisma.venue.create({
@@ -127,7 +127,7 @@ export async function createVenue(formData: FormData) {
 }
 
 export async function updateVenue(venueId: string, formData: FormData) {
-  await requireAdmin();
+  await requireResponsableOrAdmin();
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
   await prisma.venue.update({
@@ -147,7 +147,7 @@ export async function updateVenue(venueId: string, formData: FormData) {
 }
 
 export async function deleteVenue(venueId: string) {
-  await requireAdmin();
+  await requireResponsableOrAdmin();
   await prisma.venue.delete({ where: { id: venueId } });
   revalidatePath("/parametres");
 }
@@ -185,7 +185,7 @@ function matchTemplateData(formData: FormData) {
 }
 
 export async function createMatchTemplate(formData: FormData) {
-  await requireAdmin();
+  await requireResponsableOrAdmin();
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
   await prisma.matchTemplate.create({ data: { name, ...matchTemplateData(formData) } });
@@ -193,7 +193,7 @@ export async function createMatchTemplate(formData: FormData) {
 }
 
 export async function updateMatchTemplate(templateId: string, formData: FormData) {
-  await requireAdmin();
+  await requireResponsableOrAdmin();
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
   await prisma.matchTemplate.update({ where: { id: templateId }, data: { name, ...matchTemplateData(formData) } });
@@ -201,7 +201,7 @@ export async function updateMatchTemplate(templateId: string, formData: FormData
 }
 
 export async function deleteMatchTemplate(templateId: string) {
-  await requireAdmin();
+  await requireResponsableOrAdmin();
   await prisma.matchTemplate.delete({ where: { id: templateId } });
   revalidatePath("/parametres");
 }

@@ -13,6 +13,8 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { ConvocationCopyAndPoster } from "@/components/ConvocationCopyAndPoster";
 import { fetchConvocationPosterData } from "@/lib/convocation-poster-data";
 import { validateWeekendPlan, reopenWeekendPlan, generateWeekendConvocations } from "./actions";
+import { computeParentInfoCompleteness } from "@/lib/match-parent-info";
+import { TRANSPORT_MODE_LABELS } from "@/lib/equipment";
 
 export default async function WeekEndPage({
   searchParams,
@@ -229,6 +231,56 @@ export default async function WeekEndPage({
           </ul>
           <div className="text-[11px] text-muted-2 mt-1.5">
             Ces points n&apos;empêchent pas la validation — vérifiez-les puis validez en connaissance de cause.
+          </div>
+        </div>
+      )}
+
+      {status === "VALIDATED" && (
+        <div className="bg-surface border border-line rounded-lg px-3.5 py-2.5 mb-3.5 animate-slidedown">
+          <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted mb-1.5">
+            Infos transmises aux familles à la publication
+          </div>
+          <div className="flex flex-col gap-2">
+            {teamCards
+              .filter((c) => c.assigned.length > 0 && c.match)
+              .map((c) => {
+                const m = c.match!;
+                const completeness = computeParentInfoCompleteness(m);
+                const rows: [string, string | null][] = [
+                  ["RDV", m.meetTime],
+                  ["Coup d'envoi", m.time],
+                  ["Lieu", m.location ?? m.venueAddress],
+                  ["Transport", m.transportMode ? TRANSPORT_MODE_LABELS[m.transportMode as keyof typeof TRANSPORT_MODE_LABELS] : null],
+                  ["Tenue", m.dressCode],
+                ];
+                return (
+                  <div key={c.team.id} className="flex items-start gap-3 pb-2 border-b border-line-soft-2 last:border-b-0 last:pb-0">
+                    <div className="w-14 shrink-0 text-[12.5px] font-bold pt-0.5">{c.team.code}</div>
+                    <div className="flex-1 flex flex-wrap gap-x-4 gap-y-0.5">
+                      {rows
+                        .filter(([, v]) => v)
+                        .map(([label, v]) => (
+                          <span key={label} className="text-[12px]">
+                            <span className="text-muted-2">{label} :</span> <span className="font-semibold">{v}</span>
+                          </span>
+                        ))}
+                      {rows.every(([, v]) => !v) && <span className="text-[12px] text-red">Aucune info pratique renseignée</span>}
+                    </div>
+                    <span
+                      className="shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded"
+                      style={{
+                        color: completeness.percent === 100 ? "#3F8F5B" : completeness.percent >= 50 ? "#B08A3E" : "#B4451E",
+                        background: completeness.percent === 100 ? "#EEF7EF" : completeness.percent >= 50 ? "#FBF3E4" : "#FBEDE7",
+                      }}
+                    >
+                      {completeness.percent}%
+                    </span>
+                  </div>
+                );
+              })}
+          </div>
+          <div className="text-[11px] text-muted-2 mt-2">
+            Modifiable jusqu&apos;à la publication sur la fiche de chaque match — n&apos;empêche pas de générer les convocations.
           </div>
         </div>
       )}

@@ -17,7 +17,7 @@ import { POSITIONS } from "@/lib/constants";
 import { MATCH_ROLES, SURFACE_TYPES } from "@/lib/match-validation";
 import { TRANSPORT_MODES, TRANSPORT_MODE_LABELS } from "@/lib/equipment";
 import { getSettings } from "@/lib/settings";
-import { resolveMeetTime, resolveEstimatedEnd, resolveEstimatedReturn, resolveField, selectMatchTemplate, type Resolved } from "@/lib/match-parent-info";
+import { resolveMeetTime, resolveEstimatedEnd, resolveEstimatedReturn, resolveField, selectMatchTemplate, computeParentInfoCompleteness, type Resolved } from "@/lib/match-parent-info";
 import {
   toggleConvocation,
   recordScore,
@@ -117,6 +117,7 @@ export default async function MatchDetailPage({
     if (!current || resolved.source === "none" || resolved.source === "match") return null;
     return current === resolved.value ? SOURCE_LABEL[resolved.source] : "Valeur personnalisée pour ce match";
   };
+  const completeness = computeParentInfoCompleteness(match);
   const convocatedIds = new Set(match.convocations.map((c) => c.playerId));
   // A player can't be at two matches on the same day — surfaces the other
   // team's match as the reason a candidate can't be picked here (see
@@ -302,8 +303,17 @@ export default async function MatchDetailPage({
               />
             </div>
             <div className="col-span-2 pt-2 border-t border-line-soft grid grid-cols-2 gap-2.5">
-              <div className="col-span-2 text-[11px] font-bold tracking-[0.08em] uppercase text-muted-2">
-                Fiche de convocation parent — infos pratiques (facultatif, préremplies automatiquement)
+              <div className="col-span-2 flex items-center gap-2 text-[11px] font-bold tracking-[0.08em] uppercase text-muted-2">
+                <span>Fiche de convocation parent — infos pratiques (facultatif, préremplies automatiquement)</span>
+                <span
+                  className="ml-auto normal-case tracking-normal font-semibold text-[11px] px-1.5 py-0.5 rounded"
+                  style={{
+                    color: completeness.percent === 100 ? "#3F8F5B" : completeness.percent >= 50 ? "#B08A3E" : "#B4451E",
+                    background: completeness.percent === 100 ? "#EEF7EF" : completeness.percent >= 50 ? "#FBF3E4" : "#FBEDE7",
+                  }}
+                >
+                  {completeness.filled}/{completeness.total} renseignés ({completeness.percent}%)
+                </span>
               </div>
               <label className="flex flex-col gap-1">
                 <span className="text-[10.5px] text-muted">Modèle de match</span>

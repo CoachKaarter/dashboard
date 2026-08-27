@@ -91,3 +91,41 @@ export function selectMatchTemplate<T extends { competition: string | null; isHo
   const competitionOnly = templates.find((t) => t.competition === match.competition && t.isHome === null);
   return competitionOnly ?? null;
 }
+
+export type ParentInfoCompleteness = { filled: number; total: number; percent: number };
+
+/**
+ * Indicateur de complétude (§20) — sur les champs "infos parents" qu'un
+ * parent voit réellement sur sa fiche de convocation (voir
+ * src/app/parent/(app)/matchs/[matchId]/page.tsx, où chaque champ vide est
+ * simplement masqué). Ni preMatchObjective/mainInstructions/preMatchNotes
+ * (jamais montrés aux parents) ni surface (secondaire) n'entrent dans le
+ * calcul.
+ */
+export function computeParentInfoCompleteness(match: {
+  meetTime: string | null;
+  location: string | null;
+  venueAddress: string | null;
+  estimatedEndTime: string | null;
+  estimatedReturnTime: string | null;
+  transportMode: string | null;
+  dressCode: string | null;
+  personalGear: string | null;
+  mealInfo: string | null;
+  parentInstructions: string | null;
+}): ParentInfoCompleteness {
+  const fields = [
+    match.meetTime,
+    match.location || match.venueAddress,
+    match.estimatedEndTime,
+    match.estimatedReturnTime,
+    match.transportMode,
+    match.dressCode,
+    match.personalGear,
+    match.mealInfo,
+    match.parentInstructions,
+  ];
+  const total = fields.length;
+  const filled = fields.filter((f) => f != null && f !== "").length;
+  return { filled, total, percent: Math.round((filled / total) * 100) };
+}

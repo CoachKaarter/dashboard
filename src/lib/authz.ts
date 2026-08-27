@@ -153,6 +153,23 @@ export async function requireAdmin(): Promise<AuthedUser> {
   return user;
 }
 
+/** True for the ADMIN technical role, or anyone with RESPONSABLE-level standing in at least one category. */
+export function isResponsableOrAdmin(user: AuthedUser): boolean {
+  return user.role === "ADMIN" || user.scopes.some((s) => s.level === "RESPONSABLE");
+}
+
+/**
+ * Lieux et Modèles de match (§26) sont des réglages globaux, pas cloisonnés
+ * par catégorie — un Responsable de N'IMPORTE QUELLE catégorie (ou l'École
+ * de foot) a une vue d'ensemble légitime pour les gérer, contrairement aux
+ * réglages club (branding, seuils d'alerte) qui restent ADMIN uniquement.
+ */
+export async function requireResponsableOrAdmin(): Promise<AuthedUser> {
+  const user = await requireUser();
+  if (!isResponsableOrAdmin(user)) redirect("/");
+  return user;
+}
+
 /** "ALL" only when the user's grants provably cover every team that exists, otherwise the explicit list (may be empty). */
 export function scopedTeamIds(user: AuthedUser): string[] | "ALL" {
   return user.hasFullAccess ? "ALL" : user.teamIds;

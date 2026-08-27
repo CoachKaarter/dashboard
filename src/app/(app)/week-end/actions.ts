@@ -169,6 +169,12 @@ export async function generateWeekendConvocations(weekStartIso: string) {
   }
   const created = toCreate.length;
 
+  // Marque le moment où les infos pratiques de ce match ont effectivement
+  // été transmises aux familles (§15) — une modification ultérieure à cette
+  // date est ce que le suivi ParentContentState (convocationSnapshot) fait
+  // déjà remonter comme "modifié" côté parent.
+  await prisma.match.updateMany({ where: { date: weekendDate }, data: { parentInfoPublishedAt: new Date() } });
+
   await prisma.weekendPlan.upsert({
     where: { weekStartDate },
     update: { status: "PUBLISHED", publishedAt: new Date() },

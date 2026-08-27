@@ -64,12 +64,16 @@ export async function createTeam(formData: FormData) {
 
 // Valeurs par défaut de l'équipe pour les infos parents d'un match
 // (héritage Match > MatchTemplate > Team > réglages généraux — voir
-// src/lib/match-parent-info.ts). Même niveau de permission que
-// updateTeamLevel/updateTeamFormat : quiconque a accès à l'équipe peut
-// régler ses habitudes, pas seulement son Responsable.
+// src/lib/match-parent-info.ts). Contrairement à updateTeamLevel/
+// updateTeamFormat (accès simple à l'équipe), régler des habitudes qui se
+// répercutent automatiquement sur chaque futur match est un choix de
+// pilotage de catégorie — réservé au Responsable de cette catégorie (ou
+// l'ADMIN), pas à un Coach qui n'intervient que match par match.
 export async function updateTeamDefaults(teamId: string, formData: FormData) {
   const user = await requireUser();
-  if (!canAccessTeam(user, teamId)) return;
+  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { category: true } });
+  if (!team) return;
+  if (user.role !== "ADMIN" && !canManageCategory(user, team.category)) return;
   const intOrNull = (name: string) => {
     const raw = String(formData.get(name) ?? "").trim();
     if (!raw) return null;

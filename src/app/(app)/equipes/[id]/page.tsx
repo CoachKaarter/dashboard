@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser, canAccessTeam } from "@/lib/authz";
+import { requireUser, canAccessTeam, canManageCategory } from "@/lib/authz";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
@@ -82,6 +82,7 @@ export default async function EquipeDetailPage({
   const form = computeForm(filteredMatches, 5);
 
   const isAdmin = user.role === "ADMIN";
+  const canManageDefaults = isAdmin || canManageCategory(user, team.category);
   const coaches = isAdmin ? await prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" } }) : [];
 
   const movements = await prisma.teamHistoryEntry.findMany({
@@ -176,48 +177,54 @@ export default async function EquipeDetailPage({
             Préremplit automatiquement les infos parents de chaque nouveau match de cette équipe (toujours modifiable match par match). Laisser vide pour
             utiliser le modèle de match ou les réglages généraux du club.
           </div>
-          <form action={updateTeamDefaults.bind(null, id)} className="grid grid-cols-2 gap-2.5">
-            <label className="flex flex-col gap-1">
-              <span className="text-[10.5px] text-muted">RDV avant le coup d&apos;envoi (minutes)</span>
-              <input type="number" name="meetTimeDeltaMinutes" min={0} max={240} defaultValue={team.meetTimeDeltaMinutes ?? ""} placeholder="45" className={inputClass} />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-[10.5px] text-muted">Transport habituel</span>
-              <select name="defaultTransportMode" defaultValue={team.defaultTransportMode ?? ""} className={inputClass}>
-                <option value="">— non précisé —</option>
-                {TRANSPORT_MODES.map((m) => (
-                  <option key={m} value={m}>{TRANSPORT_MODE_LABELS[m]}</option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-[10.5px] text-muted">Durée habituelle du match (minutes)</span>
-              <input type="number" name="defaultDurationMinutes" min={0} max={240} defaultValue={team.defaultDurationMinutes ?? ""} placeholder="60" className={inputClass} />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-[10.5px] text-muted">Délai de retour après la fin (minutes)</span>
-              <input type="number" name="defaultReturnDelayMinutes" min={0} max={240} defaultValue={team.defaultReturnDelayMinutes ?? ""} placeholder="15" className={inputClass} />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-[10.5px] text-muted">Tenue demandée</span>
-              <input name="defaultDressCode" defaultValue={team.defaultDressCode ?? ""} placeholder="Tenue du club" className={inputClass} />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-[10.5px] text-muted">Matériel personnel à prévoir</span>
-              <input name="defaultPersonalGear" defaultValue={team.defaultPersonalGear ?? ""} className={inputClass} />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-[10.5px] text-muted">Repas / collation à prévoir</span>
-              <input name="defaultMealInfo" defaultValue={team.defaultMealInfo ?? ""} className={inputClass} />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-[10.5px] text-muted">Consignes habituelles pour les parents</span>
-              <input name="defaultParentInstructions" defaultValue={team.defaultParentInstructions ?? ""} className={inputClass} />
-            </label>
-            <button type="submit" className="col-span-2 h-9 rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36] self-start px-4">
-              Enregistrer les habitudes de l&apos;équipe
-            </button>
-          </form>
+          {canManageDefaults ? (
+            <form action={updateTeamDefaults.bind(null, id)} className="grid grid-cols-2 gap-2.5">
+              <label className="flex flex-col gap-1">
+                <span className="text-[10.5px] text-muted">RDV avant le coup d&apos;envoi (minutes)</span>
+                <input type="number" name="meetTimeDeltaMinutes" min={0} max={240} defaultValue={team.meetTimeDeltaMinutes ?? ""} placeholder="45" className={inputClass} />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10.5px] text-muted">Transport habituel</span>
+                <select name="defaultTransportMode" defaultValue={team.defaultTransportMode ?? ""} className={inputClass}>
+                  <option value="">— non précisé —</option>
+                  {TRANSPORT_MODES.map((m) => (
+                    <option key={m} value={m}>{TRANSPORT_MODE_LABELS[m]}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10.5px] text-muted">Durée habituelle du match (minutes)</span>
+                <input type="number" name="defaultDurationMinutes" min={0} max={240} defaultValue={team.defaultDurationMinutes ?? ""} placeholder="60" className={inputClass} />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10.5px] text-muted">Délai de retour après la fin (minutes)</span>
+                <input type="number" name="defaultReturnDelayMinutes" min={0} max={240} defaultValue={team.defaultReturnDelayMinutes ?? ""} placeholder="15" className={inputClass} />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10.5px] text-muted">Tenue demandée</span>
+                <input name="defaultDressCode" defaultValue={team.defaultDressCode ?? ""} placeholder="Tenue du club" className={inputClass} />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10.5px] text-muted">Matériel personnel à prévoir</span>
+                <input name="defaultPersonalGear" defaultValue={team.defaultPersonalGear ?? ""} className={inputClass} />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10.5px] text-muted">Repas / collation à prévoir</span>
+                <input name="defaultMealInfo" defaultValue={team.defaultMealInfo ?? ""} className={inputClass} />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10.5px] text-muted">Consignes habituelles pour les parents</span>
+                <input name="defaultParentInstructions" defaultValue={team.defaultParentInstructions ?? ""} className={inputClass} />
+              </label>
+              <button type="submit" className="col-span-2 h-9 rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36] self-start px-4">
+                Enregistrer les habitudes de l&apos;équipe
+              </button>
+            </form>
+          ) : (
+            <div className="text-[11.5px] text-muted-2">
+              Réservé au Responsable de la catégorie {team.category} (ou à l&apos;administrateur).
+            </div>
+          )}
         </div>
       </details>
 

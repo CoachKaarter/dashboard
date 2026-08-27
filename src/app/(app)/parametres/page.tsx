@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { getClub, getClubMessageTemplates } from "@/lib/club";
-import { requireAdmin } from "@/lib/authz";
+import { requireResponsableOrAdmin } from "@/lib/authz";
 import { NumField } from "@/components/ui/NumField";
 import { ColorField } from "@/components/ui/ColorField";
 import { Badge } from "@/components/ui/Badge";
@@ -26,16 +26,23 @@ import {
 const settingsInputClass =
   "h-9 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg";
 
+// Réglages club (branding, seuils d'alerte, saisons, sauvegarde) restent
+// ADMIN uniquement. Lieux et Modèles de match sont des réglages globaux
+// mais opérationnels — un Responsable de n'importe quelle catégorie (ou
+// l'École de foot) doit pouvoir les tenir à jour sans passer par l'ADMIN
+// (§26) : la page reste donc accessible à tout Responsable, les sections
+// proprement ADMIN se masquent simplement pour les autres.
 export default async function ParametresPage() {
-  const [settings, admin, seasons, club, messageTemplates, venues, matchTemplates] = await Promise.all([
+  const [settings, user, seasons, club, messageTemplates, venues, matchTemplates] = await Promise.all([
     getSettings(),
-    requireAdmin(),
+    requireResponsableOrAdmin(),
     prisma.season.findMany({ orderBy: { startDate: "desc" } }),
     getClub(),
     getClubMessageTemplates(),
     prisma.venue.findMany({ orderBy: { name: "asc" } }),
     prisma.matchTemplate.findMany({ orderBy: { name: "asc" } }),
   ]);
+  const isAdmin = user.role === "ADMIN";
   const currentSeason = seasons.find((s) => s.isCurrent) ?? seasons[0] ?? null;
 
   const seuilRows = [
@@ -66,7 +73,7 @@ export default async function ParametresPage() {
             currentSeason ? `du ${formatDateFull(currentSeason.startDate)} au ${formatDateFull(currentSeason.endDate)}` : "à créer ci-dessous",
           ],
           ["Club", club.shortName ? `${club.name} (${club.shortName})` : club.name, "catégorie U12 / U13"],
-          ["Responsable", admin.name, "accès complet"],
+          ["Connecté en tant que", user.name, isAdmin ? "administrateur" : "responsable"],
         ].map(([label, value, hint]) => (
           <div key={label} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3.5 items-center px-3.5 py-[10px] border-b border-line-soft-2 last:border-b-0">
             <div>
@@ -78,6 +85,7 @@ export default async function ParametresPage() {
         ))}
       </section>
 
+      {isAdmin && (
       <section className="bg-surface border border-line rounded-lg overflow-hidden">
         <div className="px-3.5 py-[11px] border-b border-line-soft text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Identité visuelle</div>
         <form action={updateClub} className="p-3.5 flex flex-col gap-3.5">
@@ -133,7 +141,9 @@ export default async function ParametresPage() {
           </button>
         </form>
       </section>
+      )}
 
+      {isAdmin && (
       <section className="bg-surface border border-line rounded-lg overflow-hidden">
         <div className="px-3.5 py-[11px] border-b border-line-soft text-[11px] font-bold tracking-[0.11em] uppercase text-muted">
           Textes à copier
@@ -189,7 +199,9 @@ export default async function ParametresPage() {
           </button>
         </form>
       </section>
+      )}
 
+      {isAdmin && (
       <form action={updateSettings} className="flex flex-col gap-3.5">
         <section className="bg-surface border border-line rounded-lg overflow-hidden">
           <div className="px-3.5 py-[11px] border-b border-line-soft text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Seuils d&apos;alerte</div>
@@ -219,6 +231,7 @@ export default async function ParametresPage() {
           ))}
         </section>
       </form>
+      )}
 
       <section className="bg-surface border border-line rounded-lg overflow-hidden">
         <div className="px-3.5 py-[11px] border-b border-line-soft text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Lieux enregistrés</div>
@@ -328,6 +341,8 @@ export default async function ParametresPage() {
         </form>
       </section>
 
+      {isAdmin && (
+      <>
       <section className="bg-surface border border-line rounded-lg overflow-hidden">
         <div className="px-3.5 py-[11px] border-b border-line-soft text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Gestion des saisons</div>
         {seasons.map((s) => (
@@ -389,6 +404,8 @@ export default async function ParametresPage() {
           </a>
         </div>
       </section>
+      </>
+      )}
     </div>
   );
 }

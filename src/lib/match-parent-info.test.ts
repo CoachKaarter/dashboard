@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { shiftTime, resolveMeetTime, resolveEstimatedEnd, resolveEstimatedReturn, resolveField, selectMatchTemplate } from "./match-parent-info";
+import { shiftTime, resolveMeetTime, resolveEstimatedEnd, resolveEstimatedReturn, resolveField, selectMatchTemplate, computeParentInfoCompleteness } from "./match-parent-info";
 
 test("shiftTime: ajoute/retranche des minutes avec repli sur 24h", () => {
   assert.equal(shiftTime("10:30", -60), "09:30");
@@ -97,4 +97,47 @@ test("selectMatchTemplate: un modèle 'toutes issues' (isHome: null) s'applique 
 test("selectMatchTemplate: aucune correspondance → aucun modèle imposé", () => {
   const t = selectMatchTemplate(TEMPLATES, { competition: "Coupe", isHome: true });
   assert.equal(t, null);
+});
+
+const EMPTY_PARENT_INFO = {
+  meetTime: null,
+  location: null,
+  venueAddress: null,
+  estimatedEndTime: null,
+  estimatedReturnTime: null,
+  transportMode: null,
+  dressCode: null,
+  personalGear: null,
+  mealInfo: null,
+  parentInstructions: null,
+};
+
+test("computeParentInfoCompleteness : rien de renseigné → 0 %", () => {
+  const c = computeParentInfoCompleteness(EMPTY_PARENT_INFO);
+  assert.deepEqual(c, { filled: 0, total: 9, percent: 0 });
+});
+
+test("computeParentInfoCompleteness : tout renseigné → 100 %", () => {
+  const c = computeParentInfoCompleteness({
+    ...EMPTY_PARENT_INFO,
+    meetTime: "09:15",
+    location: "Stade municipal",
+    estimatedEndTime: "11:30",
+    estimatedReturnTime: "12:00",
+    transportMode: "COVOITURAGE",
+    dressCode: "Tenue du club",
+    personalGear: "Crampons",
+    mealInfo: "Barre de céréales",
+    parentInstructions: "Arriver 10 min avant",
+  });
+  assert.deepEqual(c, { filled: 9, total: 9, percent: 100 });
+});
+
+test("computeParentInfoCompleteness : location OU venueAddress compte pour un seul champ « lieu »", () => {
+  const withLocationOnly = computeParentInfoCompleteness({ ...EMPTY_PARENT_INFO, location: "Stade municipal" });
+  const withAddressOnly = computeParentInfoCompleteness({ ...EMPTY_PARENT_INFO, venueAddress: "1 rue du Stade" });
+  const withBoth = computeParentInfoCompleteness({ ...EMPTY_PARENT_INFO, location: "Stade municipal", venueAddress: "1 rue du Stade" });
+  assert.equal(withLocationOnly.filled, 1);
+  assert.equal(withAddressOnly.filled, 1);
+  assert.equal(withBoth.filled, 1);
 });
