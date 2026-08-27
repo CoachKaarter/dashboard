@@ -12,10 +12,14 @@ export async function changeParentPassword(formData: FormData) {
   if (password.length < 6) redirect("/parent/changer-mot-de-passe?error=court");
   if (password !== confirm) redirect("/parent/changer-mot-de-passe?error=diff");
 
+  const isFirstLogin = parent.mustChangePassword;
   const passwordHash = await bcrypt.hash(password, 10);
   await prisma.parentAccount.update({
     where: { id: parent.parentAccountId },
     data: { passwordHash, mustChangePassword: false },
   });
-  redirect("/parent");
+  // Onboarding only fires once, right after the very first password change
+  // (mustChangePassword true → false) — never for a later voluntary
+  // password change from /parent/profil, which reuses this same action.
+  redirect(isFirstLogin ? "/parent/bienvenue" : "/parent");
 }

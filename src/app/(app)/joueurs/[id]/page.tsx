@@ -9,6 +9,7 @@ import { statutTone, formatDateShort } from "@/lib/format";
 import { PLAYER_STATUSES, POSITIONS, EVAL_PERIODS, INTERVIEW_TYPE_LABELS, OBJECTIVE_CATEGORY_LABELS, OBJECTIVE_STATUS_LABELS } from "@/lib/constants";
 import { ProgressChart } from "@/components/ui/ProgressChart";
 import { ParentAccountPanel } from "@/components/ParentAccountPanel";
+import { DeletePlayerButton } from "@/components/DeletePlayerButton";
 import { updateObjectives } from "../../evaluations/actions";
 import { requireUser, canAccessTeam, scopedTeamIds } from "@/lib/authz";
 import { getInterviewPrep } from "@/lib/interview-prep";
@@ -52,10 +53,10 @@ export default async function FichePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; deleteError?: string }>;
 }) {
   const { id } = await params;
-  const { tab: rawTab } = await searchParams;
+  const { tab: rawTab, deleteError } = await searchParams;
   const tab = TABS.some((t) => t.key === rawTab) ? rawTab! : "assiduite";
 
   const user = await requireUser();
@@ -716,6 +717,12 @@ export default async function FichePage({
                 {player.archived ? "Réactiver ce joueur" : "Archiver ce joueur"}
               </button>
             </form>
+
+            {user.role === "ADMIN" && (
+              <div className="mt-2">
+                <DeletePlayerButton playerId={id} playerFullName={`${player.firstName} ${player.lastName}`} showError={deleteError === "1"} />
+              </div>
+            )}
           </div>
 
           <div className="bg-surface border border-line rounded-lg px-3.5 py-[13px]">

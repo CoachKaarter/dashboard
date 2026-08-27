@@ -2,7 +2,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { requireUser, canAccessTeam } from "@/lib/authz";
+import { redirect } from "next/navigation";
+import { requireUser, requireAdmin, canAccessTeam } from "@/lib/authz";
 import { PLAYER_STATUSES, POSITIONS } from "@/lib/constants";
 import { logActivity } from "@/lib/activity";
 
@@ -226,4 +227,29 @@ export async function setArchived(playerId: string, archived: boolean) {
   });
   revalidatePath(`/joueurs/${playerId}`);
   revalidatePath("/joueurs");
+}
+
+// Irréversible : chaque relation du joueur (présences, stats, convocations,
+// évaluations, historique d'équipe…) est en onDelete: Cascade côté schéma —
+// supprimer la ligne Player efface tout son historique de saison avec elle.
+// "Archiver" (ci-dessus) reste la voie normale ; ceci n'existe que pour une
+// fiche créée par erreur. Réservé ADMIN, jamais juste canAccessTeam, et
+// exige de retaper le nom exact du joueur (return silencieux si absent/faux
+// — le formulaire redemande, jamais de suppression sur une faute de frappe).
+export async function deletePlayer(playerId: string, formData: FormData) {
+  const user = await requireAdmin();
+  const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
+  const expected = `${player.firstName} ${player.lastName}`;
+  const typed = String(formData.get("confirmName") ?? "").trim();
+  if (typed !== expected) redirect(`/joueurs/${playerId}?deleteError=1`);
+
+  await prisma.player.delete({ where: { id: playerId } });
+  await logActivity({
+    actorId: user.id,
+    summary: `a supprimé définitivement ${expected} (et tout son historique de saison)`,
+    entityType: "Player",
+    entityId: playerId,
+  });
+  revalidatePath("/joueurs");
+  redirect("/joueurs");
 }

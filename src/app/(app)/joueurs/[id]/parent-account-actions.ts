@@ -40,3 +40,14 @@ export async function setParentAccountActive(accountId: string, active: boolean)
   const account = await prisma.parentAccount.update({ where: { id: accountId }, data: { active } });
   revalidatePath(`/joueurs/${account.playerId}`);
 }
+
+// Unlike deletePlayer, this is low-stakes and reversible in effect (a new
+// account with a new username can be created right after) — the identifiant
+// itself just goes back to being available. ParentContentState cascades
+// with it (onDelete: Cascade); EquipmentAssignment.parentAccountId is set
+// null (onDelete: SetNull) so loan history survives the account.
+export async function deleteParentAccountAction(accountId: string) {
+  await requireAdmin();
+  const account = await prisma.parentAccount.delete({ where: { id: accountId } });
+  revalidatePath(`/joueurs/${account.playerId}`);
+}

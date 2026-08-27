@@ -85,11 +85,16 @@ export default async function CockpitPage() {
     .reduce((n, g) => n + g.items.filter((i) => !i.treated).length, 0);
 
   // ADMIN-only: a cross-team scan a single-team coach doesn't need, since
-  // their own Cockpit already *is* their one team.
+  // their own Cockpit already *is* their one team. Scoped to categoryTeamIds
+  // like the rest of this page — an ADMIN who is also RESPONSABLE of a
+  // single category (e.g. U12/U13) and has that category active must never
+  // see other categories' teams (U8/U9…) sneak back in through this block,
+  // which used to query every team in the club unconditionally.
   const clubOverview =
     user.role === "ADMIN"
       ? await (async () => {
           const teams = await prisma.team.findMany({
+            where: { id: { in: categoryTeamIds } },
             include: { matches: { where: { status: "Planifié" }, orderBy: { date: "asc" }, take: 1 } },
             orderBy: { code: "asc" },
           });

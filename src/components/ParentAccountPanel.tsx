@@ -2,7 +2,12 @@
 
 import { useActionState } from "react";
 import { CopyButton } from "@/components/CopyButton";
-import { createParentAccountAction, resetParentPasswordAction, setParentAccountActive } from "@/app/(app)/joueurs/[id]/parent-account-actions";
+import {
+  createParentAccountAction,
+  resetParentPasswordAction,
+  setParentAccountActive,
+  deleteParentAccountAction,
+} from "@/app/(app)/joueurs/[id]/parent-account-actions";
 
 type Account = { id: string; username: string; active: boolean } | null;
 
@@ -98,6 +103,18 @@ export function ParentAccountPanel({
                 }`}
               >
                 {account.active ? "Désactiver le compte" : "Réactiver le compte"}
+              </button>
+            </form>
+            <form
+              action={deleteParentAccountAction.bind(null, account.id)}
+              onSubmit={(e) => {
+                if (!window.confirm(`Supprimer définitivement le compte famille de ${playerName} ?\n\nLe parent perdra l'accès immédiatement. Un nouveau compte pourra être recréé plus tard si besoin.`)) {
+                  e.preventDefault();
+                }
+              }}
+            >
+              <button type="submit" className="h-8 px-3 border border-line rounded-md text-xs font-semibold text-red hover:border-red">
+                Supprimer le compte
               </button>
             </form>
           </div>
