@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser, scopedTeamIds, canManageCategory } from "@/lib/authz";
 import { createMatch } from "../actions";
+import { SURFACE_TYPES } from "@/lib/match-validation";
 
 const inputClass =
   "h-9 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none w-full focus:border-blue focus:ring-[3px] focus:ring-blue-bg";
@@ -68,6 +69,16 @@ export default async function NouveauMatchPage() {
           </div>
           <Field label="Lieu">
             <input name="location" placeholder="Terrain" className={inputClass} />
+          </Field>
+          <Field label="Surface (optionnel)">
+            <select name="surface" defaultValue="" className={inputClass}>
+              <option value="">Surface — non précisée</option>
+              {SURFACE_TYPES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Lieu du rendez-vous (optionnel)">
             <input name="meetLocation" placeholder="Ex. parking du club" className={inputClass} />

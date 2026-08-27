@@ -42,6 +42,9 @@ export default async function NouveauStaffPage() {
           <Field label="Email (optionnel)">
             <input type="email" name="email" className={inputClass} />
           </Field>
+          <Field label="Téléphone (optionnel — affiché sur la feuille de convocation)">
+            <input type="tel" name="phone" placeholder="06 00 00 00 00" className={inputClass} />
+          </Field>
           <div className="text-[11.5px] text-muted-2 -mt-1">
             Les responsabilités (Coach/Responsable, équipe/catégorie) s&apos;ajoutent sur la fiche du compte une fois créé.
           </div>

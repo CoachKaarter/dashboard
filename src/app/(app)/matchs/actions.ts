@@ -15,6 +15,7 @@ import {
   competitionSchema,
   bilanSchema,
   tournamentSchema,
+  SURFACE_TYPES,
 } from "@/lib/match-validation";
 import { readXlsxFirstSheetGrid, extractMatchRows, buildMatchImportCandidates } from "@/lib/match-import";
 import { TRANSPORT_MODES } from "@/lib/equipment";
@@ -231,6 +232,8 @@ export async function updateMatch(matchId: string, formData: FormData) {
   const time = String(formData.get("time") || "") || null;
   const isHome = formData.get("isHome") === "on";
   const location = String(formData.get("location") || "") || null;
+  const surfaceRaw = String(formData.get("surface") || "");
+  const surface = SURFACE_TYPES.includes(surfaceRaw as (typeof SURFACE_TYPES)[number]) ? surfaceRaw : null;
   const meetLocation = String(formData.get("meetLocation") || "").trim() || null;
   const neededParsed = neededSchema.safeParse(Number(formData.get("needed")));
   const preMatchObjective = String(formData.get("preMatchObjective") || "").trim() || null;
@@ -266,7 +269,7 @@ export async function updateMatch(matchId: string, formData: FormData) {
       opponent, competition: competitionParsed.data, date, time,
       meetTime: computeMeetTime(time, settings.delaiRdv),
       meetLocation,
-      isHome, location, needed, preMatchObjective, mainInstructions, preMatchNotes,
+      isHome, location, surface, needed, preMatchObjective, mainInstructions, preMatchNotes,
       estimatedEndTime, estimatedReturnTime, venueAddress, transportMode, dressCode, personalGear, mealInfo, parentInstructions, parentNotes,
       ...tournamentParsed.data,
     },
@@ -325,6 +328,8 @@ export async function createMatch(formData: FormData) {
   const time = String(formData.get("time") || "") || null;
   const isHome = formData.get("isHome") === "on";
   const location = String(formData.get("location") || "") || null;
+  const surfaceRaw = String(formData.get("surface") || "");
+  const surface = SURFACE_TYPES.includes(surfaceRaw as (typeof SURFACE_TYPES)[number]) ? surfaceRaw : null;
   const meetLocation = String(formData.get("meetLocation") || "").trim() || null;
   const neededParsed = neededSchema.safeParse(Number(formData.get("needed")));
   if (!competitionParsed.success || Number.isNaN(date.getTime()) || !neededParsed.success) return;
@@ -336,7 +341,7 @@ export async function createMatch(formData: FormData) {
       teamId, opponent, competition: competitionParsed.data, date, time,
       meetTime: computeMeetTime(time, settings.delaiRdv),
       meetLocation,
-      isHome, location, needed, status: "Planifié",
+      isHome, location, surface, needed, status: "Planifié",
     },
   });
   revalidatePath("/matchs");

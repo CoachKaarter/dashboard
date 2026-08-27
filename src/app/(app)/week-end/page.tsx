@@ -10,7 +10,8 @@ import { toQueryString } from "@/lib/query";
 import { Badge } from "@/components/ui/Badge";
 import { WeekendBoard } from "@/components/WeekendBoard";
 import { SubmitButton } from "@/components/SubmitButton";
-import { CopyButton } from "@/components/CopyButton";
+import { ConvocationCopyAndPoster } from "@/components/ConvocationCopyAndPoster";
+import { fetchConvocationPosterData } from "@/lib/convocation-poster-data";
 import { validateWeekendPlan, reopenWeekendPlan, generateWeekendConvocations } from "./actions";
 
 export default async function WeekEndPage({
@@ -119,6 +120,12 @@ export default async function WeekEndPage({
     lien_parent: parentUrl,
     lien_club: CLUB_SITE_URL,
   });
+  // Le visuel de convocation réutilise le même board que le message
+  // ci-dessus — jamais une deuxième requête indépendante — et n'est
+  // construit que quand le bouton peut réellement apparaître (convocations
+  // publiées), pour ne pas alourdir cette page le reste du temps.
+  const posterData = status === "PUBLISHED" ? await fetchConvocationPosterData(board) : null;
+  const posterFileDateLabel = `${String(weekendDate.getDate()).padStart(2, "0")}-${String(weekendDate.getMonth() + 1).padStart(2, "0")}-${weekendDate.getFullYear()}`;
 
   return (
     <div className="max-w-[1400px] mx-auto animate-fadein">
@@ -133,11 +140,12 @@ export default async function WeekEndPage({
         {status === "DRAFT" && <Badge tone="orange">Brouillon</Badge>}
         {status === "VALIDATED" && <Badge tone="blue">Validé</Badge>}
         {status === "PUBLISHED" && <Badge tone="green">Convocations publiées</Badge>}
-        {status === "PUBLISHED" && (
-          <CopyButton
-            text={convocationsMessage}
-            label="Copier le message du dimanche"
-            className="h-8 px-3 border border-line rounded-md text-xs font-semibold text-ink-soft hover:border-ink"
+        {status === "PUBLISHED" && posterData && (
+          <ConvocationCopyAndPoster
+            message={convocationsMessage}
+            data={posterData}
+            fileDateLabel={posterFileDateLabel}
+            triggerClassName="h-8 px-3 border border-line rounded-md text-xs font-semibold text-ink-soft hover:border-ink"
           />
         )}
         <a

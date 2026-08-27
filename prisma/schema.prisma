@@ -23,6 +23,7 @@ model User {
   accessLabel           String // free text shown in Staff screen, e.g. "Équipes autorisées"
   jobTitle              String // e.g. "Responsable de catégorie", "Coach", "Entraîneur des gardiens"
   email                 String?
+  phone                 String? // affiché sur la feuille de convocation (poster) quand ce membre du staff encadre un match
   active                Boolean   @default(true) // false = compte désactivé, connexion bloquée
   // Legacy sporting scope, superseded by StaffAccess (multi-catégories staff
   // permissions pass). Frozen: no longer written to by new code, kept only
@@ -95,11 +96,16 @@ model StaffAccess {
 // ---------- Teams & players ----------
 
 model Team {
-  id         String @id @default(cuid())
-  code       String @unique // "U13A"
+  id         String  @id @default(cuid())
+  code       String  @unique // "U13A"
   category   String // "U12" | "U13"
-  format     String @default("Foot à 8") // "Foot à 8" | "Foot à 11"
+  format     String  @default("Foot à 8") // "Foot à 8" | "Foot à 11"
   targetSize Int? // effectif cible — comparé à l'effectif réel sur l'écran Équipes
+  // Niveau de compétition (ex. "ELITE", "D1", "D3") — affiché comme
+  // "{category} {level}" (ex. "U12 ELITE"). Jamais déduit ou recopié d'une
+  // autre équipe : une équipe sans niveau configuré affiche "À confirmer"
+  // plutôt qu'une valeur incorrecte (voir feuille de convocation).
+  level      String?
 
   coach   User?   @relation("TeamCoach", fields: [coachId], references: [id])
   coachId String?
@@ -641,6 +647,7 @@ model Match {
   meetLocation String? // lieu de rendez-vous — peut différer du terrain (location), ex. parking du club avant un déplacement
   isHome       Boolean  @default(true)
   location     String?
+  surface      String? // "Synthétique" | "Naturelle" | "Stabilisé" | "Autre" — voir src/lib/match-validation.ts
   status       String // "Planifié" | "Joué"
   needed       Int      @default(12)
   formation    String   @default("1-3-3-1")

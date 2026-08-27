@@ -28,6 +28,18 @@ export async function updateTeamFormat(teamId: string, formData: FormData) {
   revalidatePath(`/equipes/${teamId}`);
 }
 
+// Niveau de compétition (ex. "ELITE", "D1", "D3") — affiché sur la feuille
+// de convocation comme "{category} {level}". Texte libre volontairement (le
+// club nomme ses niveaux comme il veut), jamais déduit automatiquement.
+export async function updateTeamLevel(teamId: string, formData: FormData) {
+  const user = await requireUser();
+  if (!canAccessTeam(user, teamId)) return;
+  const level = String(formData.get("level") ?? "").trim() || null;
+  await prisma.team.update({ where: { id: teamId }, data: { level } });
+  revalidatePath("/equipes");
+  revalidatePath(`/equipes/${teamId}`);
+}
+
 // Team creation isn't ADMIN-only: a Responsable de catégorie has genuine
 // pilotage of their perimeter and shouldn't need an admin to create a team
 // mid-season (e.g. Davy adding U9C). Non-admins are restricted to

@@ -38,6 +38,12 @@ export type CompetitionType = (typeof COMPETITION_TYPES)[number];
 
 export const competitionSchema = z.enum(COMPETITION_TYPES);
 
+// Terrain du match — utilisé notamment par la feuille de convocation
+// (poster hebdomadaire), jamais supposé "Synthétique" par défaut : un
+// terrain non renseigné affiche "À confirmer" plutôt qu'une valeur inventée.
+export const SURFACE_TYPES = ["Synthétique", "Naturelle", "Stabilisé", "Autre"] as const;
+export type SurfaceType = (typeof SURFACE_TYPES)[number];
+
 export const OBJECTIVE_STATUSES = ["ATTEINT", "PARTIEL", "NON_ATTEINT"] as const;
 export type ObjectiveStatus = (typeof OBJECTIVE_STATUSES)[number];
 

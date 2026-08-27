@@ -14,7 +14,7 @@ import { requireUser, canAccessTeam } from "@/lib/authz";
 import { computeBench } from "@/lib/composition-pool";
 import { Badge } from "@/components/ui/Badge";
 import { POSITIONS } from "@/lib/constants";
-import { MATCH_ROLES } from "@/lib/match-validation";
+import { MATCH_ROLES, SURFACE_TYPES } from "@/lib/match-validation";
 import { TRANSPORT_MODES, TRANSPORT_MODE_LABELS } from "@/lib/equipment";
 import {
   toggleConvocation,
@@ -268,6 +268,14 @@ export default async function MatchDetailPage({
                 placeholder="Adresse complète du lieu"
                 className={`${matchInputClass} col-span-2`}
               />
+              <select name="surface" defaultValue={match.surface ?? ""} className={matchInputClass}>
+                <option value="">Surface — non précisée</option>
+                {SURFACE_TYPES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
               <select name="transportMode" defaultValue={match.transportMode ?? ""} className={matchInputClass}>
                 <option value="">Transport — non précisé</option>
                 {TRANSPORT_MODES.map((m) => (

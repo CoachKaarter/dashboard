@@ -25,12 +25,13 @@ export async function createStaff(formData: FormData) {
   const jobTitle = String(formData.get("jobTitle") ?? "").trim();
   const accessLabel = String(formData.get("accessLabel") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim() || null;
+  const phone = String(formData.get("phone") ?? "").trim() || null;
   if (!username || !name || !ROLES.includes(role) || !jobTitle || !accessLabel) return;
 
   const tempPassword = randomPassword();
   const passwordHash = await bcrypt.hash(tempPassword, 10);
   const user = await prisma.user.create({
-    data: { username, name, role, jobTitle, accessLabel, email, passwordHash },
+    data: { username, name, role, jobTitle, accessLabel, email, phone, passwordHash },
   });
   await logActivity({ actorId: admin.id, summary: `a créé le compte ${name} (${role})`, entityType: "User", entityId: user.id });
   revalidatePath("/staff");
@@ -44,11 +45,12 @@ export async function updateStaff(userId: string, formData: FormData) {
   const jobTitle = String(formData.get("jobTitle") ?? "").trim();
   const accessLabel = String(formData.get("accessLabel") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim() || null;
+  const phone = String(formData.get("phone") ?? "").trim() || null;
   if (!name || !ROLES.includes(role) || !jobTitle || !accessLabel) return;
 
   await prisma.user.update({
     where: { id: userId },
-    data: { name, role, jobTitle, accessLabel, email },
+    data: { name, role, jobTitle, accessLabel, email, phone },
   });
   await logActivity({ actorId: admin.id, summary: `a modifié le compte ${name}`, entityType: "User", entityId: userId });
   revalidatePath("/staff");

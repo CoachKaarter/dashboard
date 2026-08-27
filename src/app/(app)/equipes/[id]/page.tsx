@@ -11,7 +11,7 @@ import { formatDateFull } from "@/lib/format";
 import { toQueryString } from "@/lib/query";
 import { computeTeamStats, computeForm } from "@/lib/team-stats";
 import { COMPETITION_TYPES } from "@/lib/match-validation";
-import { updateTeamTarget, updateTeamFormat, updateTeamCoach } from "../actions";
+import { updateTeamTarget, updateTeamFormat, updateTeamCoach, updateTeamLevel } from "../actions";
 
 const inputClass =
   "h-9 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none focus:border-blue focus:ring-[3px] focus:ring-blue-bg";
@@ -119,11 +119,18 @@ export default async function EquipeDetailPage({
         </Link>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mt-3.5">
+      <div className="grid grid-cols-4 gap-3 mt-3.5">
         <form action={updateTeamTarget.bind(null, id)} className="bg-surface border border-line rounded-lg p-3.5 flex flex-col gap-2">
           <span className="text-[11px] font-bold tracking-[0.08em] uppercase text-muted">Effectif cible</span>
           <div className="flex gap-2">
             <input type="number" name="targetSize" min={1} max={30} defaultValue={target ?? ""} className={`${inputClass} flex-1`} />
+            <button type="submit" className="h-9 px-3 rounded-md bg-ink text-white text-xs font-semibold hover:bg-[#2A2E36]">OK</button>
+          </div>
+        </form>
+        <form action={updateTeamLevel.bind(null, id)} className="bg-surface border border-line rounded-lg p-3.5 flex flex-col gap-2">
+          <span className="text-[11px] font-bold tracking-[0.08em] uppercase text-muted">Niveau (ex. ELITE, D1…)</span>
+          <div className="flex gap-2">
+            <input name="level" defaultValue={team.level ?? ""} placeholder="D1" className={`${inputClass} flex-1`} />
             <button type="submit" className="h-9 px-3 rounded-md bg-ink text-white text-xs font-semibold hover:bg-[#2A2E36]">OK</button>
           </div>
         </form>

@@ -74,6 +74,9 @@ export default async function StaffDetailPage({
           <Field label="Email">
             <input type="email" name="email" defaultValue={user.email ?? ""} className={inputClass} />
           </Field>
+          <Field label="Téléphone (affiché sur la feuille de convocation)">
+            <input type="tel" name="phone" defaultValue={user.phone ?? ""} placeholder="06 00 00 00 00" className={inputClass} />
+          </Field>
           <button type="submit" className="h-10 border-none rounded-md bg-ink text-white text-[13px] font-semibold cursor-pointer mt-1 hover:bg-[#2A2E36]">
             Enregistrer
           </button>
