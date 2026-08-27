@@ -31,6 +31,11 @@ test("buildParentCredentialsEmail: HTML body carries the same credentials", () =
   assert.match(html, /href="https:\/\/onzevo\.website\/parent\/login"/);
 });
 
+test("buildParentCredentialsEmail: header uses the real hosted Onzevo logo, not a text wordmark", () => {
+  const { html } = buildParentCredentialsEmail(base);
+  assert.match(html, /<img src="https:\/\/onzevo\.website\/onzevo-logo-light\.png"/);
+});
+
 test("buildParentCredentialsEmail: HTML-escapes player/club names so a stray '&' or '<' in data never breaks markup", () => {
   const { html } = buildParentCredentialsEmail({ ...base, clubName: "AS <Test> & Co", playerFirstName: "O'Brien" });
   assert.doesNotMatch(html, /<Test>/);

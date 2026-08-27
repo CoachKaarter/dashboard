@@ -45,8 +45,8 @@ export function buildParentCredentialsEmail(input: ParentCredentialsEmailInput) 
   const html = `
 <div style="font-family:Helvetica,Arial,sans-serif;background:#F6F6F4;padding:32px 16px;">
   <div style="max-width:440px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #E7E7E2;">
-    <div style="background:#171f3e;padding:22px 28px;">
-      <span style="color:#ffffff;font-weight:700;font-size:17px;letter-spacing:-0.01em;">Onze<span style="color:#00E68A;">vo</span></span>
+    <div style="background:#171f3e;padding:20px 28px;">
+      <img src="${APP_URL}/onzevo-logo-light.png" alt="Onzevo" height="22" style="height:22px;width:auto;display:block;" />
     </div>
     <div style="padding:28px;">
       <p style="margin:0 0 14px;font-size:15px;color:#16181c;">Bonjour,</p>
