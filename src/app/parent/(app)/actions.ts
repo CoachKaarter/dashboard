@@ -43,9 +43,31 @@ export async function markParentContentSeen(entityType: string, entityId: string
     return;
   }
 
-  if (entityType === "AVAILABILITY_WEEK" || entityType === "ANNOUNCEMENT" || entityType === "OBJECTIVE" || entityType === "OBJECTIVE_UPDATE") {
+  if (
+    entityType === "AVAILABILITY_WEEK" ||
+    entityType === "ANNOUNCEMENT" ||
+    entityType === "OBJECTIVE" ||
+    entityType === "OBJECTIVE_UPDATE" ||
+    entityType === "EQUIPMENT_ASSIGNMENT"
+  ) {
     await recordSeen(parent.parentAccountId, ref);
   }
+}
+
+// Cockpit v1.1 §7 — déclaratif uniquement : passe le prêt à
+// RETOUR_SIGNALE_PARENT, jamais RECUPERE_STAFF. Seul le staff, depuis le
+// Cockpit (markEquipmentRecovered), peut clôturer définitivement le prêt
+// et faire disparaître le rappel — voir src/app/(app)/materiel/actions.ts.
+export async function reportEquipmentReturned(assignmentId: string) {
+  const parent = await requireParent();
+  const assignment = await prisma.equipmentAssignment.findUnique({ where: { id: assignmentId } });
+  if (!assignment || assignment.parentAccountId !== parent.parentAccountId) return;
+  if (assignment.status === "RECUPERE_STAFF") return;
+
+  await prisma.equipmentAssignment.update({ where: { id: assignmentId }, data: { status: "RETOUR_SIGNALE_PARENT", parentReportedAt: new Date() } });
+  revalidatePath("/parent");
+  revalidatePath("/materiel");
+  revalidatePath("/");
 }
 
 export async function parentSignOutAction() {

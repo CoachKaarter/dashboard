@@ -6,11 +6,13 @@ import {
   buildConvocationWithdrawnCard,
   buildSessionCard,
   buildObjectiveCard,
+  buildJerseyBagCard,
   buildParentPriorityFeed,
   selectHero,
   type AvailabilityInput,
   type ConvocationInput,
   type SessionInput,
+  type JerseyBagInput,
 } from "./parent-priority";
 
 const NOW = new Date("2026-08-27T10:00:00.000Z"); // jeudi
@@ -32,6 +34,7 @@ function convocation(overrides: Partial<ConvocationInput> = {}): ConvocationInpu
   return {
     id: "conv-1",
     matchId: "match-1",
+    competition: "Championnat",
     teamCode: "U13C",
     opponent: "FC Sautron",
     isHome: true,
@@ -269,4 +272,56 @@ test("selectHero ignore les candidats null/undefined et reste déterministe à n
   const a = buildObjectiveCard({ id: "1", title: "A", isNew: true });
   const b = buildObjectiveCard({ id: "2", title: "B", isNew: true });
   assert.equal(selectHero([null, a, undefined, b]), a);
+});
+
+// ---------------------------------------------------------------------
+// Cockpit v1.1 §7 — Sac de maillots
+// ---------------------------------------------------------------------
+
+function jerseyBag(overrides: Partial<JerseyBagInput> = {}): JerseyBagInput {
+  return {
+    assignmentId: "ea-1",
+    playerFirstName: "Léo",
+    dueDate: new Date("2026-09-02T00:00:00.000Z"),
+    returnLocation: "l'entraînement du mercredi à La Profondine",
+    parentInstructions: null,
+    displayStatus: "CHEZ_LE_JOUEUR",
+    isNew: false,
+    now: NOW,
+    ...overrides,
+  };
+}
+
+test("sac de maillots: chez le joueur, pas encore urgent — reste visible mais discret (P3)", () => {
+  const card = buildJerseyBagCard(jerseyBag());
+  assert.equal(card.priorityType, "JERSEY_BAG_HELD");
+  assert.equal(card.priorityLevel, "P3");
+  assert.equal(card.cta?.action, "REPORT_EQUIPMENT_RETURNED");
+  assert.match(card.description!, /La Profondine/);
+});
+
+test("sac de maillots: retour prévu aujourd'hui — action requise (P1)", () => {
+  const card = buildJerseyBagCard(jerseyBag({ displayStatus: "RETOUR_AUJOURD_HUI" }));
+  assert.equal(card.priorityType, "JERSEY_BAG_DUE_TODAY");
+  assert.equal(card.priorityLevel, "P1");
+});
+
+test("sac de maillots: en retard — priorité maximale (P0)", () => {
+  const card = buildJerseyBagCard(jerseyBag({ displayStatus: "EN_RETARD" }));
+  assert.equal(card.priorityType, "JERSEY_BAG_LATE");
+  assert.equal(card.priorityLevel, "P0");
+  assert.match(card.description!, /Retour attendu depuis le/);
+});
+
+test("sac de maillots: retour signalé par le parent — plus de CTA, en attente du staff", () => {
+  const card = buildJerseyBagCard(jerseyBag({ displayStatus: "RETOUR_SIGNALE_PARENT" }));
+  assert.equal(card.priorityType, "JERSEY_BAG_REPORTED");
+  assert.equal(card.cta, undefined);
+});
+
+test("sac de maillots en retard outrank une convocation en attente pour samedi", () => {
+  const late = buildJerseyBagCard(jerseyBag({ displayStatus: "EN_RETARD" }));
+  const conv = buildConvocationCard(convocation({ isNew: true, confirmed: null }));
+  const { hero } = buildParentPriorityFeed([late, conv]);
+  assert.equal(hero?.priorityType, "JERSEY_BAG_LATE");
 });

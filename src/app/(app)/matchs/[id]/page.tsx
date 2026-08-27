@@ -15,6 +15,7 @@ import { computeBench } from "@/lib/composition-pool";
 import { Badge } from "@/components/ui/Badge";
 import { POSITIONS } from "@/lib/constants";
 import { MATCH_ROLES } from "@/lib/match-validation";
+import { TRANSPORT_MODES, TRANSPORT_MODE_LABELS } from "@/lib/equipment";
 import {
   toggleConvocation,
   recordScore,
@@ -253,6 +254,44 @@ export default async function MatchDetailPage({
                 min={2}
                 placeholder="Nombre d'équipes (ex. 16)"
                 className={matchInputClass}
+              />
+            </div>
+            <div className="col-span-2 pt-2 border-t border-line-soft grid grid-cols-2 gap-2.5">
+              <div className="col-span-2 text-[11px] font-bold tracking-[0.08em] uppercase text-muted-2">
+                Fiche de convocation parent — infos pratiques (facultatif)
+              </div>
+              <input name="estimatedEndTime" type="time" defaultValue={match.estimatedEndTime ?? ""} placeholder="Heure de fin estimée" className={matchInputClass} />
+              <input name="estimatedReturnTime" type="time" defaultValue={match.estimatedReturnTime ?? ""} placeholder="Heure de retour estimée" className={matchInputClass} />
+              <input
+                name="venueAddress"
+                defaultValue={match.venueAddress ?? ""}
+                placeholder="Adresse complète du lieu"
+                className={`${matchInputClass} col-span-2`}
+              />
+              <select name="transportMode" defaultValue={match.transportMode ?? ""} className={matchInputClass}>
+                <option value="">Transport — non précisé</option>
+                {TRANSPORT_MODES.map((m) => (
+                  <option key={m} value={m}>
+                    {TRANSPORT_MODE_LABELS[m]}
+                  </option>
+                ))}
+              </select>
+              <input name="dressCode" defaultValue={match.dressCode ?? ""} placeholder="Tenue demandée" className={matchInputClass} />
+              <input name="personalGear" defaultValue={match.personalGear ?? ""} placeholder="Matériel personnel à prévoir" className={matchInputClass} />
+              <input name="mealInfo" defaultValue={match.mealInfo ?? ""} placeholder="Repas / collation à prévoir" className={matchInputClass} />
+              <textarea
+                name="parentInstructions"
+                defaultValue={match.parentInstructions ?? ""}
+                placeholder="Consignes du staff pour les parents"
+                rows={2}
+                className={`${matchInputClass} col-span-2 h-auto py-2 resize-y`}
+              />
+              <textarea
+                name="parentNotes"
+                defaultValue={match.parentNotes ?? ""}
+                placeholder="Informations complémentaires (visibles des parents)"
+                rows={2}
+                className={`${matchInputClass} col-span-2 h-auto py-2 resize-y`}
               />
             </div>
             <button type="submit" className="col-span-2 h-9 border-none rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36]">

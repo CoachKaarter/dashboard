@@ -1,9 +1,10 @@
+import Link from "next/link";
 import { requireParentReady } from "@/lib/parent-guard";
 import { getParentPlanItems } from "@/lib/parent-planning";
 import { ParentPageHeader } from "@/components/parent/ParentPageHeader";
 import { ParentCard } from "@/components/parent/ParentCard";
 import { AvailabilityChoice } from "@/components/parent/AvailabilityChoice";
-import { CheckIcon, XIcon } from "@/components/parent/icons";
+import { CheckIcon, XIcon, ChevronRightIcon } from "@/components/parent/icons";
 import { setWeekendAvailability, setWeekendAbsenceReason } from "../actions";
 import { confirmMyConvocation } from "../planning/actions";
 
@@ -25,35 +26,40 @@ export default async function ParentMatchsPage() {
 
   return (
     <div className="flex flex-col gap-4 animate-fadein">
-      <ParentPageHeader title="Matchs à venir" />
+      <ParentPageHeader title="Rencontres à venir" />
 
       {items.length === 0 && (
         <ParentCard className="text-center py-8">
-          <div className="text-[14px] text-[#6E7178]">Aucun match programmé pour l&apos;instant.</div>
+          <div className="text-[14px] text-[#6E7178]">Aucune rencontre programmée pour l&apos;instant.</div>
         </ParentCard>
       )}
 
       {items.map((it, i) => (
         <ParentCard key={i}>
-          <div className="flex items-start gap-3">
-            <div className="w-12 text-center shrink-0">
-              <div className="text-[10px] uppercase tracking-[0.06em] text-[#8A8D93]">{DAY_NAMES[it.date.getDay()]}</div>
-              <div className="text-[19px] font-bold">{it.date.getDate()}</div>
+          {it.kind === "convocation" && it.matchId ? (
+            <Link href={`/parent/matchs/${it.matchId}`} className="flex items-start gap-3 -m-0.5 p-0.5 rounded-lg active:opacity-70">
+              <div className="w-12 text-center shrink-0">
+                <div className="text-[10px] uppercase tracking-[0.06em] text-[#8A8D93]">{DAY_NAMES[it.date.getDay()]}</div>
+                <div className="text-[19px] font-bold">{it.date.getDate()}</div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] font-bold tracking-[0.07em] uppercase text-club-primary">{it.label}</div>
+                <div className="text-[12.5px] text-[#6E7178] mt-0.5">{it.sub}</div>
+              </div>
+              <ChevronRightIcon size={16} className="text-[#C9CBC7] shrink-0 mt-1" />
+            </Link>
+          ) : (
+            <div className="flex items-start gap-3">
+              <div className="w-12 text-center shrink-0">
+                <div className="text-[10px] uppercase tracking-[0.06em] text-[#8A8D93]">{DAY_NAMES[it.date.getDay()]}</div>
+                <div className="text-[19px] font-bold">{it.date.getDate()}</div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] font-bold tracking-[0.07em] uppercase text-[#9A9DA3]">{it.label}</div>
+                <div className="text-[12.5px] text-[#6E7178] mt-0.5">{it.sub}</div>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              {it.kind === "convocation" ? (
-                <>
-                  <div className="text-[15px] font-bold">{it.label}</div>
-                  <div className="text-[12.5px] text-[#6E7178] mt-0.5">{it.sub}</div>
-                </>
-              ) : (
-                <>
-                  <div className="text-[15px] font-bold">Match</div>
-                  <div className="text-[12.5px] text-[#6E7178] mt-0.5">Informations à venir</div>
-                </>
-              )}
-            </div>
-          </div>
+          )}
 
           {it.kind === "convocation" && it.matchId ? (
             <div className="mt-3 pt-3 border-t border-[#EFEFEC] flex gap-1.5">

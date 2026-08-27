@@ -32,28 +32,29 @@ model User {
   teamIds               String[]  @default([])
   onboardingCompletedAt DateTime? // null = show the first-login onboarding flow
 
-  teams                  Team[]                    @relation("TeamCoach")
-  notes                  PlayerNote[]
-  evaluations            EvaluationScore[]
-  treatedAlerts          AlertTreated[]            @relation("AlertTreatedBy")
-  assignedAlerts         AlertTreated[]            @relation("AlertAssignee")
-  historyDecisions       TeamHistoryEntry[]
-  unavailabilities       Unavailability[]
-  activityLogs           ActivityLog[]
-  notifications          Notification[]
-  weekendAssignmentsMade WeekendAssignment[]
-  matchStaffRoles        MatchStaffAssignment[]
-  weekendPlansValidated  WeekendPlan[]
-  interviews             PlayerInterview[]
-  objectivesCreated      PlayerObjective[]
-  attendanceUpdates      Attendance[]
-  contentItemsCreated    TrainingContentItem[]
-  contentFavorites       TrainingContentFavorite[]
-  templatesCreated       SessionTemplate[]
-  announcementsPosted    StaffAnnouncement[]
-  physicalTestsRecorded  PhysicalTestResult[]
-  staffAccess            StaffAccess[]             @relation("StaffAccessUser")
-  staffAccessGranted     StaffAccess[]             @relation("StaffAccessGrantedBy")
+  teams                    Team[]                    @relation("TeamCoach")
+  notes                    PlayerNote[]
+  evaluations              EvaluationScore[]
+  treatedAlerts            AlertTreated[]            @relation("AlertTreatedBy")
+  assignedAlerts           AlertTreated[]            @relation("AlertAssignee")
+  historyDecisions         TeamHistoryEntry[]
+  unavailabilities         Unavailability[]
+  activityLogs             ActivityLog[]
+  notifications            Notification[]
+  weekendAssignmentsMade   WeekendAssignment[]
+  matchStaffRoles          MatchStaffAssignment[]
+  weekendPlansValidated    WeekendPlan[]
+  interviews               PlayerInterview[]
+  objectivesCreated        PlayerObjective[]
+  attendanceUpdates        Attendance[]
+  contentItemsCreated      TrainingContentItem[]
+  contentFavorites         TrainingContentFavorite[]
+  templatesCreated         SessionTemplate[]
+  announcementsPosted      StaffAnnouncement[]
+  physicalTestsRecorded    PhysicalTestResult[]
+  staffAccess              StaffAccess[]             @relation("StaffAccessUser")
+  staffAccessGranted       StaffAccess[]             @relation("StaffAccessGrantedBy")
+  equipmentAssignmentsMade EquipmentAssignment[]
 
   createdAt DateTime @default(now())
 }
@@ -106,7 +107,7 @@ model Team {
   sessions           TrainingSession[]
   recurringSlots     RecurringSlot[]
   matches            Match[]
-  jerseys            Jersey[]
+  equipment          Equipment[]
   calendarEvents     CalendarEvent[]
   announcements      StaffAnnouncement[]
   historyFrom        TeamHistoryEntry[]  @relation("HistoryFromTeam")
@@ -136,22 +137,22 @@ model Player {
   parentPhone String?
   parentEmail String?
 
-  notes              PlayerNote[]
-  attendances        Attendance[]
-  convocations       MatchConvocation[]
-  compositionSlots   CompositionSlot[]
-  matchStats         MatchPlayerStat[]
-  evaluations        EvaluationScore[]
-  history            TeamHistoryEntry[]
-  jerseys            Jersey[]
-  unavailabilities   Unavailability[]
-  parentAccount      ParentAccount?
-  availabilities     PlayerAvailability[]
-  sessionFeedback    SessionFeedback[]
-  weekendAssignments WeekendAssignment[]
-  interviews         PlayerInterview[]
-  objectives         PlayerObjective[]
-  physicalTests      PhysicalTestResult[]
+  notes                PlayerNote[]
+  attendances          Attendance[]
+  convocations         MatchConvocation[]
+  compositionSlots     CompositionSlot[]
+  matchStats           MatchPlayerStat[]
+  evaluations          EvaluationScore[]
+  history              TeamHistoryEntry[]
+  equipmentAssignments EquipmentAssignment[]
+  unavailabilities     Unavailability[]
+  parentAccount        ParentAccount?
+  availabilities       PlayerAvailability[]
+  sessionFeedback      SessionFeedback[]
+  weekendAssignments   WeekendAssignment[]
+  interviews           PlayerInterview[]
+  objectives           PlayerObjective[]
+  physicalTests        PhysicalTestResult[]
 
   createdAt DateTime @default(now())
 
@@ -183,17 +184,18 @@ model Unavailability {
 // une session cookie distincte (voir src/parent-auth.ts) pour qu'il n'y ait
 // jamais de confusion possible entre les deux systèmes d'identité.
 model ParentAccount {
-  id                 String               @id @default(cuid())
-  player             Player               @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  playerId           String               @unique
-  username           String               @unique
-  passwordHash       String
-  active             Boolean              @default(true)
-  mustChangePassword Boolean              @default(true)
-  lastLoginAt        DateTime?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  contentStates      ParentContentState[]
+  id                   String                @id @default(cuid())
+  player               Player                @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId             String                @unique
+  username             String                @unique
+  passwordHash         String
+  active               Boolean               @default(true)
+  mustChangePassword   Boolean               @default(true)
+  lastLoginAt          DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  contentStates        ParentContentState[]
+  equipmentAssignments EquipmentAssignment[]
 }
 
 // Accueil Parent v2 — mémoire NEW/SEEN/COMPLETED d'un contenu pour un
@@ -578,8 +580,23 @@ model Match {
   shareToken   String   @unique @default(cuid()) // lien de convocation partageable, sans connexion
 
   preMatchObjective String? // objectif fixé avant le match
-  mainInstructions  String? // consignes principales avant-match
-  preMatchNotes     String? // notes libres avant-match
+  mainInstructions  String? // consignes principales avant-match — STAFF UNIQUEMENT, jamais montré aux parents
+  preMatchNotes     String? // notes libres avant-match — STAFF UNIQUEMENT
+
+  // Fiche de convocation côté parent (Cockpit v1.1) — informations
+  // pratiques distinctes des champs tactiques ci-dessus (préMatchObjective/
+  // mainInstructions/preMatchNotes restent internes au staff). Tous
+  // facultatifs : un champ non renseigné est simplement masqué côté parent,
+  // jamais affiché comme une ligne vide.
+  estimatedEndTime    String? // heure de fin estimée du match, ex. "11:30" — affichée avec la mention "estimée"
+  estimatedReturnTime String? // heure de retour estimée, ex. "12:15" — idem
+  venueAddress        String? // adresse complète du lieu (le nom court reste dans `location`) — alimente "Ouvrir dans Maps"
+  transportMode       String? // "RDV_SUR_PLACE" | "DEPART_COLLECTIF" | "COVOITURAGE" | "AUTRE"
+  dressCode           String? // tenue demandée, ex. "Survêtement club, crampons"
+  personalGear        String? // matériel personnel à prévoir, ex. "Gourde, protège-tibias"
+  mealInfo            String? // repas / collation à prévoir
+  parentInstructions  String? // consignes du staff DESTINÉES AUX PARENTS — distinct de mainInstructions (tactique interne)
+  parentNotes         String? // informations complémentaires visibles des parents
 
   // Tournoi uniquement (competition = "Tournoi") — score global facultatif,
   // classement final possible sans score. Restent vides tant que le
@@ -597,11 +614,12 @@ model Match {
   improvementAreas String? // axes à retravailler — pourra alimenter la préparation des séances
   notableEvents    String? // faits marquants (texte libre, pas de minute par minute)
 
-  convocations       MatchConvocation[]
-  slots              CompositionSlot[]
-  stats              MatchPlayerStat[]
-  weekendAssignments WeekendAssignment[]
-  staffAssignments   MatchStaffAssignment[]
+  convocations         MatchConvocation[]
+  slots                CompositionSlot[]
+  stats                MatchPlayerStat[]
+  weekendAssignments   WeekendAssignment[]
+  staffAssignments     MatchStaffAssignment[]
+  equipmentAssignments EquipmentAssignment[]
 
   @@index([teamId])
   @@index([date])
@@ -799,20 +817,76 @@ model EvaluationScore {
   @@unique([playerId, period])
 }
 
-// ---------- Jerseys / matériel ----------
+// ---------- Matériel (Cockpit v1.1) ----------
+// Généralisé volontairement au-delà des seuls sacs de maillots (spec §8) :
+// Equipment = l'objet physique confié (un sac, un ballon, la caméra Veo...),
+// EquipmentAssignment = un cycle d'attribution/retour pour cet objet, avec
+// tout son historique (une ligne par attribution, jamais écrasée). Remplace
+// l'ancien modèle Jersey — les 3 sacs existants sont repris tels quels par
+// la migration (voir prisma/migrations), rien n'est perdu.
 
-model Jersey {
-  id           String    @id @default(cuid())
-  code         String    @unique // "SAC012"
-  team         Team      @relation(fields: [teamId], references: [id])
-  teamId       String
-  player       Player?   @relation(fields: [playerId], references: [id])
-  playerId     String?
-  responsible  String // "Famille Berthier"
-  issuedDate   DateTime
-  dueDate      DateTime
-  returnedDate DateTime?
-  condition    String // "Bon" | "À laver" | "Abîmé"
+model Equipment {
+  id       String  @id @default(cuid())
+  category String // "MAILLOTS" | "BALLONS" | "CHASUBLES" | "GOURDES" | "CAMERA_VEO" | "TROUSSE_MEDICALE" | "AUTRE" — seul MAILLOTS est réellement outillé pour l'instant (§8 : prêt à étendre, pas construit en avance)
+  code     String  @unique // "SAC012"
+  label    String? // libellé libre, ex. "Sac de maillots U13A"
+  team     Team?   @relation(fields: [teamId], references: [id])
+  teamId   String?
+  active   Boolean @default(true) // false = retiré du parc (perdu, hors service) — n'apparaît plus dans "Attribuer"
+
+  assignments EquipmentAssignment[]
+
+  createdAt DateTime @default(now())
+
+  @@index([teamId])
+  @@index([category])
+}
+
+model EquipmentAssignment {
+  id          String    @id @default(cuid())
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  equipmentId String
+
+  // Rencontre associée (facultative — un sac peut aussi être confié hors
+  // contexte de match, ex. pour un entraînement) et joueur/famille
+  // responsables. parentAccountId est ce qui permet de cibler le bon
+  // compte parent pour le rappel (§7) — peut être null si le joueur n'a
+  // pas de compte famille, auquel cas responsibleLabel reste la seule trace.
+  match            Match?         @relation(fields: [matchId], references: [id], onDelete: SetNull)
+  matchId          String?
+  player           Player?        @relation(fields: [playerId], references: [id], onDelete: SetNull)
+  playerId         String?
+  parentAccount    ParentAccount? @relation(fields: [parentAccountId], references: [id], onDelete: SetNull)
+  parentAccountId  String?
+  responsibleLabel String // "Famille Dupont" — toujours renseigné, même sans joueur/parent lié dans l'app
+
+  issuedDate     DateTime
+  dueDate        DateTime
+  returnLocation String? // lieu/événement prévu pour le retour, ex. "Entraînement du mercredi — La Profondine"
+
+  // Cycle de retour — deux étapes distinctes et volontairement séparées
+  // (§7) : parentReportedAt est déclaratif ("j'ai rapporté le sac"), jamais
+  // suffisant à lui seul ; seul returnedDate (renseigné par le staff, voir
+  // markEquipmentRecovered) fait foi de la récupération physique.
+  parentReportedAt DateTime?
+  returnedDate     DateTime?
+  washed           Boolean? // lavage effectué, renseigné au retour
+  condition        String? // "Bon" | "À laver" | "Abîmé"
+  staffComment     String?
+
+  status String @default("CHEZ_LE_JOUEUR") // "CHEZ_LE_JOUEUR" | "RETOUR_SIGNALE_PARENT" | "RECUPERE_STAFF" — "à attribuer"/"retour aujourd'hui"/"en retard" sont calculés, jamais stockés (src/lib/equipment.ts)
+
+  createdBy   User?   @relation(fields: [createdById], references: [id])
+  createdById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([equipmentId])
+  @@index([playerId])
+  @@index([parentAccountId])
+  @@index([matchId])
+  @@index([status])
 }
 
 // ---------- Planning: non-session/match events (réunions, tournois...) ----------

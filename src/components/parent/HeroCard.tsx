@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { confirmMyConvocation } from "@/app/parent/(app)/planning/actions";
 import { MarkSeenOnMount } from "./MarkSeenOnMount";
+import { ReportEquipmentReturnedButton } from "./ReportEquipmentReturnedButton";
 import type { PriorityCard, PriorityCta, PriorityLevel } from "@/lib/parent-priority";
 
 /**
@@ -57,8 +58,8 @@ export function HeroCard({ card }: { card: PriorityCard }) {
         {card.detail && <div className={`text-[13px] mt-1 ${s.fgSoft}`}>{card.detail}</div>}
         {(card.cta || card.secondaryCta) && (
           <div className="flex flex-wrap gap-2 mt-4">
-            {card.cta && <CtaButton cta={card.cta} matchId={card.matchId} primary />}
-            {card.secondaryCta && <CtaButton cta={card.secondaryCta} matchId={card.matchId} />}
+            {card.cta && <CtaButton cta={card.cta} card={card} primary />}
+            {card.secondaryCta && <CtaButton cta={card.secondaryCta} card={card} />}
           </div>
         )}
       </div>
@@ -66,7 +67,7 @@ export function HeroCard({ card }: { card: PriorityCard }) {
   );
 }
 
-function CtaButton({ cta, matchId, primary }: { cta: PriorityCta; matchId?: string; primary?: boolean }) {
+function CtaButton({ cta, card, primary }: { cta: PriorityCta; card: PriorityCard; primary?: boolean }) {
   const style = primary ? "bg-parent-navy text-white" : "bg-white border border-[#DADCE3] text-parent-navy";
   const className = `h-12 px-4 rounded-xl text-[14px] font-bold inline-flex items-center justify-center active:scale-[0.98] transition-all duration-150 ${style}`;
 
@@ -78,10 +79,14 @@ function CtaButton({ cta, matchId, primary }: { cta: PriorityCta; matchId?: stri
     );
   }
 
-  if (cta.action && matchId) {
+  if (cta.action === "REPORT_EQUIPMENT_RETURNED" && card.ref) {
+    return <ReportEquipmentReturnedButton assignmentId={card.ref.entityId} className={className} label={cta.label} />;
+  }
+
+  if (cta.action && card.matchId) {
     const confirmed = cta.action === "CONFIRM_PRESENT";
     return (
-      <form action={confirmMyConvocation.bind(null, matchId, confirmed)}>
+      <form action={confirmMyConvocation.bind(null, card.matchId, confirmed)}>
         <button type="submit" className={className}>
           {cta.label}
         </button>

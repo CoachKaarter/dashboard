@@ -33,9 +33,11 @@ import {
   buildObjectiveCard,
   buildFeedbackCard,
   buildAnnouncementCard,
+  buildJerseyBagCard,
   buildParentPriorityFeed,
   type PriorityCard,
 } from "@/lib/parent-priority";
+import { computeEquipmentDisplayStatus } from "@/lib/equipment";
 
 export type ParentHomeState = {
   clubName: string;
@@ -67,8 +69,19 @@ export async function getParentHomeState(parent: AuthedParent): Promise<ParentHo
   const weekStart = getWeekStart(now);
   const weekend = getWeekendDate(weekStart);
 
-  const [club, window, { player, sessions }, answers, weekendConvocation, categoryHasWeekendMatch, weekendAssignment, announcementsPreview, objectives, latestObjectiveUpdate] =
-    await Promise.all([
+  const [
+    club,
+    window,
+    { player, sessions },
+    answers,
+    weekendConvocation,
+    categoryHasWeekendMatch,
+    weekendAssignment,
+    announcementsPreview,
+    objectives,
+    latestObjectiveUpdate,
+    activeJerseyAssignment,
+  ] = await Promise.all([
       getClub(),
       getWindowForWeek(weekStart),
       getPlayerWeekSessions(parent.playerId, weekStart),
@@ -96,6 +109,13 @@ export async function getParentHomeState(parent: AuthedParent): Promise<ParentHo
         where: { objective: { playerId: parent.playerId, visibleToPlayer: true } },
         orderBy: { createdAt: "desc" },
       }),
+      // Cockpit v1.1 §7 — seul le compte parent lié au joueur qui a le sac
+      // (parentAccountId, jamais déduit du seul playerId) voit ce rappel.
+      prisma.equipmentAssignment.findFirst({
+        where: { parentAccountId: parent.parentAccountId, status: { not: "RECUPERE_STAFF" } },
+        orderBy: { createdAt: "desc" },
+        include: { equipment: true },
+      }),
     ]);
 
   const feedbacks = sessions.length
@@ -120,6 +140,7 @@ export async function getParentHomeState(parent: AuthedParent): Promise<ParentHo
     ...announcementsPreview.map((a) => ({ entityType: "ANNOUNCEMENT", entityId: a.id })),
     ...objectives.map((o) => ({ entityType: "OBJECTIVE", entityId: o.id })),
     ...(latestObjectiveUpdate ? [{ entityType: "OBJECTIVE_UPDATE", entityId: latestObjectiveUpdate.id }] : []),
+    ...(activeJerseyAssignment ? [{ entityType: "EQUIPMENT_ASSIGNMENT", entityId: activeJerseyAssignment.id }] : []),
   ];
   const states = await loadContentStates(parent.parentAccountId, refs);
 
@@ -150,6 +171,7 @@ export async function getParentHomeState(parent: AuthedParent): Promise<ParentHo
       id: weekendConvocation.id,
       matchId: weekendConvocation.matchId,
       teamCode: m.team.code,
+      competition: m.competition,
       opponent: m.opponent,
       isHome: m.isHome,
       date: m.date,
@@ -233,8 +255,38 @@ export async function getParentHomeState(parent: AuthedParent): Promise<ParentHo
     return buildAnnouncementCard({ id: a.id, title: a.title, body: a.body, category: a.category, isNew: !st?.seenAt });
   });
 
+  // ---- Cockpit v1.1 §7 — Sac de maillots ----
+  const jerseyBagCard = activeJerseyAssignment
+    ? (() => {
+        const st = getState(states, { entityType: "EQUIPMENT_ASSIGNMENT", entityId: activeJerseyAssignment.id });
+        const displayStatus = computeEquipmentDisplayStatus(activeJerseyAssignment, now);
+        // Ne peut pas arriver ici (la requête filtre déjà status != RECUPERE_STAFF,
+        // et activeJerseyAssignment existe) — garde défensive pure pour le typage.
+        if (displayStatus === "A_ATTRIBUER" || displayStatus === "RECUPERE_STAFF") return null;
+        return buildJerseyBagCard({
+          assignmentId: activeJerseyAssignment.id,
+          playerFirstName: player.firstName,
+          dueDate: activeJerseyAssignment.dueDate,
+          returnLocation: activeJerseyAssignment.returnLocation,
+          parentInstructions: activeJerseyAssignment.staffComment,
+          displayStatus,
+          isNew: !st?.seenAt,
+          now,
+        });
+      })()
+    : null;
+
   // ---- Sélection du Hero unique ----
-  const { hero } = buildParentPriorityFeed([availabilityCard, convocationCard, ...sessionCards, ...questionnaireCards, objectiveCard, feedbackCard, ...announcementCards]);
+  const { hero } = buildParentPriorityFeed([
+    availabilityCard,
+    convocationCard,
+    ...sessionCards,
+    ...questionnaireCards,
+    objectiveCard,
+    feedbackCard,
+    ...announcementCards,
+    jerseyBagCard,
+  ]);
 
   // ---- "À venir" — réutilise le planning existant, exclut l'événement déjà montré en Hero ----
   const to = new Date(now.getTime() + 21 * 86400000);

@@ -41,3 +41,23 @@ export function computeGoalDifference(scoreFor: number, scoreAgainst: number): n
 // the match report page and the weekend-results message block (src/lib/
 // weekend-results.ts) so the two never drift into slightly different wording.
 export const RESULT_LABEL_FR: Record<MatchResult, string> = { GAGNE: "Victoire", NUL: "Match nul", PERDU: "Défaite" };
+
+/**
+ * Cockpit v1.1 §2 — l'espace parent ne doit plus jamais afficher "Match"
+ * comme titre générique. Match.competition est déjà obligatoire en base
+ * (jamais null) ; ceci n'est qu'un affichage badge/titre lisible, avec un
+ * filet de sécurité neutre ("RENCONTRE") pour toute valeur imprévue —
+ * jamais "MATCH" en repli.
+ */
+const COMPETITION_BADGE_LABEL: Record<string, string> = {
+  Championnat: "CHAMPIONNAT",
+  Amical: "AMICAL",
+  Tournoi: "TOURNOI",
+  Coupe: "COUPE",
+  Plateau: "PLATEAU",
+};
+
+export function matchTypeBadge(competition: string | null | undefined): string {
+  if (!competition) return "RENCONTRE";
+  return COMPETITION_BADGE_LABEL[competition] ?? "RENCONTRE";
+}

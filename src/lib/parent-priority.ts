@@ -29,9 +29,11 @@
  *     est false.
  */
 
+import { matchTypeBadge } from "@/lib/match-phase";
+
 export type PriorityLevel = "P0" | "P1" | "P2" | "P3" | "P4";
 
-export type PriorityCta = { label: string; href?: string; action?: "CONFIRM_PRESENT" | "CONFIRM_ABSENT" };
+export type PriorityCta = { label: string; href?: string; action?: "CONFIRM_PRESENT" | "CONFIRM_ABSENT" | "REPORT_EQUIPMENT_RETURNED" };
 
 export type EntityRef = { entityType: string; entityId: string };
 
@@ -54,6 +56,7 @@ export type PriorityCard = {
 const TYPE_RANK: string[] = [
   "SESSION_CANCELLED",
   "CONVOCATION_MODIFIED_MAJOR",
+  "JERSEY_BAG_LATE",
   "ANNOUNCEMENT_URGENT",
   "CONVOCATION_WITHDRAWN",
   "CONVOCATION_NEW",
@@ -61,6 +64,7 @@ const TYPE_RANK: string[] = [
   "AVAILABILITY_DEADLINE_SOON",
   "AVAILABILITY_LATE",
   "AVAILABILITY_OPEN",
+  "JERSEY_BAG_DUE_TODAY",
   "QUESTIONNAIRE_PRE",
   "AVAILABILITY_PARTIAL",
   "SESSION_MODIFIED",
@@ -75,6 +79,8 @@ const TYPE_RANK: string[] = [
   "ANNOUNCEMENT",
   "MATCH_FINISHED",
   "CONVOCATION_CONFIRMED",
+  "JERSEY_BAG_HELD",
+  "JERSEY_BAG_REPORTED",
   "AVAILABILITY_COMPLETE",
   "AVAILABILITY_CLOSED",
   "NEXT_SESSION",
@@ -205,6 +211,7 @@ export type ConvocationInput = {
   id: string; // MatchConvocation.id
   matchId: string; // Match.id — porté par la carte pour le CTA Présent/Absent
   teamCode: string;
+  competition: string; // "Championnat" | "Amical" | "Tournoi" | ... — jamais affiché comme "Match" générique (spec Cockpit v1.1 §2)
   opponent: string | null;
   isHome: boolean;
   date: Date; // Paris midnight du match
@@ -230,6 +237,7 @@ export function buildConvocationCard(input: ConvocationInput): PriorityCard | nu
   const {
     matchId,
     teamCode,
+    competition,
     opponent,
     isHome,
     date,
@@ -247,9 +255,10 @@ export function buildConvocationCard(input: ConvocationInput): PriorityCard | nu
     now,
   } = input;
   const ref: EntityRef = { entityType: "CONVOCATION", entityId: input.id };
-  const href = "/parent/planning";
+  const href = `/parent/matchs/${matchId}`;
   const opponentLabel = opponent ?? "adversaire à définir";
-  const matchLine = `${teamCode} — ${opponentLabel}`;
+  const typeBadge = matchTypeBadge(competition);
+  const matchLine = `${typeBadge} · ${teamCode} — ${opponentLabel}`;
   const kickoffLine = [time ? `Coup d'envoi ${time}` : null, meetTime ? `Rendez-vous ${meetTime}` : null, location ?? meetLocation].filter(Boolean).join(" · ");
 
   // Cycle 6 — après-match : le résultat prime, redescend vite en priorité.
@@ -356,8 +365,8 @@ export function buildConvocationCard(input: ConvocationInput): PriorityCard | nu
       priorityLevel: "P2",
       isNew,
       title: "Aujourd'hui",
-      description: `Match vs ${opponentLabel} — ${teamCode}`,
-      detail: rdvPassed ? `Match aujourd'hui à ${time ?? "l'heure prévue"}` : kickoffLine,
+      description: `${typeBadge} vs ${opponentLabel} — ${teamCode}`,
+      detail: rdvPassed ? `${typeBadge} aujourd'hui à ${time ?? "l'heure prévue"}` : kickoffLine,
       cta: { label: "Voir les informations", href },
       matchId,
       ref,
@@ -586,6 +595,88 @@ export function buildAnnouncementCard(input: { id: string; title: string; body: 
     detail: input.body,
     cta: { label: "Lire", href: "/parent/infos" },
     ref: { entityType: "ANNOUNCEMENT", entityId: input.id },
+  };
+}
+
+// ---------------------------------------------------------------------
+// Cockpit v1.1 §7 — Matériel confié (sac de maillots)
+// ---------------------------------------------------------------------
+
+export type JerseyBagInput = {
+  assignmentId: string;
+  playerFirstName: string;
+  dueDate: Date;
+  returnLocation: string | null;
+  parentInstructions?: string | null; // consignes de lavage / précisions du staff (staffComment)
+  displayStatus: "CHEZ_LE_JOUEUR" | "RETOUR_AUJOURD_HUI" | "EN_RETARD" | "RETOUR_SIGNALE_PARENT";
+  isNew: boolean;
+  now: Date;
+};
+
+const JERSEY_MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+function fmtJerseyDate(d: Date): string {
+  return `${d.getDate()} ${JERSEY_MONTHS[d.getMonth()]}`;
+}
+
+/**
+ * Seul le compte parent lié au joueur qui a le sac voit cette carte (spec
+ * §7) — c'est à l'appelant (parent-home.ts) de ne construire cet input que
+ * pour l'attribution active dont parentAccountId correspond au parent
+ * connecté ; cette fonction ne fait aucune vérification d'identité, elle
+ * n'a pas accès à la base.
+ */
+export function buildJerseyBagCard(input: JerseyBagInput): PriorityCard {
+  const ref: EntityRef = { entityType: "EQUIPMENT_ASSIGNMENT", entityId: input.assignmentId };
+  const returnPhrase = input.returnLocation ? `, lors de ${input.returnLocation}` : "";
+
+  if (input.displayStatus === "RETOUR_SIGNALE_PARENT") {
+    return {
+      priorityType: "JERSEY_BAG_REPORTED",
+      priorityLevel: "P3",
+      isNew: input.isNew,
+      title: "Retour signalé",
+      description: "Merci — le staff doit encore confirmer la récupération du sac.",
+      ref,
+    };
+  }
+
+  const dueLine = `Merci de rapporter les maillots lavés le ${fmtJerseyDate(input.dueDate)}${returnPhrase}.`;
+  const cta = { label: "J'ai rapporté le sac", action: "REPORT_EQUIPMENT_RETURNED" as const };
+
+  if (input.displayStatus === "EN_RETARD") {
+    return {
+      priorityType: "JERSEY_BAG_LATE",
+      priorityLevel: "P0",
+      isNew: input.isNew,
+      title: "Sac de maillots en retard",
+      description: `Retour attendu depuis le ${fmtJerseyDate(input.dueDate)}${returnPhrase}.`,
+      detail: input.parentInstructions ?? undefined,
+      cta,
+      ref,
+    };
+  }
+  if (input.displayStatus === "RETOUR_AUJOURD_HUI") {
+    return {
+      priorityType: "JERSEY_BAG_DUE_TODAY",
+      priorityLevel: "P1",
+      isNew: input.isNew,
+      title: "Vous avez le sac de maillots",
+      description: dueLine,
+      detail: input.parentInstructions ?? undefined,
+      cta,
+      ref,
+    };
+  }
+  // CHEZ_LE_JOUEUR — pas encore urgent, reste visible mais discret.
+  return {
+    priorityType: "JERSEY_BAG_HELD",
+    priorityLevel: "P3",
+    isNew: input.isNew,
+    title: "Vous avez le sac de maillots",
+    description: dueLine,
+    detail: input.parentInstructions ?? undefined,
+    cta,
+    ref,
   };
 }
 

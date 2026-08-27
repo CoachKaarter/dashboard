@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { getAllPlayerStats } from "@/lib/stats";
 import { formatDateShort } from "@/lib/format";
+import { computeEquipmentDisplayStatus, EQUIPMENT_CATEGORY_LABELS } from "@/lib/equipment";
 
 export type AlertTone = "red" | "orange" | "green" | "blue";
 
@@ -480,30 +481,62 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
       });
     });
 
-  const lateJerseys = await prisma.jersey.findMany({
-    where:
-      scope === "ALL"
-        ? { returnedDate: null, dueDate: { lt: now } }
-        : { returnedDate: null, dueDate: { lt: now }, teamId: { in: scope } },
-    include: { team: true },
+  // Matériel (Cockpit v1.1) — une alerte par attribution active, jamais
+  // agrégée : "retour aujourd'hui"/"en retard" sont calculés à la volée
+  // (src/lib/equipment.ts), jamais stockés. Récupéré/chez le joueur sans
+  // échéance proche ne remonte pas ici — seuls les statuts qui demandent
+  // une action du staff (spec §6).
+  const activeAssignments = await prisma.equipmentAssignment.findMany({
+    where: {
+      status: { not: "RECUPERE_STAFF" },
+      equipment: scope === "ALL" ? {} : { OR: [{ teamId: null }, { teamId: { in: scope } }] },
+    },
+    include: { equipment: { include: { team: true } } },
+    orderBy: { dueDate: "asc" },
   });
-  if (lateJerseys.length) {
-    const key = "late-jerseys";
-    const teams = [...new Set(lateJerseys.map((j) => j.team.code))].join(" et ");
-    const maxLate = Math.max(
-      ...lateJerseys.map((j) => Math.round((now.getTime() - j.dueDate.getTime()) / 86400000))
-    );
-    information.push({
-      key,
-      tag: "MAT",
-      title: `${lateJerseys.length} sac${lateJerseys.length > 1 ? "s" : ""} de maillots non rendu${lateJerseys.length > 1 ? "s" : ""}`,
-      detail: `${teams} — retour attendu, aucun retour enregistré à ce jour.`,
-      meta: `+${maxLate} j`,
-      action: "Voir le matériel",
-      href: "/materiel",
-      treated: treatedSet.has(key),
+  for (const a of activeAssignments) {
+    const displayStatus = computeEquipmentDisplayStatus(a, now);
+    if (displayStatus === "CHEZ_LE_JOUEUR" || displayStatus === "A_ATTRIBUER") continue; // pas d'action à traiter pour l'instant
+    const label = EQUIPMENT_CATEGORY_LABELS[a.equipment.category] ?? a.equipment.category;
+    const key = `equipment-assignment:${a.id}:${displayStatus}`;
+    const teamTag = a.equipment.team?.code ?? "MAT";
+    if (displayStatus === "EN_RETARD") {
+      urgent.push({
+        key,
+        tag: teamTag,
+        title: `${label} en retard — ${a.responsibleLabel}`,
+        detail: `Retour attendu depuis le ${formatDateShort(a.dueDate)}.`,
+        meta: "En retard",
+        action: "Voir le matériel",
+        href: `/materiel#${a.id}`,
+        treated: treatedSet.has(key),
         decision: decisionFor(key),
-    });
+      });
+    } else if (displayStatus === "RETOUR_AUJOURD_HUI") {
+      traiter.push({
+        key,
+        tag: teamTag,
+        title: `${label} chez ${a.responsibleLabel} — retour prévu aujourd'hui`,
+        detail: a.returnLocation ? `Retour attendu : ${a.returnLocation}.` : "Retour attendu aujourd'hui.",
+        meta: "Aujourd'hui",
+        action: "Voir le matériel",
+        href: `/materiel#${a.id}`,
+        treated: treatedSet.has(key),
+        decision: decisionFor(key),
+      });
+    } else if (displayStatus === "RETOUR_SIGNALE_PARENT") {
+      traiter.push({
+        key,
+        tag: teamTag,
+        title: `${label} — retour signalé par ${a.responsibleLabel}`,
+        detail: "Confirmation du staff nécessaire pour clôturer ce prêt.",
+        meta: "À confirmer",
+        action: "Voir le matériel",
+        href: `/materiel#${a.id}`,
+        treated: treatedSet.has(key),
+        decision: decisionFor(key),
+      });
+    }
   }
 
   // Entretiens joueurs : un prochain point programmé (nextReviewDate) qui

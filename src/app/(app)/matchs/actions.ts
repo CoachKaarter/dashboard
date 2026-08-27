@@ -17,6 +17,7 @@ import {
   tournamentSchema,
 } from "@/lib/match-validation";
 import { readXlsxFirstSheetGrid, extractMatchRows, buildMatchImportCandidates } from "@/lib/match-import";
+import { TRANSPORT_MODES } from "@/lib/equipment";
 
 function computeMeetTime(time: string | null, delaiRdv: number): string | null {
   if (!time) return null;
@@ -245,6 +246,20 @@ export async function updateMatch(matchId: string, formData: FormData) {
   const needed = neededParsed.data;
   const settings = await getSettings();
 
+  // Fiche de convocation parent (Cockpit v1.1 §3) — infos pratiques
+  // distinctes des champs tactiques (preMatchObjective/mainInstructions/
+  // preMatchNotes ci-dessus, jamais montrés aux parents).
+  const estimatedEndTime = String(formData.get("estimatedEndTime") || "").trim() || null;
+  const estimatedReturnTime = String(formData.get("estimatedReturnTime") || "").trim() || null;
+  const venueAddress = String(formData.get("venueAddress") || "").trim() || null;
+  const transportModeRaw = String(formData.get("transportMode") || "");
+  const transportMode = TRANSPORT_MODES.includes(transportModeRaw as (typeof TRANSPORT_MODES)[number]) ? transportModeRaw : null;
+  const dressCode = String(formData.get("dressCode") || "").trim() || null;
+  const personalGear = String(formData.get("personalGear") || "").trim() || null;
+  const mealInfo = String(formData.get("mealInfo") || "").trim() || null;
+  const parentInstructions = String(formData.get("parentInstructions") || "").trim() || null;
+  const parentNotes = String(formData.get("parentNotes") || "").trim() || null;
+
   await prisma.match.update({
     where: { id: matchId },
     data: {
@@ -252,6 +267,7 @@ export async function updateMatch(matchId: string, formData: FormData) {
       meetTime: computeMeetTime(time, settings.delaiRdv),
       meetLocation,
       isHome, location, needed, preMatchObjective, mainInstructions, preMatchNotes,
+      estimatedEndTime, estimatedReturnTime, venueAddress, transportMode, dressCode, personalGear, mealInfo, parentInstructions, parentNotes,
       ...tournamentParsed.data,
     },
   });

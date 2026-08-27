@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getWeekStart } from "@/lib/availability";
+import { matchTypeBadge } from "@/lib/match-phase";
 import type { AuthedParent } from "@/lib/parent-session";
 
 export type ParentPlanStatus = "entrainement" | "annule" | "aRepondre" | "dispoAVenir" | "convoque" | "neutral";
@@ -77,8 +78,13 @@ export async function getParentPlanItems(parent: AuthedParent, from: Date, to: D
         return {
           date: d,
           kind: "convocation" as const,
-          label: `Match${conv.match.opponent ? ` — ${conv.match.opponent}` : ""}`,
-          sub: [conv.match.time ? `Coup d'envoi ${conv.match.time}` : null, conv.match.meetTime ? `RDV ${conv.match.meetTime}` : null, conv.match.location]
+          label: matchTypeBadge(conv.match.competition),
+          sub: [
+            conv.match.opponent,
+            conv.match.time ? `Coup d'envoi ${conv.match.time}` : null,
+            conv.match.meetTime ? `RDV ${conv.match.meetTime}` : null,
+            conv.match.location,
+          ]
             .filter(Boolean)
             .join(" · "),
           matchId: conv.matchId,
@@ -93,7 +99,7 @@ export async function getParentPlanItems(parent: AuthedParent, from: Date, to: D
       return {
         date: d,
         kind: "weekend" as const,
-        label: "Match",
+        label: "RENCONTRE",
         sub: "Informations à venir",
         answer,
         weekStartIso: getWeekStart(d).toISOString(),
