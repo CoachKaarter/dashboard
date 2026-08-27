@@ -107,6 +107,22 @@ model Team {
   // plutôt qu'une valeur incorrecte (voir feuille de convocation).
   level      String?
 
+  // Valeurs par défaut "infos parents" de l'équipe (niveau 1 de la
+  // hiérarchie d'héritage — voir src/lib/match-parent-info.ts). Toutes
+  // facultatives : une équipe qui n'en règle aucune hérite simplement du
+  // modèle de match puis des réglages généraux du club (Settings.delaiRdv).
+  // Jamais recopiées physiquement dans chaque Match — un changement ici se
+  // répercute sur tout match NON PUBLIÉ, jamais sur un match déjà publié
+  // (Match.parentInfoPublishedAt fige l'héritage à cet instant).
+  meetTimeDeltaMinutes      Int? // RDV habituel = coup d'envoi - X minutes
+  defaultTransportMode      String? // "RDV_SUR_PLACE" | "DEPART_COLLECTIF" | "COVOITURAGE" | "AUTRE"
+  defaultDressCode          String?
+  defaultPersonalGear       String?
+  defaultMealInfo           String?
+  defaultParentInstructions String?
+  defaultDurationMinutes    Int? // pour calculer une fin de match estimée
+  defaultReturnDelayMinutes Int? // délai après la fin pour calculer un retour estimé
+
   coach   User?   @relation("TeamCoach", fields: [coachId], references: [id])
   coachId String?
 
@@ -121,6 +137,51 @@ model Team {
   historyTo          TeamHistoryEntry[]  @relation("HistoryToTeam")
   weekendAssignments WeekendAssignment[]
   staffAccess        StaffAccess[]
+}
+
+// Niveau 2 — lieu/stade enregistré une fois, réutilisé sur tous les matchs
+// qui s'y jouent. Match.location/venueAddress restent les champs affichés
+// partout dans l'app (poster, espace parent, messages) — choisir un Venue
+// ne fait que les PRÉ-REMPLIR à la création, jamais un lien vivant : rien
+// d'autre à modifier dans le reste du code, et un match garde son adresse
+// même si le Venue est renommé ensuite.
+model Venue {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  address      String?
+  city         String?
+  postalCode   String?
+  meetingPoint String? // point de rendez-vous habituel sur ce lieu
+  parkingInfo  String?
+  accessInfo   String?
+  notes        String?
+  matches      Match[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Niveau 3 — modèle de match réutilisable (ex. "Championnat — Extérieur"),
+// sélectionné automatiquement à la création selon competition/isHome
+// (src/lib/match-parent-info.ts:selectMatchTemplate) mais toujours
+// modifiable. Un même modèle sert à toutes les catégories/équipes du club —
+// aucune hypothèse U12/U13 ici (§27).
+model MatchTemplate {
+  id                   String   @id @default(cuid())
+  name                 String   @unique
+  competition          String? // filtre de sélection auto — null = s'applique à tous les types
+  isHome               Boolean? // filtre de sélection auto — null = domicile ET extérieur (ex. Tournoi)
+  meetTimeDeltaMinutes Int?
+  transportMode        String?
+  dressCode            String?
+  personalGear         String?
+  mealInfo             String?
+  parentInstructions   String?
+  durationMinutes      Int?
+  returnDelayMinutes   Int?
+  isDefault            Boolean  @default(false) // fourni par le produit — les responsables peuvent en créer d'autres
+  matches              Match[]
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 }
 
 model Player {
@@ -673,6 +734,24 @@ model Match {
   mealInfo            String? // repas / collation à prévoir
   parentInstructions  String? // consignes du staff DESTINÉES AUX PARENTS — distinct de mainInstructions (tactique interne)
   parentNotes         String? // informations complémentaires visibles des parents
+
+  // Préremplissage "infos parents" (voir src/lib/match-parent-info.ts) —
+  // TOUS les champs ci-dessus restent la source affichée partout dans
+  // l'app ; ils ne signifient plus "vide = rien à afficher" mais "vide =
+  // hérité du modèle puis de l'équipe puis des réglages du club" tant que
+  // parentInfoPublishedAt est null. Une valeur non nulle dans un de ces
+  // champs a toujours été et reste un override explicite pour CE match.
+  venue                 Venue?         @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  venueId               String?
+  matchTemplate         MatchTemplate? @relation(fields: [matchTemplateId], references: [id], onDelete: SetNull)
+  matchTemplateId       String?
+  // Renseigné au moment où les convocations de ce match sont publiées pour
+  // la première fois : à cet instant, chaque champ hérité ci-dessus est
+  // réécrit avec sa valeur RÉSOLUE (devenant de fait un override figé) —
+  // un changement ultérieur des réglages Team/MatchTemplate ne modifie donc
+  // plus jamais un match déjà publié. Pas de blob JSON séparé : les mêmes
+  // colonnes structurées servent avant et après publication.
+  parentInfoPublishedAt DateTime?
 
   // Tournoi uniquement (competition = "Tournoi") — score global facultatif,
   // classement final possible sans score. Restent vides tant que le
