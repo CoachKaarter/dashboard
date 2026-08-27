@@ -55,6 +55,7 @@ model User {
   staffAccess              StaffAccess[]             @relation("StaffAccessUser")
   staffAccessGranted       StaffAccess[]             @relation("StaffAccessGrantedBy")
   equipmentAssignmentsMade EquipmentAssignment[]
+  parentInvitationsCreated ParentInvitation[]
 
   createdAt DateTime @default(now())
 }
@@ -147,6 +148,7 @@ model Player {
   equipmentAssignments EquipmentAssignment[]
   unavailabilities     Unavailability[]
   parentAccount        ParentAccount?
+  parentInvitations    ParentInvitation[]
   availabilities       PlayerAvailability[]
   sessionFeedback      SessionFeedback[]
   weekendAssignments   WeekendAssignment[]
@@ -184,18 +186,85 @@ model Unavailability {
 // une session cookie distincte (voir src/parent-auth.ts) pour qu'il n'y ait
 // jamais de confusion possible entre les deux systèmes d'identité.
 model ParentAccount {
-  id                   String                @id @default(cuid())
-  player               Player                @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  playerId             String                @unique
-  username             String                @unique
+  id                   String                     @id @default(cuid())
+  player               Player                     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId             String                     @unique
+  username             String                     @unique
   passwordHash         String
-  active               Boolean               @default(true)
-  mustChangePassword   Boolean               @default(true)
+  active               Boolean                    @default(true)
+  mustChangePassword   Boolean                    @default(true)
   lastLoginAt          DateTime?
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
   contentStates        ParentContentState[]
   equipmentAssignments EquipmentAssignment[]
+  passwordResetTokens  ParentPasswordResetToken[]
+}
+
+// Droit d'accès accordé par le club à un parent, avant toute activation —
+// remplace l'ancien flux "mot de passe temporaire envoyé par email" (voir
+// src/lib/email.ts). Un ParentAccount n'est créé QUE lorsque le parent
+// active réellement son invitation (option retenue : jamais de compte
+// "actif" avant activation réelle — cf. audit du 27/08). Le jeton brut
+// n'existe jamais en base, seulement son empreinte (tokenHash) — voir
+// src/lib/parent-invitation-token.ts.
+model ParentInvitation {
+  id          String    @id @default(cuid())
+  player      Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId    String
+  email       String
+  // Identifiant réservé pour ce parent dès la préparation de l'invitation
+  // (généré une seule fois, jamais régénéré par un renvoi) — permet au
+  // staff de le voir avant l'envoi, et devient le username du ParentAccount
+  // créé à l'activation. generateUsername() doit vérifier son unicité à la
+  // fois contre ParentAccount ET contre les autres invitations non
+  // révoquées/non expirées, pour éviter que deux familles distinctes ne se
+  // voient réserver le même identifiant avant activation.
+  username    String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  sentAt      DateTime?
+  createdBy   User?     @relation(fields: [createdById], references: [id])
+  createdById String?
+
+  @@index([playerId])
+  @@index([email])
+  @@index([expiresAt])
+}
+
+// Jeton de réinitialisation de mot de passe — même discipline que
+// ParentInvitation (jeton brut jamais stocké, usage unique, expiration
+// courte : 30 minutes au lieu de 72h, voir src/lib/parent-password-reset.ts).
+model ParentPasswordResetToken {
+  id              String        @id @default(cuid())
+  parentAccount   ParentAccount @relation(fields: [parentAccountId], references: [id], onDelete: Cascade)
+  parentAccountId String
+  tokenHash       String        @unique
+  expiresAt       DateTime
+  usedAt          DateTime?
+  createdAt       DateTime      @default(now())
+
+  @@index([parentAccountId])
+  @@index([expiresAt])
+}
+
+// Compteur générique pour un rate limiting compatible serverless/Vercel —
+// une Map en mémoire ne fonctionnerait pas (plusieurs instances, chacune sa
+// propre mémoire) ; ce compteur vit dans Postgres, déjà accessible via
+// Prisma, donc correct par construction quel que soit le nombre d'instances.
+// "key" identifie la ressource limitée, ex. "parent-login:kyllian.gabala",
+// "activation:203.0.113.4", "forgot-password:famille@mail.fr" — voir
+// src/lib/rate-limit.ts. Nettoyage opportuniste des lignes expirées à
+// chaque vérification, pas de job planifié nécessaire à ce volume.
+model RateLimitHit {
+  id        String   @id @default(cuid())
+  key       String
+  createdAt DateTime @default(now())
+
+  @@index([key, createdAt])
 }
 
 // Accueil Parent v2 — mémoire NEW/SEEN/COMPLETED d'un contenu pour un

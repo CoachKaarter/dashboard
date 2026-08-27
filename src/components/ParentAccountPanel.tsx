@@ -1,100 +1,105 @@
 "use client";
 
 import { useActionState } from "react";
-import { CopyButton } from "@/components/CopyButton";
 import {
-  createParentAccountAction,
-  resetParentPasswordAction,
+  sendInvitationAction,
+  resendInvitationAction,
+  sendPasswordResetAction,
   setParentAccountActive,
   deleteParentAccountAction,
+  type InviteActionResult,
 } from "@/app/(app)/joueurs/[id]/parent-account-actions";
+import type { FamilyAccessStatus } from "@/lib/parent-invitation-status";
+import { FAMILY_ACCESS_STATUS_LABEL } from "@/lib/parent-invitation-status";
 
 type Account = { id: string; username: string; active: boolean } | null;
+type LatestInvitation = { sentAt: Date | null; expiresAt: Date } | null;
+
+const STATUS_TONE: Record<FamilyAccessStatus, { color: string; background: string }> = {
+  missing_email: { color: "#9A9DA3", background: "#F0F0EC" },
+  ready: { color: "#3C6E9F", background: "#EBF2F8" },
+  sent: { color: "#C97A17", background: "#FBF1E4" },
+  expired: { color: "#C4362C", background: "#FBEDEB" },
+  activated: { color: "#3F8F5B", background: "#ECF5EF" },
+  disabled: { color: "#C4362C", background: "#FBEDEB" },
+};
 
 export function ParentAccountPanel({
   playerId,
   playerName,
+  parentEmail,
   account,
+  status,
+  latestInvitation,
 }: {
   playerId: string;
   playerName: string;
+  parentEmail: string | null;
   account: Account;
+  status: FamilyAccessStatus;
+  latestInvitation: LatestInvitation;
 }) {
-  const [createResult, createFormAction, creating] = useActionState(createParentAccountAction, null);
-  const [resetResult, resetFormAction, resetting] = useActionState(resetParentPasswordAction, null);
-
-  const createCredentials = createResult && "username" in createResult ? createResult : null;
-  const resetCredentials = resetResult && "username" in resetResult ? resetResult : null;
-  const credentials = createCredentials ?? resetCredentials;
-  const errorMsg =
-    createResult && "error" in createResult ? createResult.error : resetResult && "error" in resetResult ? resetResult.error : null;
+  const [inviteResult, inviteFormAction, inviting] = useActionState<InviteActionResult | null, FormData>(sendInvitationAction, null);
+  const tone = STATUS_TONE[status];
 
   return (
     <div className="bg-surface border border-line rounded-lg p-3.5">
       <div className="flex items-center gap-2 mb-2.5">
-        <span className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Compte famille</span>
+        <span className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Accès famille</span>
         <span className="flex-1" />
-        {account ? (
-          <span
-            className="text-[11px] font-semibold px-2 py-0.5 rounded"
-            style={{ color: account.active ? "#3F8F5B" : "#C4362C", background: account.active ? "#ECF5EF" : "#FBEDEB" }}
-          >
-            {account.active ? "Actif" : "Désactivé"}
-          </span>
-        ) : (
-          <span className="text-[11px] font-semibold px-2 py-0.5 rounded text-muted bg-line-soft">Aucun compte</span>
-        )}
+        <span className="text-[11px] font-semibold px-2 py-0.5 rounded" style={{ color: tone.color, background: tone.background }}>
+          {FAMILY_ACCESS_STATUS_LABEL[status]}
+        </span>
       </div>
 
-      {errorMsg && <div className="text-[12.5px] text-red mb-2">{errorMsg}</div>}
+      {inviteResult && !inviteResult.ok && <div className="text-[12.5px] text-red mb-2">{inviteResult.error}</div>}
+      {inviteResult?.ok && <div className="text-[12.5px] text-green mb-2">Invitation envoyée à {inviteResult.email}.</div>}
 
-      {credentials && (
-        <div className="mb-3 rounded-md border border-blue/25 bg-blue-bg p-3 text-[12.5px]">
-          <div className="font-semibold mb-1">{playerName}</div>
-          <div>
-            Identifiant : <span className="font-mono font-bold">{credentials.username}</span>
-          </div>
-          <div>
-            Mot de passe temporaire : <span className="font-mono font-bold">{credentials.tempPassword}</span>
-          </div>
-          <EmailStatusLine status={credentials.emailStatus} error={credentials.emailError} />
-          <CopyButton
-            text={`${playerName}\nIdentifiant : ${credentials.username}\nMot de passe temporaire : ${credentials.tempPassword}`}
-            label="Copier les informations"
-            className="mt-2 h-8 px-3 rounded-md bg-ink text-white text-[11.5px] font-semibold hover:bg-[#2A2E36]"
-          />
-        </div>
+      {status === "missing_email" && (
+        <div className="text-[12.5px] text-muted">Renseigne l&apos;email du parent ci-dessus pour pouvoir envoyer une invitation.</div>
       )}
 
-      {!account && (
-        <form action={createFormAction}>
+      {status === "ready" && (
+        <form action={inviteFormAction}>
           <input type="hidden" name="playerId" value={playerId} />
           <button
             type="submit"
-            disabled={creating}
+            disabled={inviting}
             className="w-full h-9 rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36] disabled:opacity-60"
           >
-            {creating ? "Création…" : "Créer le compte"}
+            {inviting ? "Envoi…" : `Envoyer l'invitation à ${parentEmail}`}
           </button>
         </form>
       )}
 
-      {account && (
+      {(status === "sent" || status === "expired") && (
+        <div className="flex flex-col gap-2">
+          <div className="text-[12.5px] text-ink-soft">
+            {status === "sent" && latestInvitation?.sentAt
+              ? `Invitation envoyée le ${formatDate(latestInvitation.sentAt)}, valable jusqu'au ${formatDate(latestInvitation.expiresAt)}.`
+              : "Le lien d'activation précédent a expiré."}
+          </div>
+          <form action={resendInvitationAction.bind(null, playerId)}>
+            <button type="submit" className="w-full h-9 rounded-md bg-ink text-white text-[12.5px] font-semibold hover:bg-[#2A2E36]">
+              Renvoyer l&apos;invitation
+            </button>
+          </form>
+        </div>
+      )}
+
+      {account && (status === "activated" || status === "disabled") && (
         <div className="flex flex-col gap-2">
           <div className="text-[12.5px] text-ink-soft">
             Identifiant : <span className="font-mono font-semibold">{account.username}</span>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <form action={resetFormAction}>
-              <input type="hidden" name="accountId" value={account.id} />
-              <button
-                type="submit"
-                disabled={resetting}
-                className="h-8 px-3 border border-line rounded-md text-xs font-semibold text-ink-soft hover:border-ink disabled:opacity-60"
-              >
-                Réinitialiser le mot de passe
-              </button>
-            </form>
+            {status === "activated" && (
+              <form action={sendPasswordResetAction.bind(null, account.id)}>
+                <button type="submit" className="h-8 px-3 border border-line rounded-md text-xs font-semibold text-ink-soft hover:border-ink">
+                  Envoyer un lien de réinitialisation
+                </button>
+              </form>
+            )}
             <form action={setParentAccountActive.bind(null, account.id, !account.active)}>
               <button
                 type="submit"
@@ -108,7 +113,7 @@ export function ParentAccountPanel({
             <form
               action={deleteParentAccountAction.bind(null, account.id)}
               onSubmit={(e) => {
-                if (!window.confirm(`Supprimer définitivement le compte famille de ${playerName} ?\n\nLe parent perdra l'accès immédiatement. Un nouveau compte pourra être recréé plus tard si besoin.`)) {
+                if (!window.confirm(`Supprimer définitivement le compte famille de ${playerName} ?\n\nLe parent perdra l'accès immédiatement. Une nouvelle invitation pourra être envoyée plus tard si besoin.`)) {
                   e.preventDefault();
                 }
               }}
@@ -124,16 +129,6 @@ export function ParentAccountPanel({
   );
 }
 
-function EmailStatusLine({ status, error }: { status: "sent" | "failed" | "none"; error?: string }) {
-  if (status === "sent") {
-    return <div className="mt-1.5 text-green font-semibold">✓ Email envoyé au parent avec ces identifiants.</div>;
-  }
-  if (status === "failed") {
-    return (
-      <div className="mt-1.5 text-red font-semibold">
-        Échec de l&apos;envoi de l&apos;email{error ? ` (${error})` : ""} — transmets ces identifiants toi-même.
-      </div>
-    );
-  }
-  return <div className="mt-1.5 text-muted">Aucun email parent renseigné — transmets ces identifiants toi-même.</div>;
+function formatDate(d: Date) {
+  return new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }

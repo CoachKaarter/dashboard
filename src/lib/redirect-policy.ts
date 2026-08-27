@@ -30,8 +30,15 @@ export function decideStaffMiddleware(pathname: string, isLoggedIn: boolean): Ro
 }
 
 export function decideParentMiddleware(pathname: string, hasParentCookie: boolean): RouteDecision {
-  const isParentLogin = pathname.startsWith("/parent/login");
-  if (!hasParentCookie && !isParentLogin) return { type: "redirect", to: "/parent/login" };
+  // Activation (invitation link) and password reset must be reachable by a
+  // parent who has never logged in — that's the whole point of both flows —
+  // so, like /parent/login, they're public regardless of the session cookie.
+  const isPublic =
+    pathname.startsWith("/parent/login") ||
+    pathname.startsWith("/parent/activation") ||
+    pathname.startsWith("/parent/reinitialiser") ||
+    pathname.startsWith("/parent/mot-de-passe-oublie");
+  if (!hasParentCookie && !isPublic) return { type: "redirect", to: "/parent/login" };
   return { type: "next" };
 }
 

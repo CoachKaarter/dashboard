@@ -1,44 +1,85 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildParentCredentialsEmail } from "./email";
+import { buildParentInvitationEmail, buildParentPasswordResetEmail } from "./email";
 
-const base = {
+const invitationBase = {
   to: "famille@example.test",
   clubName: "Saint-Sébastien FC",
   playerFirstName: "Léo",
   playerLastName: "Dupont",
-  username: "leo.dupont",
-  tempPassword: "aB3xY9kLmZ",
+  activationUrl: "https://onzevo.website/parent/activation/abc123",
 };
 
-test("buildParentCredentialsEmail: subject names the club", () => {
-  const { subject } = buildParentCredentialsEmail(base);
-  assert.match(subject, /Saint-Sébastien FC/);
+test("buildParentInvitationEmail: subject matches the specified copy", () => {
+  const { subject } = buildParentInvitationEmail(invitationBase);
+  assert.equal(subject, "Votre espace famille Onzevo est prêt");
 });
 
-test("buildParentCredentialsEmail: plain-text body carries the real identifiant/mot de passe and the login link", () => {
-  const { text } = buildParentCredentialsEmail(base);
-  assert.match(text, /leo\.dupont/);
-  assert.match(text, /aB3xY9kLmZ/);
-  assert.match(text, /https:\/\/onzevo\.website\/parent\/login/);
-  assert.match(text, /Léo Dupont/);
+test("buildParentInvitationEmail: names the club and the child (last name uppercased, as specified)", () => {
+  const { text, html } = buildParentInvitationEmail(invitationBase);
+  assert.match(text, /Saint-Sébastien FC/);
+  assert.match(text, /Léo DUPONT/);
+  assert.match(html, /Léo DUPONT/);
 });
 
-test("buildParentCredentialsEmail: HTML body carries the same credentials", () => {
-  const { html } = buildParentCredentialsEmail(base);
-  assert.match(html, /leo\.dupont/);
-  assert.match(html, /aB3xY9kLmZ/);
-  assert.match(html, /href="https:\/\/onzevo\.website\/parent\/login"/);
+test("buildParentInvitationEmail: carries the activation link (button + fallback text) and its 72h validity", () => {
+  const { text, html } = buildParentInvitationEmail(invitationBase);
+  assert.match(text, /https:\/\/onzevo\.website\/parent\/activation\/abc123/);
+  assert.match(html, /href="https:\/\/onzevo\.website\/parent\/activation\/abc123"/);
+  assert.match(text, /72 heures/);
+  assert.match(html, /72 heures/);
 });
 
-test("buildParentCredentialsEmail: header uses the real hosted Onzevo logo, not a text wordmark", () => {
-  const { html } = buildParentCredentialsEmail(base);
+test("buildParentInvitationEmail: never contains a password, temp password, or hash-shaped field", () => {
+  const { text, html } = buildParentInvitationEmail(invitationBase);
+  for (const s of [text, html]) {
+    assert.doesNotMatch(s.toLowerCase(), /mot de passe temporaire/);
+    assert.doesNotMatch(s.toLowerCase(), /identifiant/);
+  }
+});
+
+test("buildParentInvitationEmail: header uses the real hosted Onzevo logo", () => {
+  const { html } = buildParentInvitationEmail(invitationBase);
   assert.match(html, /<img src="https:\/\/onzevo\.website\/onzevo-logo-light\.png"/);
 });
 
-test("buildParentCredentialsEmail: HTML-escapes player/club names so a stray '&' or '<' in data never breaks markup", () => {
-  const { html } = buildParentCredentialsEmail({ ...base, clubName: "AS <Test> & Co", playerFirstName: "O'Brien" });
+test("buildParentInvitationEmail: falls back to the club name (text) when no club logo is configured", () => {
+  const { html } = buildParentInvitationEmail(invitationBase);
+  assert.match(html, /Saint-Sébastien FC/);
+});
+
+test("buildParentInvitationEmail: uses the club logo image when provided", () => {
+  const { html } = buildParentInvitationEmail({ ...invitationBase, clubLogoUrl: "https://onzevo.website/api/club/logo?v=123" });
+  assert.match(html, /<img src="https:\/\/onzevo\.website\/api\/club\/logo\?v=123"/);
+});
+
+test("buildParentInvitationEmail: HTML-escapes club/player names", () => {
+  const { html } = buildParentInvitationEmail({ ...invitationBase, clubName: "AS <Test> & Co", playerFirstName: "O'Brien" });
   assert.doesNotMatch(html, /<Test>/);
   assert.match(html, /AS &lt;Test&gt; &amp; Co/);
   assert.match(html, /O&#39;Brien/);
+});
+
+test("buildParentInvitationEmail: footer never mentions a password", () => {
+  const { html } = buildParentInvitationEmail(invitationBase);
+  assert.doesNotMatch(html.toLowerCase(), /mot de passe/);
+});
+
+const resetBase = {
+  to: "famille@example.test",
+  clubName: "Saint-Sébastien FC",
+  resetUrl: "https://onzevo.website/parent/reinitialiser/xyz789",
+};
+
+test("buildParentPasswordResetEmail: subject matches the specified copy", () => {
+  const { subject } = buildParentPasswordResetEmail(resetBase);
+  assert.equal(subject, "Réinitialisez votre mot de passe Onzevo");
+});
+
+test("buildParentPasswordResetEmail: carries the reset link and its 30-minute validity, never the old password", () => {
+  const { text, html } = buildParentPasswordResetEmail(resetBase);
+  assert.match(text, /https:\/\/onzevo\.website\/parent\/reinitialiser\/xyz789/);
+  assert.match(html, /href="https:\/\/onzevo\.website\/parent\/reinitialiser\/xyz789"/);
+  assert.match(text, /30 minutes/);
+  assert.doesNotMatch(text.toLowerCase(), /ancien mot de passe/);
 });

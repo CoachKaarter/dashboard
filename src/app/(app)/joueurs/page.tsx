@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getAllPlayerStats } from "@/lib/stats";
-import { requireUser, scopedTeamIds, getAccessibleCategories } from "@/lib/authz";
+import { requireUser, scopedTeamIds, getAccessibleCategories, canManageCategory } from "@/lib/authz";
 import { getActiveCategoryGroup } from "@/lib/active-category";
 import { FilterChip } from "@/components/ui/FilterChip";
 import { QuerySelect } from "@/components/ui/QuerySelect";
@@ -67,12 +67,12 @@ export default async function JoueursPage({
         >
           Importer
         </Link>
-        {user.role === "ADMIN" && (
+        {(user.role === "ADMIN" || accessibleCategories.some((c) => canManageCategory(user, c))) && (
           <Link
             href="/joueurs/comptes-familles"
             className="h-8 px-3 border border-line rounded-md bg-[#FCFCFB] text-xs font-semibold text-ink-soft flex items-center hover:border-ink hover:text-ink"
           >
-            Comptes familles
+            Accès familles
           </Link>
         )}
         <Link

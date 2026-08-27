@@ -11,7 +11,8 @@ import { ProgressChart } from "@/components/ui/ProgressChart";
 import { ParentAccountPanel } from "@/components/ParentAccountPanel";
 import { DeletePlayerButton } from "@/components/DeletePlayerButton";
 import { updateObjectives } from "../../evaluations/actions";
-import { requireUser, canAccessTeam, scopedTeamIds } from "@/lib/authz";
+import { requireUser, canAccessTeam, scopedTeamIds, canManageCategory } from "@/lib/authz";
+import { computeFamilyAccessStatus } from "@/lib/parent-invitation-status";
 import { getInterviewPrep } from "@/lib/interview-prep";
 import { computeEvaluationDelta } from "@/lib/evaluation";
 import { computeDistribution } from "@/lib/player-history";
@@ -72,6 +73,7 @@ export default async function FichePage({
         notes: { include: { author: true }, orderBy: { createdAt: "desc" } },
         unavailabilities: { orderBy: { startDate: "desc" } },
         parentAccount: true,
+        parentInvitations: { where: { revokedAt: null }, orderBy: { createdAt: "desc" }, take: 1 },
         interviews: { include: { author: true, objectives: true }, orderBy: { date: "desc" } },
         objectives: { include: { updates: { orderBy: { createdAt: "desc" } } }, orderBy: { createdAt: "desc" } },
       },
@@ -741,11 +743,22 @@ export default async function FichePage({
             </form>
           </div>
 
-          {user.role === "ADMIN" && (
+          {(user.role === "ADMIN" || canManageCategory(user, player.team.category)) && (
             <ParentAccountPanel
               playerId={player.id}
               playerName={`${player.firstName} ${player.lastName}`}
+              parentEmail={player.parentEmail}
               account={player.parentAccount ? { id: player.parentAccount.id, username: player.parentAccount.username, active: player.parentAccount.active } : null}
+              status={computeFamilyAccessStatus({
+                parentEmail: player.parentEmail,
+                account: player.parentAccount ? { active: player.parentAccount.active } : null,
+                latestInvitation: player.parentInvitations[0] ?? null,
+              })}
+              latestInvitation={
+                player.parentInvitations[0]
+                  ? { sentAt: player.parentInvitations[0].sentAt, expiresAt: player.parentInvitations[0].expiresAt }
+                  : null
+              }
             />
           )}
 

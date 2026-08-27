@@ -90,6 +90,20 @@ test("parent: /parent/login never redirects itself away — the anti-loop invari
   assert.deepEqual(decideParentMiddleware("/parent/login", false), { type: "next" });
 });
 
+test("parent: /parent/activation is reachable without a session cookie — that's the whole point of an invitation link", () => {
+  assert.deepEqual(decideParentMiddleware("/parent/activation", false), { type: "next" });
+  assert.deepEqual(decideParentMiddleware("/parent/activation/some-token", false), { type: "next" });
+});
+
+test("parent: /parent/reinitialiser (mot de passe oublié) is reachable without a session cookie", () => {
+  assert.deepEqual(decideParentMiddleware("/parent/reinitialiser", false), { type: "next" });
+  assert.deepEqual(decideParentMiddleware("/parent/reinitialiser/some-token", false), { type: "next" });
+});
+
+test("parent: /parent/mot-de-passe-oublie is reachable without a session cookie", () => {
+  assert.deepEqual(decideParentMiddleware("/parent/mot-de-passe-oublie", false), { type: "next" });
+});
+
 test("decidePasswordChangeRedirect: forced first-login change never applies to itself", () => {
   assert.equal(decidePasswordChangeRedirect(true), "/parent/changer-mot-de-passe");
   assert.equal(decidePasswordChangeRedirect(false), null);

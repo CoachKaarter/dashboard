@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { parentLoginAction } from "./actions";
 import { PasswordField } from "@/components/parent/PasswordField";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -12,16 +13,17 @@ const FEATURES = [
 ] as const;
 
 /**
- * Refonte visuelle de la connexion parent (maquette fournie par l'utilisateur) —
- * deux écarts assumés par rapport à la maquette, pour rester honnête avec ce
- * qui existe réellement dans l'app :
- *  - Champ "Identifiant" (pas "Adresse e-mail") : ParentAccount n'a pas de
- *    champ email, seulement un username choisi par le staff à la création
- *    du compte famille.
- *  - Un seul bloc "contacter le staff" sous le bouton, pas trois liens
- *    ("Première connexion", "Mot de passe oublié", "Aide/contact") : aucune
- *    de ces trois pages/flux n'existe (pas d'envoi d'email dans l'app), donc
- *    pas de lien mort — la vraie voie de récupération reste le staff.
+ * Refonte visuelle de la connexion parent (maquette fournie par l'utilisateur).
+ * Un écart assumé par rapport à la maquette : champ "Identifiant" (pas
+ * "Adresse e-mail") — ParentAccount n'a pas de champ email, seulement un
+ * username réservé par le club à la préparation de l'invitation famille
+ * (voir src/lib/parent-invitation.ts) et choisi comme identifiant définitif
+ * à l'activation.
+ *
+ * "Mot de passe oublié" et "Première connexion" mènent maintenant à de
+ * vraies pages (§44-45 du système d'invitation/activation) : il n'existe
+ * toujours aucune inscription libre — un parent ne peut qu'activer un accès
+ * que le club lui a envoyé, jamais créer un compte de son propre chef.
  */
 export default async function ParentLoginPage({
   searchParams,
@@ -144,10 +146,18 @@ export default async function ParentLoginPage({
             <div className="flex-1 h-px bg-[#EFEFEC]" />
           </div>
 
-          <div className="flex items-start gap-2.5 rounded-xl bg-[#F6F6F4] px-3.5 py-3">
+          <Link
+            href="/parent/mot-de-passe-oublie"
+            className="flex h-11 items-center justify-center rounded-xl border border-[#E7E7E2] text-[13.5px] font-semibold text-[#16181c]"
+          >
+            Mot de passe oublié ?
+          </Link>
+
+          <div className="mt-3.5 flex items-start gap-2.5 rounded-xl bg-[#F6F6F4] px-3.5 py-3">
             <UsersIcon size={16} className="text-[#9A9DA3] shrink-0 mt-0.5" />
             <div className="text-[12.5px] text-[#6E7178] leading-snug">
-              Identifiants oubliés ou première connexion ? Contacte le staff U12/U13.
+              Première connexion ? Utilisez le lien d&apos;activation reçu par email de la part du club — aucune inscription libre
+              n&apos;est possible.
             </div>
           </div>
         </div>
