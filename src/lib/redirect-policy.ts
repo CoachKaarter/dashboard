@@ -18,7 +18,14 @@ export function decideStaffMiddleware(pathname: string, isLoggedIn: boolean): Ro
   // Convocation share links are handed to players/parents who have no
   // account — deliberately public, gated only by the unguessable token.
   const isPublicShare = pathname.startsWith("/convocation/");
-  if (!isLoggedIn && !isLoginPage && !isPublicShare) return { type: "redirect", to: "/login" };
+  if (!isLoggedIn && !isLoginPage && !isPublicShare) {
+    // /coach and the Cockpit share one login page (same staff account) —
+    // carrying the original path as ?next= is what lets that single page
+    // show the Coach-flavored copy and land the browser back on /coach
+    // after signing in, instead of always dropping it on the Cockpit home.
+    const to = pathname.startsWith("/coach") ? `/login?next=${encodeURIComponent(pathname)}` : "/login";
+    return { type: "redirect", to };
+  }
   return { type: "next" };
 }
 
@@ -28,9 +35,20 @@ export function decideParentMiddleware(pathname: string, hasParentCookie: boolea
   return { type: "next" };
 }
 
+/**
+ * Never trust ?next= as-is — it's attacker-controlled query input reaching
+ * a redirect. Only a same-origin relative path survives; anything else
+ * (absolute URL, protocol-relative "//host", missing leading slash) falls
+ * back to "/" rather than sending the browser somewhere else entirely.
+ */
+export function sanitizeNextPath(path: string | null | undefined): string {
+  if (!path || !path.startsWith("/") || path.startsWith("//") || path.includes("://")) return "/";
+  return path;
+}
+
 /** Only a real, DB-confirmed session (getAuthedUser()) may bounce /login away — never edge-only JWT presence. */
-export function decideLoginPageRedirect(isAuthedRealUser: boolean): string | null {
-  return isAuthedRealUser ? "/" : null;
+export function decideLoginPageRedirect(isAuthedRealUser: boolean, next?: string | null): string | null {
+  return isAuthedRealUser ? sanitizeNextPath(next) : null;
 }
 
 /** Forced first-login password change — never applied at the shared /parent layout, or /parent/changer-mot-de-passe would redirect to itself. */

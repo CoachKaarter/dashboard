@@ -6,6 +6,7 @@ import {
   decideLoginPageRedirect,
   decidePasswordChangeRedirect,
   decideOnboardingRedirect,
+  sanitizeNextPath,
 } from "./redirect-policy";
 
 // --- STAFF ---
@@ -42,6 +43,31 @@ test("staff: public convocation share links bypass auth entirely", () => {
 test("decideLoginPageRedirect: only a real, DB-confirmed user is sent to /", () => {
   assert.equal(decideLoginPageRedirect(true), "/");
   assert.equal(decideLoginPageRedirect(false), null);
+});
+
+test("staff: an unauthenticated /coach/* request is sent to /login carrying ?next= so the single login page can flavor itself and return there", () => {
+  assert.deepEqual(decideStaffMiddleware("/coach", false), { type: "redirect", to: "/login?next=%2Fcoach" });
+  assert.deepEqual(decideStaffMiddleware("/coach/seances/abc", false), {
+    type: "redirect",
+    to: "/login?next=%2Fcoach%2Fseances%2Fabc",
+  });
+});
+
+test("decideLoginPageRedirect: an already-authed visit to /login?next=/coach lands back on /coach, not the Cockpit home", () => {
+  assert.equal(decideLoginPageRedirect(true, "/coach/seances"), "/coach/seances");
+  assert.equal(decideLoginPageRedirect(true, null), "/");
+});
+
+test("sanitizeNextPath: only a same-origin relative path survives — never an open redirect", () => {
+  assert.equal(sanitizeNextPath("/coach"), "/coach");
+  assert.equal(sanitizeNextPath("/coach/seances/abc"), "/coach/seances/abc");
+  assert.equal(sanitizeNextPath(null), "/");
+  assert.equal(sanitizeNextPath(undefined), "/");
+  assert.equal(sanitizeNextPath(""), "/");
+  assert.equal(sanitizeNextPath("coach"), "/");
+  assert.equal(sanitizeNextPath("//evil.com"), "/");
+  assert.equal(sanitizeNextPath("https://evil.com"), "/");
+  assert.equal(sanitizeNextPath("/ok/../but-fine"), "/ok/../but-fine");
 });
 
 // --- PARENT ---

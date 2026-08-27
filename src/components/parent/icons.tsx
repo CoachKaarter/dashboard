@@ -199,3 +199,36 @@ export function ShieldCheckIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function ChartIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <line x1="5" y1="20" x2="5" y2="13" />
+      <line x1="12" y1="20" x2="12" y2="8" />
+      <line x1="19" y1="20" x2="19" y2="4" />
+    </svg>
+  );
+}
+
+export function TrophyIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M7 3.5h10v5a5 5 0 0 1-10 0Z" />
+      <path d="M7 4.5H3.5a1 1 0 0 0-1 1v1a3.5 3.5 0 0 0 3.5 3.5h1" />
+      <path d="M17 4.5h3.5a1 1 0 0 1 1 1v1a3.5 3.5 0 0 1-3.5 3.5h-1" />
+      <path d="M12 13.5v3.5" />
+      <path d="M8 20.5h8" />
+      <path d="M9.5 17h5l1 3.5h-7Z" />
+    </svg>
+  );
+}
+
+export function UserCheckIcon(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <circle cx="9.5" cy="7.5" r="3.5" />
+      <path d="M3.5 20.5v-1a5.5 5.5 0 0 1 5.5-5.5h1.5" />
+      <polyline points="15.5 15.5 17.5 17.5 21 13" />
+    </svg>
+  );
+}
