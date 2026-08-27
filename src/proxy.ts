@@ -33,5 +33,10 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  // The trailing "|.*\\..*" excludes any path with a file extension (static
+  // assets served straight out of /public, e.g. onzevo-logo.png) — without
+  // it those files got redirected to /login just like any unauthenticated
+  // page request, which broke the logo on the login page itself: the asset
+  // needs to load *before* auth, not after.
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };

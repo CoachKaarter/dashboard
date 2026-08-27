@@ -2,16 +2,16 @@
 // club affichée à côté (ex. "Saint-Sébastien FC") : Onzevo est la plateforme,
 // le club est l'espace qui l'utilise — jamais confondus dans l'UI.
 //
-// Reconstruction CSS/SVG du logo fourni par l'utilisateur (wordmark
-// "ONZEVO" bold condensé légèrement penché, "ONZE" dans un vert sombre,
-// "VO" dans un vert vif, surmonté d'un accent en forme de coche) — pas le
-// fichier original : cette session n'a pas eu accès à l'image collée dans
-// le chat (aucun fichier correspondant sur disque). Si un fichier (PNG/SVG)
-// est déposé dans le dépôt ou fourni par URL, remplacer le contenu de ce
-// composant par une <img>/<Image> pointant dessus, sans toucher aux appels.
-const DARK_GREEN = "#0B3B2C";
-const BRIGHT_GREEN = "#00E68A";
-
+// /public/onzevo-logo.png : placeholder généré par cette session (le
+// fichier collé dans le chat par l'utilisateur n'était pas accessible sur
+// le disque de cet environnement — voir le commit précédent). Remplacer
+// ce fichier directement dans le dépôt pour mettre à jour le logo partout,
+// sans toucher à ce composant.
+//
+// Le fichier a été composé en vert sombre/vert vif pour un fond clair. Sur
+// un fond sombre (variant="light"), il est posé sur une pastille blanche
+// plutôt que laissé tel quel, sinon la moitié sombre du mot devient
+// illisible sur le fond quasi-noir de la sidebar/du panneau de connexion.
 export function OnzevoMark({
   variant = "dark",
   size = "md",
@@ -21,47 +21,18 @@ export function OnzevoMark({
   size?: "sm" | "md";
   className?: string;
 }) {
-  const onzeColor = variant === "light" ? "#FFFFFF" : DARK_GREEN;
-  const textPx = size === "sm" ? 15 : 20;
-  const tickHeight = textPx * 1.55;
-  const tickWidth = textPx * 0.85;
+  const heightPx = size === "sm" ? 18 : 24;
 
-  return (
-    <div className={`inline-flex items-end ${className}`}>
-      <span
-        className="font-bold uppercase leading-none inline-block"
-        style={{
-          fontFamily: "var(--font-barlow-condensed)",
-          fontSize: textPx,
-          letterSpacing: "-0.01em",
-          transform: "skewX(-9deg)",
-          color: onzeColor,
-        }}
-      >
-        onze
-      </span>
-      <svg
-        width={tickWidth}
-        height={tickHeight}
-        viewBox="0 0 13 24"
-        fill="none"
-        aria-hidden
-        style={{ marginBottom: -textPx * 0.08, marginLeft: 1, marginRight: -1 }}
-      >
-        <path d="M1 13.5L5.5 20L12 1" stroke={BRIGHT_GREEN} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      <span
-        className="font-bold uppercase leading-none inline-block"
-        style={{
-          fontFamily: "var(--font-barlow-condensed)",
-          fontSize: textPx,
-          letterSpacing: "-0.01em",
-          transform: "skewX(-9deg)",
-          color: BRIGHT_GREEN,
-        }}
-      >
-        vo
-      </span>
-    </div>
+  const img = (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src="/onzevo-logo.png" alt="Onzevo" style={{ height: heightPx, width: "auto" }} />
   );
+
+  if (variant === "light") {
+    return (
+      <span className={`inline-flex items-center bg-white rounded-md px-2 py-1 ${className}`}>{img}</span>
+    );
+  }
+
+  return <span className={`inline-flex items-center ${className}`}>{img}</span>;
 }
