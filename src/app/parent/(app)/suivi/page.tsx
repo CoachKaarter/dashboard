@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { requireParentReady } from "@/lib/parent-guard";
 import { prisma } from "@/lib/prisma";
 import { ParentPageHeader } from "@/components/parent/ParentPageHeader";
 import { ObjectiveCard } from "@/components/parent/ObjectiveCard";
+import { ChevronRightIcon } from "@/components/parent/icons";
 
 const FEELINGS = ["😩", "😕", "😐", "🙂", "😄"];
 const DAY_NAMES = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
@@ -32,6 +34,20 @@ export default async function ParentSuiviPage() {
   return (
     <div className="flex flex-col gap-4 animate-fadein">
       <ParentPageHeader title={`Suivi de ${player.firstName}`} />
+
+      <Link
+        href="/parent/carte"
+        className="flex items-center gap-3 rounded-[18px] p-4 text-white active:scale-[0.98] transition-transform duration-100"
+        style={{ background: "linear-gradient(135deg, var(--club-primary) 0%, var(--club-secondary) 100%)" }}
+      >
+        <div className="flex-1">
+          <div className="text-[15px] font-bold" style={{ fontFamily: "var(--font-parent-display)" }}>
+            Carte joueur
+          </div>
+          <div className="text-[12px] opacity-85 mt-0.5">Note générale et par catégorie, basées sur la dernière évaluation</div>
+        </div>
+        <ChevronRightIcon size={18} />
+      </Link>
 
       <div>
         <div className="text-[11px] font-bold tracking-[0.09em] uppercase text-[#9A9DA3] mb-2">Mes objectifs</div>
