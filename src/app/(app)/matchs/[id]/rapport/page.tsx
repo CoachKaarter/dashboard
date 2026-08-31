@@ -19,14 +19,16 @@ export default async function MatchRapportPage({ params }: { params: Promise<{ i
     include: {
       team: true,
       stats: { include: { player: true }, orderBy: [{ role: "asc" }, { player: { lastName: "asc" } }] },
+      plateauResults: { orderBy: { order: "asc" } },
     },
   });
   if (!match) notFound();
   if (!canAccessTeam(user, match.teamId)) notFound();
 
   const played = match.status === "Joué";
-  const result = played ? computeMatchResult(match.scoreFor!, match.scoreAgainst!) : null;
-  const goalDiff = played ? computeGoalDifference(match.scoreFor!, match.scoreAgainst!) : null;
+  const isPlateau = match.competition === "Plateau";
+  const result = played && !isPlateau ? computeMatchResult(match.scoreFor!, match.scoreAgainst!) : null;
+  const goalDiff = played && !isPlateau ? computeGoalDifference(match.scoreFor!, match.scoreAgainst!) : null;
   const starters = match.stats.filter((s) => s.role === "Titulaire");
   const bench = match.stats.filter((s) => s.role === "Remplaçant");
 
@@ -43,11 +45,11 @@ export default async function MatchRapportPage({ params }: { params: Promise<{ i
       <div className="bg-surface border border-line rounded-lg px-[18px] py-4">
         <div className="flex items-center gap-3 flex-wrap">
           <TeamChip code={match.team.code} />
-          <div className="text-xl font-bold tracking-[-0.02em]">{match.opponent ?? "Adversaire à définir"}</div>
+          <div className="text-xl font-bold tracking-[-0.02em]">{isPlateau ? "Plusieurs équipes" : (match.opponent ?? "Adversaire à définir")}</div>
           {match.status === "Annulé" && <Badge tone="red">Annulé</Badge>}
           {result && <Badge tone={RESULT_TONE[result]}>{RESULT_LABEL_FR[result]}</Badge>}
           <span className="flex-1" />
-          {played && (
+          {played && !isPlateau && (
             <div className="font-mono text-2xl font-bold">
               {match.scoreFor} – {match.scoreAgainst}
             </div>
@@ -68,6 +70,25 @@ export default async function MatchRapportPage({ params }: { params: Promise<{ i
             <span className="font-semibold">
               {match.tournamentRanking}e / {match.tournamentTeamsCount} équipes
             </span>
+          </div>
+        )}
+        {isPlateau && (
+          <div className="mt-3 pt-3 border-t border-line-soft-2 flex flex-col gap-1.5">
+            {match.plateauResults.length === 0 ? (
+              <span className="text-[12.5px] text-muted">Aucune rencontre saisie.</span>
+            ) : (
+              match.plateauResults.map((r) => {
+                const rResult = r.scoreFor !== null && r.scoreAgainst !== null ? computeMatchResult(r.scoreFor, r.scoreAgainst) : null;
+                return (
+                  <div key={r.id} className="flex items-center gap-2.5 text-[12.5px]">
+                    {rResult ? <Badge tone={RESULT_TONE[rResult]}>{RESULT_LABEL_FR[rResult]}</Badge> : <Badge tone="neutral">—</Badge>}
+                    <span className="font-semibold">{r.opponent}</span>
+                    <span className="flex-1" />
+                    <span className="font-mono font-bold">{r.scoreFor ?? "—"} – {r.scoreAgainst ?? "—"}</span>
+                  </div>
+                );
+              })
+            )}
           </div>
         )}
       </div>

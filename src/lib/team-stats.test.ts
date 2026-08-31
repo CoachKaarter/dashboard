@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeTeamStats, computeForm } from "./team-stats";
+import { computeTeamStats, computeForm, flattenPlayedMatches } from "./team-stats";
 
 function m(scoreFor: number, scoreAgainst: number, date = new Date("2026-01-01")): { scoreFor: number; scoreAgainst: number; date: Date } {
   return { scoreFor, scoreAgainst, date };
@@ -44,4 +44,76 @@ test("computeForm: unsorted input is sorted before slicing", () => {
     m(0, 1, new Date("2026-01-01")), // PERDU, oldest
   ];
   assert.deepEqual(computeForm(matches, 1), ["GAGNE"]);
+});
+
+const d = new Date("2026-09-02T10:00:00Z");
+
+test("flattenPlayedMatches: un match classique donne un seul résultat", () => {
+  const out = flattenPlayedMatches([{ competition: "Championnat", scoreFor: 2, scoreAgainst: 1, date: d, plateauResults: [] }]);
+  assert.deepEqual(out, [{ scoreFor: 2, scoreAgainst: 1, date: d }]);
+});
+
+test("flattenPlayedMatches: un match classique sans score n'apparaît pas", () => {
+  const out = flattenPlayedMatches([{ competition: "Championnat", scoreFor: null, scoreAgainst: null, date: d, plateauResults: [] }]);
+  assert.deepEqual(out, []);
+});
+
+test("flattenPlayedMatches: un plateau donne un résultat par rencontre, pas un match nul 0-0", () => {
+  const out = flattenPlayedMatches([
+    {
+      competition: "Plateau",
+      scoreFor: null,
+      scoreAgainst: null,
+      date: d,
+      plateauResults: [
+        { scoreFor: 6, scoreAgainst: 0 },
+        { scoreFor: 0, scoreAgainst: 0 },
+        { scoreFor: 3, scoreAgainst: 1 },
+      ],
+    },
+  ]);
+  assert.deepEqual(out, [
+    { scoreFor: 6, scoreAgainst: 0, date: d },
+    { scoreFor: 0, scoreAgainst: 0, date: d },
+    { scoreFor: 3, scoreAgainst: 1, date: d },
+  ]);
+});
+
+test("flattenPlayedMatches: une rencontre de plateau sans score n'est pas comptée", () => {
+  const out = flattenPlayedMatches([
+    {
+      competition: "Plateau",
+      scoreFor: null,
+      scoreAgainst: null,
+      date: d,
+      plateauResults: [
+        { scoreFor: 6, scoreAgainst: 0 },
+        { scoreFor: null, scoreAgainst: null },
+      ],
+    },
+  ]);
+  assert.deepEqual(out, [{ scoreFor: 6, scoreAgainst: 0, date: d }]);
+});
+
+test("computeTeamStats sur un plateau 6-0 / 0-0 / 3-1 : 2 victoires, 1 nul, 9 buts marqués, 1 encaissé", () => {
+  const out = flattenPlayedMatches([
+    {
+      competition: "Plateau",
+      scoreFor: null,
+      scoreAgainst: null,
+      date: d,
+      plateauResults: [
+        { scoreFor: 6, scoreAgainst: 0 },
+        { scoreFor: 0, scoreAgainst: 0 },
+        { scoreFor: 3, scoreAgainst: 1 },
+      ],
+    },
+  ]);
+  const stats = computeTeamStats(out);
+  assert.equal(stats.played, 3);
+  assert.equal(stats.wins, 2);
+  assert.equal(stats.draws, 1);
+  assert.equal(stats.losses, 0);
+  assert.equal(stats.goalsFor, 9);
+  assert.equal(stats.goalsAgainst, 1);
 });

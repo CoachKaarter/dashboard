@@ -9,7 +9,7 @@ import { FilterChip } from "@/components/ui/FilterChip";
 import { POSITIONS } from "@/lib/constants";
 import { formatDateFull } from "@/lib/format";
 import { toQueryString } from "@/lib/query";
-import { computeTeamStats, computeForm } from "@/lib/team-stats";
+import { computeTeamStats, computeForm, flattenPlayedMatches } from "@/lib/team-stats";
 import { COMPETITION_TYPES } from "@/lib/match-validation";
 import { TRANSPORT_MODES, TRANSPORT_MODE_LABELS } from "@/lib/equipment";
 import { updateTeamTarget, updateTeamFormat, updateTeamCoach, updateTeamLevel, updateTeamDefaults } from "../actions";
@@ -70,14 +70,17 @@ export default async function EquipeDetailPage({
       ...(periode === "mois" ? { date: { gte: monthStart } } : {}),
     },
     orderBy: { date: "asc" },
-    select: { scoreFor: true, scoreAgainst: true, date: true },
+    select: {
+      competition: true,
+      scoreFor: true,
+      scoreAgainst: true,
+      date: true,
+      plateauResults: { select: { scoreFor: true, scoreAgainst: true }, orderBy: { order: "asc" } },
+    },
   });
 
-  const filteredMatches = (periode === "5" ? playedMatches.slice(-5) : periode === "10" ? playedMatches.slice(-10) : playedMatches).map((m) => ({
-    scoreFor: m.scoreFor!,
-    scoreAgainst: m.scoreAgainst!,
-    date: m.date,
-  }));
+  const playedResults = flattenPlayedMatches(playedMatches);
+  const filteredMatches = periode === "5" ? playedResults.slice(-5) : periode === "10" ? playedResults.slice(-10) : playedResults;
   const stats = computeTeamStats(filteredMatches);
   const form = computeForm(filteredMatches, 5);
 

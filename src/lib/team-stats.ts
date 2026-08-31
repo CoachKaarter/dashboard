@@ -6,6 +6,35 @@ export type PlayedMatch = {
   date: Date;
 };
 
+export type PlayedMatchSource = {
+  competition: string;
+  scoreFor: number | null;
+  scoreAgainst: number | null;
+  date: Date;
+  plateauResults: { scoreFor: number | null; scoreAgainst: number | null }[];
+};
+
+/**
+ * Un plateau n'a pas un score unique : chaque rencontre du plateau compte
+ * comme un résultat séparé pour les statistiques (victoires/nuls/défaites,
+ * buts), au lieu du match lui-même qui n'a pas de scoreFor/scoreAgainst.
+ */
+export function flattenPlayedMatches(matches: PlayedMatchSource[]): PlayedMatch[] {
+  const out: PlayedMatch[] = [];
+  for (const m of matches) {
+    if (m.competition === "Plateau") {
+      for (const r of m.plateauResults) {
+        if (r.scoreFor !== null && r.scoreAgainst !== null) {
+          out.push({ scoreFor: r.scoreFor, scoreAgainst: r.scoreAgainst, date: m.date });
+        }
+      }
+    } else if (m.scoreFor !== null && m.scoreAgainst !== null) {
+      out.push({ scoreFor: m.scoreFor, scoreAgainst: m.scoreAgainst, date: m.date });
+    }
+  }
+  return out;
+}
+
 export type TeamStats = {
   played: number;
   wins: number;
