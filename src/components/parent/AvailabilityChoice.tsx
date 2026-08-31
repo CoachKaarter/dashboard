@@ -1,8 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { CheckIcon, XIcon } from "./icons";
-import { ParentToast } from "./ParentToast";
+import { ResponseToggle, type ToggleValue } from "./ResponseToggle";
 
 type Status = "AVAILABLE" | "UNAVAILABLE";
 
@@ -11,6 +9,10 @@ export function AvailabilityChoice({
   onSetStatus,
   presentLabel = "Présent",
   absentLabel = "Absent",
+  confirmedTitle = "Présence confirmée",
+  confirmedDescription = "Vous avez confirmé la présence de votre enfant.",
+  declinedTitle = "Absence signalée",
+  declinedDescription = "Vous avez indiqué que votre enfant ne sera pas présent.",
   reasons,
   currentReason,
   onSetReason,
@@ -20,59 +22,28 @@ export function AvailabilityChoice({
   onSetStatus: (status: Status) => Promise<void>;
   presentLabel?: string;
   absentLabel?: string;
+  confirmedTitle?: string;
+  confirmedDescription?: string;
+  declinedTitle?: string;
+  declinedDescription?: string;
   reasons?: string[];
   currentReason?: string | null;
   onSetReason?: (formData: FormData) => Promise<void>;
   locked?: boolean;
 }) {
-  const [optimisticStatus, setOptimisticStatus] = useState<Status | null>(status ?? null);
-  const [editing, setEditing] = useState(!status);
-  const [, startTransition] = useTransition();
-  const [showToast, setShowToast] = useState(false);
-
-  function choose(next: Status) {
-    setOptimisticStatus(next);
-    setEditing(false);
-    startTransition(() => {
-      onSetStatus(next).then(() => {
-        setShowToast(true);
-        setTimeout(() => setShowToast(false), 2000);
-      });
-    });
-  }
-
-  if (locked) {
-    return optimisticStatus ? (
-      <div className={`text-[13.5px] font-bold ${optimisticStatus === "AVAILABLE" ? "text-green" : "text-red"}`}>
-        {optimisticStatus === "AVAILABLE" ? `✓ ${presentLabel}` : `✕ ${absentLabel}`}
-      </div>
-    ) : (
-      <div className="text-[13px] text-[#8A8D93] italic">Pas de réponse enregistrée.</div>
-    );
-  }
-
-  if (!editing && optimisticStatus) {
-    return (
-      <div className="animate-fadein">
-        <div className="flex items-center gap-2.5">
-          <span
-            className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-[13.5px] font-bold transition-colors duration-150 ${
-              optimisticStatus === "AVAILABLE" ? "bg-green-bg text-green" : "bg-red-bg text-red"
-            }`}
-          >
-            {optimisticStatus === "AVAILABLE" ? <CheckIcon size={15} /> : <XIcon size={15} />}
-            {optimisticStatus === "AVAILABLE" ? presentLabel : absentLabel}
-          </span>
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            className="text-[12.5px] font-semibold text-[#8A8D93] underline underline-offset-2 active:opacity-60 transition-opacity duration-100"
-          >
-            Modifier
-          </button>
-          <ParentToast show={showToast} />
-        </div>
-        {optimisticStatus === "UNAVAILABLE" && reasons && onSetReason && (
+  return (
+    <ResponseToggle
+      value={status === "AVAILABLE" ? "YES" : status === "UNAVAILABLE" ? "NO" : null}
+      onSetValue={(v: ToggleValue) => onSetStatus(v === "YES" ? "AVAILABLE" : "UNAVAILABLE")}
+      yesLabel={presentLabel}
+      noLabel={absentLabel}
+      yesConfirmedTitle={confirmedTitle}
+      yesConfirmedDescription={confirmedDescription}
+      noConfirmedTitle={declinedTitle}
+      noConfirmedDescription={declinedDescription}
+      locked={locked}
+      extra={(v) =>
+        v === "NO" && reasons && onSetReason ? (
           <div className="mt-3 pt-3 border-t border-[#EFEFEC] animate-fadein">
             <div className="text-[11.5px] font-semibold text-[#8A8D93] mb-1.5">Motif (facultatif)</div>
             <div className="flex gap-1.5 flex-wrap">
@@ -91,31 +62,8 @@ export function AvailabilityChoice({
               ))}
             </div>
           </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex gap-2">
-      <button
-        type="button"
-        onClick={() => choose("AVAILABLE")}
-        className={`flex-1 h-12 rounded-xl text-[14px] font-bold border-2 active:scale-[0.98] transition-all duration-150 ${
-          optimisticStatus === "AVAILABLE" ? "bg-green border-green text-white" : "bg-white border-[#E7E7E2] text-green"
-        }`}
-      >
-        ✓ {presentLabel}
-      </button>
-      <button
-        type="button"
-        onClick={() => choose("UNAVAILABLE")}
-        className={`flex-1 h-12 rounded-xl text-[14px] font-bold border-2 active:scale-[0.98] transition-all duration-150 ${
-          optimisticStatus === "UNAVAILABLE" ? "bg-red border-red text-white" : "bg-white border-[#E7E7E2] text-red"
-        }`}
-      >
-        ✕ {absentLabel}
-      </button>
-    </div>
+        ) : null
+      }
+    />
   );
 }

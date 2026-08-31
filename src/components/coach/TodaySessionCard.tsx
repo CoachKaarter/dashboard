@@ -6,8 +6,10 @@ export function TodaySessionCard({
   startTime,
   endTime,
   location,
-  playerCount,
-  absenceCount,
+  expectedCount,
+  announcedPresentCount,
+  announcedAbsentCount,
+  noResponseCount,
   href,
 }: {
   teamLabel: string;
@@ -15,8 +17,10 @@ export function TodaySessionCard({
   startTime: string;
   endTime: string;
   location: string;
-  playerCount: number;
-  absenceCount: number;
+  expectedCount: number;
+  announcedPresentCount: number;
+  announcedAbsentCount: number;
+  noResponseCount: number;
   href: string;
 }) {
   return (
@@ -27,17 +31,18 @@ export function TodaySessionCard({
         {startTime} — {endTime}
       </div>
       <div className="text-[13px] text-[#6E7178] mt-0.5">{location}</div>
-      <div className="text-[13px] text-[#6E7178] mt-2">{playerCount} joueur{playerCount > 1 ? "s" : ""} concerné{playerCount > 1 ? "s" : ""}</div>
-      {absenceCount > 0 && (
-        <div className="text-[13px] text-orange font-semibold mt-0.5">
-          {absenceCount} absence{absenceCount > 1 ? "s" : ""} annoncée{absenceCount > 1 ? "s" : ""}
-        </div>
-      )}
+      <div className="text-[13px] text-[#3A3D43] font-bold mt-2">
+        {expectedCount} attendu{expectedCount > 1 ? "s" : ""}
+      </div>
+      <div className="text-[12.5px] text-[#6E7178] mt-0.5">
+        {announcedPresentCount} annoncé{announcedPresentCount > 1 ? "s" : ""} présent{announcedPresentCount > 1 ? "s" : ""} · {announcedAbsentCount}{" "}
+        annoncé{announcedAbsentCount > 1 ? "s" : ""} absent{announcedAbsentCount > 1 ? "s" : ""} · {noResponseCount} sans réponse
+      </div>
       <Link
         href={href}
         className="mt-3.5 h-12 rounded-xl bg-ink text-white text-[15px] font-bold flex items-center justify-center active:scale-[0.98] transition-transform duration-100"
       >
-        Ouvrir la séance
+        Faire l&apos;appel
       </Link>
     </div>
   );

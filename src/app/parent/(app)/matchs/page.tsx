@@ -4,7 +4,8 @@ import { getParentPlanItems } from "@/lib/parent-planning";
 import { ParentPageHeader } from "@/components/parent/ParentPageHeader";
 import { ParentCard } from "@/components/parent/ParentCard";
 import { AvailabilityChoice } from "@/components/parent/AvailabilityChoice";
-import { CheckIcon, XIcon, ChevronRightIcon } from "@/components/parent/icons";
+import { ConvocationChoice } from "@/components/parent/ConvocationChoice";
+import { ChevronRightIcon } from "@/components/parent/icons";
 import { setWeekendAvailability, setWeekendAbsenceReason } from "../actions";
 import { confirmMyConvocation } from "../planning/actions";
 
@@ -62,27 +63,8 @@ export default async function ParentMatchsPage() {
           )}
 
           {it.kind === "convocation" && it.matchId ? (
-            <div className="mt-3 pt-3 border-t border-[#EFEFEC] flex gap-1.5">
-              <form action={confirmMyConvocation.bind(null, it.matchId, true)} className="flex-1">
-                <button
-                  type="submit"
-                  className={`w-full h-9 px-3 rounded-lg text-[12px] font-bold border-2 inline-flex items-center justify-center gap-1 active:scale-95 transition-all duration-150 ${
-                    it.confirmed === true ? "bg-green border-green text-white" : "bg-white border-[#E7E7E2] text-green"
-                  }`}
-                >
-                  <CheckIcon size={14} /> Je viens
-                </button>
-              </form>
-              <form action={confirmMyConvocation.bind(null, it.matchId, false)} className="flex-1">
-                <button
-                  type="submit"
-                  className={`w-full h-9 px-3 rounded-lg text-[12px] font-bold border-2 inline-flex items-center justify-center gap-1 active:scale-95 transition-all duration-150 ${
-                    it.confirmed === false ? "bg-red border-red text-white" : "bg-white border-[#E7E7E2] text-red"
-                  }`}
-                >
-                  <XIcon size={14} /> Absent
-                </button>
-              </form>
+            <div className="mt-3 pt-3 border-t border-[#EFEFEC]">
+              <ConvocationChoice confirmed={it.confirmed} onSetConfirmed={confirmMyConvocation.bind(null, it.matchId)} />
             </div>
           ) : it.windowStatus === "OPEN" ? (
             <div className="mt-3 pt-3 border-t border-[#EFEFEC]">

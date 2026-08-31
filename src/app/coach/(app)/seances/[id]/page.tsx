@@ -4,8 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, canAccessSession } from "@/lib/authz";
 import { parisDateAtTime } from "@/lib/timezone";
 import { computeDelayMinutes } from "@/lib/attendance-delay";
-import { setAttendance, setAttendanceNote, markAllPresent } from "@/app/(app)/seances/actions";
+import { setAttendance, setAttendanceNote, markAllPresent, addExceptionalExpectation } from "@/app/(app)/seances/actions";
+import { ensureSessionExpectations } from "@/lib/session-expectation";
 import { AttendanceBoard, type BoardPlayer } from "@/components/coach/AttendanceBoard";
+import { AddExceptionalPlayer } from "@/components/coach/AddExceptionalPlayer";
 import { ArrowLeftIcon } from "@/components/coach/icons";
 import { SeanceTab } from "./SeanceTab";
 import { FinTab } from "./FinTab";
@@ -35,15 +37,31 @@ export default async function CoachSeanceDetailPage({
   if (!session || session.deletedAt) notFound();
   if (!(await canAccessSession(user, session))) notFound();
 
-  const [players, availabilities, blocks] = await Promise.all([
+  await ensureSessionExpectations(id);
+
+  const [expectations, categoryPlayers, availabilities, blocks] = await Promise.all([
+    prisma.sessionExpectation.findMany({
+      where: { sessionId: id },
+      include: { player: { include: { attendances: { where: { sessionId: id } } } } },
+      orderBy: { player: { lastName: "asc" } },
+    }),
     prisma.player.findMany({
-      where: session.scopeTeamId ? { teamId: session.scopeTeamId, archived: false } : { team: { category: session.category }, archived: false },
-      include: { attendances: { where: { sessionId: id } } },
+      where: { archived: false, team: { category: session.category } },
+      include: { team: true },
       orderBy: { lastName: "asc" },
     }),
     prisma.playerAvailability.findMany({ where: { sessionId: id, type: "TRAINING" } }),
     prisma.sessionBlock.findMany({ where: { sessionId: id }, orderBy: { order: "asc" } }),
   ]);
+
+  // L'appel ne porte que sur les joueurs ATTENDUS (§23/§25) — un joueur
+  // finalement présent mais non prévu passe par "+ Ajouter un joueur non
+  // prévu" ci-dessous, qui le rend ATTENDU pour cette séance uniquement.
+  const players = expectations.filter((e) => e.expected).map((e) => e.player);
+  const allExpectationPlayerIds = new Set(expectations.map((e) => e.playerId));
+  const exceptionalCandidates = categoryPlayers
+    .filter((p) => !allExpectationPlayerIds.has(p.id))
+    .map((p) => ({ id: p.id, firstName: p.firstName, lastName: p.lastName, teamCode: p.team.code }));
 
   const availByPlayer = new Map(availabilities.map((a) => [a.playerId, a]));
   const [sh, sm] = session.startTime.split(":").map(Number);
@@ -99,12 +117,15 @@ export default async function CoachSeanceDetailPage({
       </div>
 
       {tab === "pointage" && (
-        <AttendanceBoard
-          players={boardPlayers}
-          onSetAttendance={setAttendance.bind(null, id)}
-          onSetNote={setAttendanceNote.bind(null, id)}
-          onMarkAllPresent={markAllPresent.bind(null, id)}
-        />
+        <div className="flex flex-col gap-3.5">
+          <AttendanceBoard
+            players={boardPlayers}
+            onSetAttendance={setAttendance.bind(null, id)}
+            onSetNote={setAttendanceNote.bind(null, id)}
+            onMarkAllPresent={markAllPresent.bind(null, id)}
+          />
+          <AddExceptionalPlayer candidates={exceptionalCandidates} onAdd={addExceptionalExpectation.bind(null, id)} />
+        </div>
       )}
       {tab === "seance" && <SeanceTab session={session} blocks={blocks} playerCount={players.length} />}
       {tab === "fin" && <FinTab sessionId={id} session={session} players={boardPlayers} blocks={blocks} />}

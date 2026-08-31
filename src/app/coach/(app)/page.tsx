@@ -6,6 +6,7 @@ import { addDays } from "@/lib/availability";
 import { CoachHeader } from "@/components/coach/CoachHeader";
 import { TodaySessionCard } from "@/components/coach/TodaySessionCard";
 import { CheckIcon } from "@/components/coach/icons";
+import { ensureSessionExpectations, computeRosterSummary } from "@/lib/session-expectation";
 
 const DAY_NAMES = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
@@ -27,12 +28,15 @@ export default async function CoachTodayPage() {
 
   const cards = await Promise.all(
     todaySessions.map(async (s) => {
-      const [players, absenceCount] = await Promise.all([
-        prisma.player.count({
-          where: s.scopeTeamId ? { teamId: s.scopeTeamId, archived: false } : { team: { category: s.category }, archived: false },
-        }),
-        prisma.playerAvailability.count({ where: { sessionId: s.id, status: "UNAVAILABLE" } }),
+      await ensureSessionExpectations(s.id);
+      const [expectations, availabilities] = await Promise.all([
+        prisma.sessionExpectation.findMany({ where: { sessionId: s.id }, select: { playerId: true, expected: true } }),
+        prisma.playerAvailability.findMany({ where: { sessionId: s.id, type: "TRAINING" }, select: { playerId: true, status: true } }),
       ]);
+      const summary = computeRosterSummary(
+        expectations,
+        availabilities.filter((a): a is { playerId: string; status: "AVAILABLE" | "UNAVAILABLE" } => a.status === "AVAILABLE" || a.status === "UNAVAILABLE")
+      );
       return {
         id: s.id,
         teamLabel: s.scopeTeam ? s.scopeTeam.code : s.category,
@@ -40,8 +44,7 @@ export default async function CoachTodayPage() {
         startTime: s.startTime,
         endTime: s.endTime,
         location: s.location,
-        playerCount: players,
-        absenceCount,
+        ...summary,
       };
     })
   );
@@ -92,8 +95,10 @@ export default async function CoachTodayPage() {
             startTime={c.startTime}
             endTime={c.endTime}
             location={c.location}
-            playerCount={c.playerCount}
-            absenceCount={c.absenceCount}
+            expectedCount={c.expected}
+            announcedPresentCount={c.announcedPresent}
+            announcedAbsentCount={c.announcedAbsent}
+            noResponseCount={c.noResponse}
             href={`/coach/seances/${c.id}`}
           />
         ))

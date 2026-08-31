@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getWeekStart } from "@/lib/availability";
 import { matchTypeBadge } from "@/lib/match-phase";
+import { ensureSessionExpectations } from "@/lib/session-expectation";
 import type { AuthedParent } from "@/lib/parent-session";
 
 export type ParentPlanStatus = "entrainement" | "annule" | "aRepondre" | "dispoAVenir" | "convoque" | "neutral" | "cohesion";
@@ -14,6 +15,7 @@ export type ParentPlanItem = {
   matchId?: string;
   confirmed?: boolean | null;
   answer?: string; // "AVAILABLE" | "UNAVAILABLE"
+  expected?: boolean; // "entrainement" only — décision d'organisation STAFF (SessionExpectation), jamais déduite de PlayerAvailability
   weekStartIso?: string;
   windowStatus?: "OPEN" | "LOCKED" | "CLOSED"; // "weekend" items only — raw WeeklyAvailabilityWindow state, independent of whether already answered
   status: ParentPlanStatus;
@@ -58,6 +60,18 @@ export async function getParentPlanItems(parent: AuthedParent, from: Date, to: D
       orderBy: { date: "asc" },
     }),
   ]);
+  // Initialise l'effectif attendu de chaque séance concernée (idempotent,
+  // auto-réparateur — voir src/lib/session-expectation.ts) puis lit la
+  // décision STAFF pour CE joueur uniquement.
+  await Promise.all(sessions.map((s) => ensureSessionExpectations(s.id)));
+  const myExpectations = sessions.length
+    ? await prisma.sessionExpectation.findMany({
+        where: { sessionId: { in: sessions.map((s) => s.id) }, playerId: parent.playerId },
+        select: { sessionId: true, expected: true },
+      })
+    : [];
+  const expectedBySession = new Map(myExpectations.map((e) => [e.sessionId, e.expected]));
+
   const convocByDateKey = new Map(myConvocations.map((c) => [c.match.date.toISOString().slice(0, 10), c]));
   const availByDateKey = new Map(myAvailability.filter((a) => a.type === "WEEKEND").map((a) => [a.eventDate.toISOString().slice(0, 10), a]));
   const availBySession = new Map(myAvailability.filter((a) => a.sessionId).map((a) => [a.sessionId as string, a]));
@@ -81,6 +95,7 @@ export async function getParentPlanItems(parent: AuthedParent, from: Date, to: D
       label: "Entraînement",
       sub: `${s.startTime} · ${s.location}`,
       answer: availBySession.get(s.id)?.status,
+      expected: expectedBySession.get(s.id) ?? true,
       status: (s.status === "Annulée" ? "annule" : "entrainement") as ParentPlanStatus,
     })),
     ...cohesionDays.map((e) => ({

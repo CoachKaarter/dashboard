@@ -14,9 +14,14 @@ import {
   cancelSession,
   deleteSession,
   terminerSeance,
+  setExpected,
+  setExpectedBulk,
+  addExceptionalExpectation,
 } from "../actions";
+import { ensureSessionExpectations } from "@/lib/session-expectation";
 import { SessionBlocksSection } from "./SessionBlocksSection";
 import { DuplicateSessionButton } from "./DuplicateSessionButton";
+import { ExpectationSection, type ExpectationRow, type ExceptionalCandidate } from "./ExpectationSection";
 
 const CODES: { code: string; label: string }[] = [
   { code: "P", label: "Présent" },
@@ -34,14 +39,39 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
   if (!session || session.deletedAt) notFound();
   if (!(await canAccessSession(user, session))) notFound();
 
-  const [players, blocks] = await Promise.all([
+  await ensureSessionExpectations(id);
+
+  const [expectations, categoryPlayers, blocks] = await Promise.all([
+    prisma.sessionExpectation.findMany({
+      where: { sessionId: id },
+      include: { player: { include: { team: true, attendances: { where: { sessionId: id } } } } },
+      orderBy: { player: { lastName: "asc" } },
+    }),
     prisma.player.findMany({
-      where: session.scopeTeamId ? { teamId: session.scopeTeamId } : { team: { category: session.category } },
-      include: { team: true, attendances: { where: { sessionId: id } } },
+      where: { archived: false, team: { category: session.category } },
+      include: { team: true },
       orderBy: { lastName: "asc" },
     }),
     prisma.sessionBlock.findMany({ where: { sessionId: id }, orderBy: { order: "asc" } }),
   ]);
+
+  // Le pointage (grille du bas) ne porte que sur les joueurs ATTENDUS —
+  // "attendu" est une décision d'organisation staff, distincte de
+  // Player.teamId/team.category (voir src/lib/session-expectation.ts).
+  const players = expectations.filter((e) => e.expected).map((e) => e.player);
+
+  const expectationRows: ExpectationRow[] = expectations.map((e) => ({
+    id: e.playerId,
+    firstName: e.player.firstName,
+    lastName: e.player.lastName,
+    category: e.player.team.category,
+    teamCode: e.player.team.code,
+    expected: e.expected,
+  }));
+  const expectedPlayerIds = new Set(expectations.map((e) => e.playerId));
+  const exceptionalCandidates: ExceptionalCandidate[] = categoryPlayers
+    .filter((p) => !expectedPlayerIds.has(p.id))
+    .map((p) => ({ id: p.id, firstName: p.firstName, lastName: p.lastName, teamCode: p.team.code }));
 
   const counts: Record<string, number> = { P: 0, R: 0, AJ: 0, ANJ: 0, B: 0 };
   let pointed = 0;
@@ -168,6 +198,14 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
       </details>
 
       <SessionBlocksSection sessionId={id} blocks={blocks} />
+
+      <ExpectationSection
+        rows={expectationRows}
+        candidates={exceptionalCandidates}
+        onSetExpected={setExpected.bind(null, id)}
+        onSetExpectedBulk={setExpectedBulk.bind(null, id)}
+        onAddExceptional={addExceptionalExpectation.bind(null, id)}
+      />
 
       {previsionnel && (
         <div className="mt-3.5 px-3.5 py-2.5 rounded-lg border border-blue/30 bg-blue-bg text-blue text-[12.5px] font-medium">

@@ -12,6 +12,7 @@
 import { prisma } from "@/lib/prisma";
 import { getClub } from "@/lib/club";
 import { getWeekStart, getWeekendDate, getWindowForWeek, getPlayerWeekSessions } from "@/lib/availability";
+import { ensureSessionExpectations } from "@/lib/session-expectation";
 import { isPreOpen, isPostOpen } from "@/lib/session-feedback";
 import { getParentPlanItems, type ParentPlanItem } from "@/lib/parent-planning";
 import type { AuthedParent } from "@/lib/parent-session";
@@ -125,6 +126,20 @@ export async function getParentHomeState(parent: AuthedParent): Promise<ParentHo
   const answerBySession = new Map(answers.filter((a) => a.sessionId).map((a) => [a.sessionId, a]));
   const weekendAnswer = answers.find((a) => a.type === "WEEKEND");
 
+  // Effectif attendu (SessionExpectation, décision STAFF) — un joueur non
+  // attendu à une séance ne doit jamais être sollicité pour y répondre
+  // présent/absent, ni devenir Hero/notification (§17/§19 du brief V6).
+  if (sessions.length) await Promise.all(sessions.map((s) => ensureSessionExpectations(s.id)));
+  const myExpectations = sessions.length
+    ? await prisma.sessionExpectation.findMany({
+        where: { sessionId: { in: sessions.map((s) => s.id) }, playerId: parent.playerId },
+        select: { sessionId: true, expected: true },
+      })
+    : [];
+  const expectedBySession = new Map(myExpectations.map((e) => [e.sessionId, e.expected]));
+  const isExpected = (sessionId: string) => expectedBySession.get(sessionId) ?? true;
+  const expectedSessions = sessions.filter((s) => isExpected(s.id));
+
   // ---- Charger tout l'état NEW/SEEN/COMPLETED en un seul aller-retour ----
   // La convocation est suivie par week-end (entityId = date du samedi), pas
   // par id de MatchConvocation : cela permet de détecter un RETRAIT (le
@@ -147,8 +162,8 @@ export async function getParentHomeState(parent: AuthedParent): Promise<ParentHo
   // ---- Cycle 1 — Disponibilités ----
   const isOpen = window?.status === "OPEN";
   const isLocked = window?.status === "LOCKED";
-  const totalSlots = sessions.length + (weekendConvocation ? 0 : 1);
-  const answeredCount = sessions.filter((s) => answerBySession.has(s.id)).length + (!weekendConvocation && weekendAnswer ? 1 : 0);
+  const totalSlots = expectedSessions.length + (weekendConvocation ? 0 : 1);
+  const answeredCount = expectedSessions.filter((s) => answerBySession.has(s.id)).length + (!weekendConvocation && weekendAnswer ? 1 : 0);
   const availabilityState = getState(states, { entityType: "AVAILABILITY_WEEK", entityId: weekStart.toISOString() });
   const availabilityCard = buildAvailabilityCard({
     weekStartIso: weekStart.toISOString(),
@@ -220,7 +235,9 @@ export async function getParentHomeState(parent: AuthedParent): Promise<ParentHo
   }
 
   // ---- Cycle 7-9 — Séances (annulation / modification / aujourd'hui) ----
-  const sessionCards = sessions
+  // Uniquement les séances où l'enfant est ATTENDU (§17/§19) — une séance
+  // non attendue ne doit jamais devenir une notification ni un Hero.
+  const sessionCards = expectedSessions
     .map((s) => {
       const st = getState(states, { entityType: "TRAINING_SESSION", entityId: s.id });
       const changes = diffSnapshot(st?.lastSnapshot, sessionSnapshot(s));
@@ -240,7 +257,7 @@ export async function getParentHomeState(parent: AuthedParent): Promise<ParentHo
     .filter((c): c is PriorityCard => !!c);
 
   // ---- Cycle 10-11 — Questionnaires ----
-  const questionnaireCards = sessions
+  const questionnaireCards = expectedSessions
     .map((s) => {
       const fb = feedbackBySession.get(s.id);
       if (isPreOpen(s, now) && !fb?.preAnsweredAt) return buildQuestionnaireCard({ sessionId: s.id, moment: "pre", href: `/parent/questionnaire/${s.id}/pre` });
@@ -308,7 +325,10 @@ export async function getParentHomeState(parent: AuthedParent): Promise<ParentHo
   const allUpcoming = await getParentPlanItems(parent, now, to);
   const heroMatchId = hero?.ref?.entityType === "CONVOCATION" ? weekendConvocation?.matchId : null;
   const heroSessionId = hero?.ref?.entityType === "TRAINING_SESSION" ? hero.ref.entityId : null;
-  const upcoming = allUpcoming.filter((it) => !(it.matchId && it.matchId === heroMatchId) && !(it.kind === "entrainement" && heroSessionId)).slice(0, 3);
+  const upcoming = allUpcoming
+    .filter((it) => !(it.matchId && it.matchId === heroMatchId) && !(it.kind === "entrainement" && heroSessionId))
+    .filter((it) => !(it.kind === "entrainement" && it.expected === false)) // §19 : jamais "prochain rendez-vous" pour un joueur non attendu
+    .slice(0, 3);
 
   // ---- "Cette semaine" — bande compacte, semaine civile en cours ----
   const weekDays = Array.from({ length: 7 }, (_, i) => new Date(weekStart.getTime() + i * 86400000));
@@ -337,7 +357,10 @@ export async function getParentHomeState(parent: AuthedParent): Promise<ParentHo
           weekStartIso: weekStart.toISOString(),
           isLocked,
           isBeforeOpen: !isOpen && !isLocked,
-          sessions: sessions.map((s) => {
+          // Uniquement les séances où l'enfant est ATTENDU — une séance non
+          // attendue n'a rien à "compléter" ici (§17 : le Parent n'est jamais
+          // invité à répondre). Elle reste néanmoins visible dans le Planning.
+          sessions: expectedSessions.map((s) => {
             const a = answerBySession.get(s.id);
             return { id: s.id, date: s.date, startTime: s.startTime, endTime: s.endTime, location: s.location, answer: a?.status, absenceReason: a?.absenceReason };
           }),

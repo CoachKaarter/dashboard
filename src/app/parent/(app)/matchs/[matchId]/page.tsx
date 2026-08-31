@@ -7,7 +7,7 @@ import { formatDateFull } from "@/lib/format";
 import { ParentPageHeader } from "@/components/parent/ParentPageHeader";
 import { ParentCard } from "@/components/parent/ParentCard";
 import { CopyButton } from "@/components/CopyButton";
-import { CheckIcon, XIcon } from "@/components/parent/icons";
+import { ConvocationChoice } from "@/components/parent/ConvocationChoice";
 import { confirmMyConvocation } from "../../planning/actions";
 
 /**
@@ -53,27 +53,8 @@ export default async function ParentMatchDetailPage({ params }: { params: Promis
           <Row label="Retour" value={match.estimatedReturnTime} estimated />
         </div>
 
-        <div className="flex gap-1.5 mt-3.5">
-          <form action={confirmMyConvocation.bind(null, matchId, true)} className="flex-1">
-            <button
-              type="submit"
-              className={`w-full h-11 rounded-xl text-[13px] font-bold border-2 inline-flex items-center justify-center gap-1.5 active:scale-95 transition-all duration-150 ${
-                convocation.confirmed === true ? "bg-green border-green text-white" : "bg-white border-[#E7E7E2] text-green"
-              }`}
-            >
-              <CheckIcon size={15} /> Je viens
-            </button>
-          </form>
-          <form action={confirmMyConvocation.bind(null, matchId, false)} className="flex-1">
-            <button
-              type="submit"
-              className={`w-full h-11 rounded-xl text-[13px] font-bold border-2 inline-flex items-center justify-center gap-1.5 active:scale-95 transition-all duration-150 ${
-                convocation.confirmed === false ? "bg-red border-red text-white" : "bg-white border-[#E7E7E2] text-red"
-              }`}
-            >
-              <XIcon size={15} /> Absent
-            </button>
-          </form>
+        <div className="mt-3.5">
+          <ConvocationChoice confirmed={convocation.confirmed} onSetConfirmed={confirmMyConvocation.bind(null, matchId)} />
         </div>
       </ParentCard>
 

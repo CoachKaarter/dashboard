@@ -5,6 +5,7 @@ import { PARENT_PLAN_STATUS_STYLE as STATUS_STYLE } from "@/lib/parent-plan-stat
 import { ParentPageHeader } from "@/components/parent/ParentPageHeader";
 import { ParentCard } from "@/components/parent/ParentCard";
 import { ChevronLeftIcon, ChevronRightIcon, CheckIcon, XIcon } from "@/components/parent/icons";
+import { ConvocationChoice } from "@/components/parent/ConvocationChoice";
 import type { AuthedParent } from "@/lib/parent-session";
 import { confirmMyConvocation } from "./actions";
 
@@ -349,36 +350,21 @@ function EventCard({ item, showDate = true }: { item: ParentPlanItem; showDate?:
         {item.program && (
           <div className="text-[12.5px] text-[#6E7178] mt-1.5 whitespace-pre-wrap leading-relaxed">{item.program}</div>
         )}
-        {item.kind !== "convocation" && item.answer && (
-          <div className={`flex items-center gap-1 text-[12px] font-semibold mt-1 ${item.answer === "AVAILABLE" ? "text-green" : "text-red"}`}>
-            {item.answer === "AVAILABLE" ? <CheckIcon size={12} /> : <XIcon size={12} />}
-            {item.kind === "weekend" ? (item.answer === "AVAILABLE" ? "Disponible" : "Indisponible") : item.answer === "AVAILABLE" ? "Présent" : "Absent"}
-          </div>
+        {item.kind === "entrainement" && item.expected === false ? (
+          <div className="text-[12px] text-[#8A8D93] italic mt-1">Votre enfant n&apos;est pas attendu à cette séance.</div>
+        ) : (
+          item.kind !== "convocation" && item.answer && (
+            <div className={`flex items-center gap-1 text-[12px] font-semibold mt-1 ${item.answer === "AVAILABLE" ? "text-green" : "text-red"}`}>
+              {item.answer === "AVAILABLE" ? <CheckIcon size={12} /> : <XIcon size={12} />}
+              {item.kind === "weekend" ? (item.answer === "AVAILABLE" ? "Disponible" : "Indisponible") : item.answer === "AVAILABLE" ? "Présent" : "Absent"}
+            </div>
+          )
         )}
       </div>
       <StatusChip status={item.status} />
       {item.kind === "convocation" && item.matchId && (
-        <div className="flex gap-1.5 w-full sm:w-auto">
-          <form action={confirmMyConvocation.bind(null, item.matchId, true)} className="flex-1 sm:flex-none">
-            <button
-              type="submit"
-              className={`w-full h-9 px-3 rounded-lg text-[12px] font-bold border-2 inline-flex items-center justify-center gap-1 active:scale-95 transition-all duration-150 ${
-                item.confirmed === true ? "bg-green border-green text-white" : "bg-white border-[#E7E7E2] text-green"
-              }`}
-            >
-              <CheckIcon size={14} /> Je viens
-            </button>
-          </form>
-          <form action={confirmMyConvocation.bind(null, item.matchId, false)} className="flex-1 sm:flex-none">
-            <button
-              type="submit"
-              className={`w-full h-9 px-3 rounded-lg text-[12px] font-bold border-2 inline-flex items-center justify-center gap-1 active:scale-95 transition-all duration-150 ${
-                item.confirmed === false ? "bg-red border-red text-white" : "bg-white border-[#E7E7E2] text-red"
-              }`}
-            >
-              <XIcon size={14} /> Absent
-            </button>
-          </form>
+        <div className="w-full sm:w-auto">
+          <ConvocationChoice confirmed={item.confirmed} onSetConfirmed={confirmMyConvocation.bind(null, item.matchId)} />
         </div>
       )}
     </ParentCard>

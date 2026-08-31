@@ -7,6 +7,7 @@ import { requireUser, canAccessSession, canAccessTeam } from "@/lib/authz";
 import { logActivity } from "@/lib/activity";
 import { assertPlayerInSessionScope } from "@/lib/session-scope";
 import { isAttendanceCode, ensureSessionInProgress, canTerminateSession, playersNeedingDefaultPresence } from "@/lib/session-lifecycle";
+import { ensureSessionExpectations, assertPlayerInSessionCategory } from "@/lib/session-expectation";
 
 async function assertSessionAccess(sessionId: string) {
   const user = await requireUser();
@@ -120,6 +121,7 @@ export async function createSession(formData: FormData) {
   const session = await prisma.trainingSession.create({
     data: { category, scopeTeamId, label, date, startTime, endTime, location, theme, objective, status: "Prévue" },
   });
+  await ensureSessionExpectations(session.id);
   revalidatePath("/seances");
   revalidatePath("/planning");
   revalidatePath("/");
@@ -254,4 +256,58 @@ export async function deleteSession(sessionId: string) {
   revalidatePath("/coach/seances");
   revalidatePath("/coach");
   redirect("/seances");
+}
+
+function revalidateExpectationViews(sessionId: string) {
+  revalidatePath(`/seances/${sessionId}`);
+  revalidatePath(`/coach/seances/${sessionId}`);
+  revalidatePath("/coach");
+  revalidatePath("/coach/seances");
+  revalidatePath("/planning");
+  revalidatePath("/");
+}
+
+// Bascule rapide (§5 du brief V6) — décision manuelle explicite, donc écrase
+// volontairement une ligne existante, contrairement à ensureSessionExpectations.
+export async function setExpected(sessionId: string, playerId: string, expected: boolean) {
+  const { user } = await assertSessionAccess(sessionId);
+  await assertPlayerInSessionCategory(sessionId, playerId);
+  await prisma.sessionExpectation.upsert({
+    where: { sessionId_playerId: { sessionId, playerId } },
+    update: { expected, updatedById: user.id },
+    create: { sessionId, playerId, expected, updatedById: user.id },
+  });
+  revalidateExpectationViews(sessionId);
+}
+
+// Action groupée (§6).
+export async function setExpectedBulk(sessionId: string, playerIds: string[], expected: boolean) {
+  const { user } = await assertSessionAccess(sessionId);
+  for (const playerId of playerIds) {
+    await assertPlayerInSessionCategory(sessionId, playerId);
+  }
+  await prisma.$transaction(
+    playerIds.map((playerId) =>
+      prisma.sessionExpectation.upsert({
+        where: { sessionId_playerId: { sessionId, playerId } },
+        update: { expected, updatedById: user.id },
+        create: { sessionId, playerId, expected, updatedById: user.id },
+      })
+    )
+  );
+  revalidateExpectationViews(sessionId);
+}
+
+// Joueur exceptionnel (§4/§25) — scope CATÉGORIE large (pas équipe), utilisée
+// depuis la fiche séance staff ET l'appel Coach mobile ("+ Ajouter un joueur
+// non prévu"). Ne touche jamais Player.teamId ni le groupe habituel.
+export async function addExceptionalExpectation(sessionId: string, playerId: string) {
+  const { user } = await assertSessionAccess(sessionId);
+  await assertPlayerInSessionCategory(sessionId, playerId);
+  await prisma.sessionExpectation.upsert({
+    where: { sessionId_playerId: { sessionId, playerId } },
+    update: { expected: true, updatedById: user.id },
+    create: { sessionId, playerId, expected: true, updatedById: user.id },
+  });
+  revalidateExpectationViews(sessionId);
 }

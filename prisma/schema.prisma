@@ -33,30 +33,31 @@ model User {
   teamIds               String[]  @default([])
   onboardingCompletedAt DateTime? // null = show the first-login onboarding flow
 
-  teams                    Team[]                    @relation("TeamCoach")
-  notes                    PlayerNote[]
-  evaluations              EvaluationScore[]
-  treatedAlerts            AlertTreated[]            @relation("AlertTreatedBy")
-  assignedAlerts           AlertTreated[]            @relation("AlertAssignee")
-  historyDecisions         TeamHistoryEntry[]
-  unavailabilities         Unavailability[]
-  activityLogs             ActivityLog[]
-  notifications            Notification[]
-  weekendAssignmentsMade   WeekendAssignment[]
-  matchStaffRoles          MatchStaffAssignment[]
-  weekendPlansValidated    WeekendPlan[]
-  interviews               PlayerInterview[]
-  objectivesCreated        PlayerObjective[]
-  attendanceUpdates        Attendance[]
-  contentItemsCreated      TrainingContentItem[]
-  contentFavorites         TrainingContentFavorite[]
-  templatesCreated         SessionTemplate[]
-  announcementsPosted      StaffAnnouncement[]
-  physicalTestsRecorded    PhysicalTestResult[]
-  staffAccess              StaffAccess[]             @relation("StaffAccessUser")
-  staffAccessGranted       StaffAccess[]             @relation("StaffAccessGrantedBy")
-  equipmentAssignmentsMade EquipmentAssignment[]
-  parentInvitationsCreated ParentInvitation[]
+  teams                     Team[]                    @relation("TeamCoach")
+  notes                     PlayerNote[]
+  evaluations               EvaluationScore[]
+  treatedAlerts             AlertTreated[]            @relation("AlertTreatedBy")
+  assignedAlerts            AlertTreated[]            @relation("AlertAssignee")
+  historyDecisions          TeamHistoryEntry[]
+  unavailabilities          Unavailability[]
+  activityLogs              ActivityLog[]
+  notifications             Notification[]
+  weekendAssignmentsMade    WeekendAssignment[]
+  matchStaffRoles           MatchStaffAssignment[]
+  weekendPlansValidated     WeekendPlan[]
+  interviews                PlayerInterview[]
+  objectivesCreated         PlayerObjective[]
+  attendanceUpdates         Attendance[]
+  sessionExpectationUpdates SessionExpectation[]
+  contentItemsCreated       TrainingContentItem[]
+  contentFavorites          TrainingContentFavorite[]
+  templatesCreated          SessionTemplate[]
+  announcementsPosted       StaffAnnouncement[]
+  physicalTestsRecorded     PhysicalTestResult[]
+  staffAccess               StaffAccess[]             @relation("StaffAccessUser")
+  staffAccessGranted        StaffAccess[]             @relation("StaffAccessGrantedBy")
+  equipmentAssignmentsMade  EquipmentAssignment[]
+  parentInvitationsCreated  ParentInvitation[]
 
   createdAt DateTime @default(now())
 }
@@ -222,6 +223,7 @@ model Player {
   interviews           PlayerInterview[]
   objectives           PlayerObjective[]
   physicalTests        PhysicalTestResult[]
+  sessionExpectations  SessionExpectation[]
 
   createdAt DateTime @default(now())
 
@@ -512,8 +514,36 @@ model TrainingSession {
   availabilities  PlayerAvailability[]
   sessionFeedback SessionFeedback[]
   blocks          SessionBlock[]
+  expectations    SessionExpectation[]
 
   @@index([date])
+}
+
+// Effectif attendu à CETTE séance précise — décision d'organisation STAFF,
+// distincte de PlayerAvailability (réponse FAMILLE) et d'Attendance
+// (présence RÉELLE pointée par le coach). Initialisée automatiquement à la
+// création/premier accès d'une séance (voir ensureSessionExpectations() dans
+// src/lib/session-expectation.ts) à partir du scope naturel (équipe ou
+// catégorie), jamais réécrite automatiquement ensuite — seule une action
+// staff explicite (bascule individuelle, action groupée, ajout exceptionnel)
+// modifie une ligne existante. Player.teamId ne change jamais à cause de
+// cette table : un joueur peut être "attendu" sur une séance en dehors de
+// son équipe habituelle sans que son affectation administrative bouge.
+model SessionExpectation {
+  id          String          @id @default(cuid())
+  session     TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId   String
+  player      Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId    String
+  expected    Boolean
+  updatedBy   User?           @relation(fields: [updatedById], references: [id])
+  updatedById String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([sessionId, playerId])
+  @@index([sessionId])
+  @@index([playerId])
 }
 
 model Attendance {
