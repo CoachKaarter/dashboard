@@ -29,6 +29,7 @@ export type WeekendResultMatch = {
   scoreAgainst: number | null;
   tournamentRanking: number | null;
   tournamentTeamsCount: number | null;
+  plateauResults: { opponent: string; scoreFor: number | null; scoreAgainst: number | null }[];
 };
 
 /**
@@ -54,6 +55,26 @@ export function formatWeekendResultLine(m: WeekendResultMatch): string | null {
 }
 
 /**
+ * Pure — un plateau n'a pas de score unique (Match.scoreFor/scoreAgainst
+ * restent null), donc formatWeekendResultLine ci-dessus n'a rien à
+ * exploiter et renvoie null pour ce type de match. Une rencontre du
+ * plateau donne sa propre ligne, comme pour les compteurs de
+ * src/lib/team-stats.ts (flattenPlayedMatches) et le rapport de match —
+ * jamais un unique "0-0" agrégé et jamais un match Plateau silencieusement
+ * absent du message.
+ */
+export function formatWeekendResultLines(m: WeekendResultMatch): string[] {
+  if (m.status !== "Joué") return [];
+  if (m.competition === "Plateau") {
+    return m.plateauResults
+      .filter((r): r is { opponent: string; scoreFor: number; scoreAgainst: number } => r.scoreFor !== null && r.scoreAgainst !== null)
+      .map((r) => `${m.teamCode} — Plateau — ${RESULT_LABEL_FR[computeMatchResult(r.scoreFor, r.scoreAgainst)]} ${r.scoreFor}-${r.scoreAgainst} vs ${r.opponent}`);
+  }
+  const line = formatWeekendResultLine(m);
+  return line ? [line] : [];
+}
+
+/**
  * Pure — teamIds est la liste déjà scopée par les permissions de
  * l'appelant (mêmes scopedTeamIds/catégorie active que la page
  * /disponibilites elle-même — jamais recalculée ici). Un filtre défensif
@@ -61,10 +82,7 @@ export function formatWeekendResultLine(m: WeekendResultMatch): string | null {
  */
 export function selectWeekendResultLines(matches: WeekendResultMatch[], teamIds: string[]): string[] {
   const allowed = new Set(teamIds);
-  return matches
-    .filter((m) => allowed.has(m.teamId))
-    .map(formatWeekendResultLine)
-    .filter((line): line is string => line !== null);
+  return matches.filter((m) => allowed.has(m.teamId)).flatMap(formatWeekendResultLines);
 }
 
 /**
@@ -87,6 +105,7 @@ export async function getWeekendResults(weekStart: Date, weekEndExclusive: Date,
       tournamentRanking: true,
       tournamentTeamsCount: true,
       team: { select: { code: true } },
+      plateauResults: { select: { opponent: true, scoreFor: true, scoreAgainst: true }, orderBy: { order: "asc" } },
     },
     orderBy: [{ team: { code: "asc" } }, { date: "asc" }],
   });
@@ -100,6 +119,7 @@ export async function getWeekendResults(weekStart: Date, weekEndExclusive: Date,
     scoreAgainst: m.scoreAgainst,
     tournamentRanking: m.tournamentRanking,
     tournamentTeamsCount: m.tournamentTeamsCount,
+    plateauResults: m.plateauResults,
   }));
   return selectWeekendResultLines(rows, teamIds);
 }

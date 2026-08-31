@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatWeekendResultLine, selectWeekendResultLines, type WeekendResultMatch } from "./weekend-results";
+import { formatWeekendResultLine, formatWeekendResultLines, selectWeekendResultLines, type WeekendResultMatch } from "./weekend-results";
 
 const base: WeekendResultMatch = {
   teamId: "team-u13a",
@@ -12,6 +12,7 @@ const base: WeekendResultMatch = {
   scoreAgainst: null,
   tournamentRanking: null,
   tournamentTeamsCount: null,
+  plateauResults: [],
 };
 
 // CAS 3
@@ -125,4 +126,63 @@ test("selectWeekendResultLines: une équipe hors du périmètre autorisé n'appa
   const lines = selectWeekendResultLines(matches, ["t-u13a"]);
   assert.deepEqual(lines, ["U13A — Victoire 4-2 vs Châteaubriant"]);
   assert.ok(!lines.some((l) => l.includes("U8")));
+});
+
+test("formatWeekendResultLines: un plateau donne une ligne par rencontre, jamais un score unique", () => {
+  const m: WeekendResultMatch = {
+    ...base,
+    competition: "Plateau",
+    opponent: null,
+    plateauResults: [
+      { opponent: "AS Sautron", scoreFor: 6, scoreAgainst: 0 },
+      { opponent: "SC Nantes", scoreFor: 0, scoreAgainst: 0 },
+      { opponent: "Toutes Aides", scoreFor: 3, scoreAgainst: 1 },
+    ],
+  };
+  assert.deepEqual(formatWeekendResultLines(m), [
+    "U13A — Plateau — Victoire 6-0 vs AS Sautron",
+    "U13A — Plateau — Match nul 0-0 vs SC Nantes",
+    "U13A — Plateau — Victoire 3-1 vs Toutes Aides",
+  ]);
+});
+
+test("formatWeekendResultLines: une rencontre de plateau sans score n'est pas comptée", () => {
+  const m: WeekendResultMatch = {
+    ...base,
+    competition: "Plateau",
+    opponent: null,
+    plateauResults: [
+      { opponent: "AS Sautron", scoreFor: 6, scoreAgainst: 0 },
+      { opponent: "SC Nantes", scoreFor: null, scoreAgainst: null },
+    ],
+  };
+  assert.deepEqual(formatWeekendResultLines(m), ["U13A — Plateau — Victoire 6-0 vs AS Sautron"]);
+});
+
+// Reproduit le cas signalé : une équipe avec un match classique en semaine
+// (mercredi) ET un plateau le samedi doit voir les DEUX apparaître dans le
+// message du dimanche, pas seulement le premier.
+test("selectWeekendResultLines: match du mercredi + plateau du samedi pour la même équipe donnent toutes les lignes", () => {
+  const matches: WeekendResultMatch[] = [
+    { ...base, teamId: "t1", teamCode: "U13A", competition: "Amical", opponent: "Châteaubriant", scoreFor: 3, scoreAgainst: 1 },
+    {
+      ...base,
+      teamId: "t1",
+      teamCode: "U13A",
+      competition: "Plateau",
+      opponent: null,
+      scoreFor: null,
+      scoreAgainst: null,
+      plateauResults: [
+        { opponent: "AS Sautron", scoreFor: 6, scoreAgainst: 0 },
+        { opponent: "SC Nantes", scoreFor: 0, scoreAgainst: 0 },
+      ],
+    },
+  ];
+  const lines = selectWeekendResultLines(matches, ["t1"]);
+  assert.deepEqual(lines, [
+    "U13A — Victoire 3-1 vs Châteaubriant",
+    "U13A — Plateau — Victoire 6-0 vs AS Sautron",
+    "U13A — Plateau — Match nul 0-0 vs SC Nantes",
+  ]);
 });
