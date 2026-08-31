@@ -15,6 +15,7 @@ import {
   competitionSchema,
   bilanSchema,
   tournamentSchema,
+  plateauResultSchema,
   SURFACE_TYPES,
 } from "@/lib/match-validation";
 import { readXlsxFirstSheetGrid, extractMatchRows, buildMatchImportCandidates } from "@/lib/match-import";
@@ -110,6 +111,7 @@ async function assertMatchAccess(matchId: string) {
       teamId: true,
       date: true,
       formation: true,
+      competition: true,
       team: {
         select: {
           format: true,
@@ -222,6 +224,65 @@ export async function recordScore(matchId: string, formData: FormData) {
     where: { id: matchId },
     data: { status: "Joué", scoreFor: parsed.data.scoreFor, scoreAgainst: parsed.data.scoreAgainst },
   });
+  revalidatePath(`/matchs/${matchId}`);
+  revalidatePath(`/coach/matchs/${matchId}`);
+  revalidatePath("/matchs");
+  revalidatePath("/");
+}
+
+// Un plateau (competition === "Plateau") n'a pas un adversaire/score
+// unique comme un match classique — chaque rencontre vit dans
+// PlateauResult, jamais dans Match.opponent/scoreFor/scoreAgainst qui
+// restent inutilisés pour ce type de match.
+function assertPlateauCompetition(competition: string) {
+  if (competition !== "Plateau") throw new Error("Cette action n'est disponible que pour un match de type Plateau.");
+}
+
+export async function addPlateauResult(matchId: string, formData: FormData) {
+  const { match } = await assertMatchAccess(matchId);
+  assertPlateauCompetition(match.competition);
+  const scoreForRaw = String(formData.get("scoreFor") || "").trim();
+  const scoreAgainstRaw = String(formData.get("scoreAgainst") || "").trim();
+  const parsed = plateauResultSchema.safeParse({
+    opponent: String(formData.get("opponent") || ""),
+    scoreFor: scoreForRaw ? Number(scoreForRaw) : null,
+    scoreAgainst: scoreAgainstRaw ? Number(scoreAgainstRaw) : null,
+  });
+  if (!parsed.success) return;
+  const count = await prisma.plateauResult.count({ where: { matchId } });
+  await prisma.plateauResult.create({ data: { matchId, order: count, ...parsed.data } });
+  revalidatePath(`/matchs/${matchId}`);
+}
+
+export async function updatePlateauResult(resultId: string, formData: FormData) {
+  const result = await prisma.plateauResult.findUniqueOrThrow({ where: { id: resultId }, select: { matchId: true } });
+  const { match } = await assertMatchAccess(result.matchId);
+  assertPlateauCompetition(match.competition);
+  const scoreForRaw = String(formData.get("scoreFor") || "").trim();
+  const scoreAgainstRaw = String(formData.get("scoreAgainst") || "").trim();
+  const parsed = plateauResultSchema.safeParse({
+    opponent: String(formData.get("opponent") || ""),
+    scoreFor: scoreForRaw ? Number(scoreForRaw) : null,
+    scoreAgainst: scoreAgainstRaw ? Number(scoreAgainstRaw) : null,
+  });
+  if (!parsed.success) return;
+  await prisma.plateauResult.update({ where: { id: resultId }, data: parsed.data });
+  revalidatePath(`/matchs/${result.matchId}`);
+}
+
+export async function deletePlateauResult(resultId: string) {
+  const result = await prisma.plateauResult.findUniqueOrThrow({ where: { id: resultId }, select: { matchId: true } });
+  await assertMatchAccess(result.matchId);
+  await prisma.plateauResult.delete({ where: { id: resultId } });
+  revalidatePath(`/matchs/${result.matchId}`);
+}
+
+// Marque le plateau comme joué sans lui imposer un score unique — contexte
+// distinct de recordScore(), réservé aux matchs classiques.
+export async function markPlateauPlayed(matchId: string) {
+  const { match } = await assertMatchAccess(matchId);
+  assertPlateauCompetition(match.competition);
+  await prisma.match.update({ where: { id: matchId }, data: { status: "Joué" } });
   revalidatePath(`/matchs/${matchId}`);
   revalidatePath(`/coach/matchs/${matchId}`);
   revalidatePath("/matchs");

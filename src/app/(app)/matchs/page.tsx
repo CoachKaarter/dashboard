@@ -16,7 +16,7 @@ export default async function MatchsPage() {
   const categoryTeamIds = scopedTeamIdsInCategory(user, allTeams, activeGroup?.categories ?? null);
   const matches = await prisma.match.findMany({
     where: { teamId: { in: categoryTeamIds } },
-    include: { team: true, convocations: true, _count: { select: { stats: true } } },
+    include: { team: true, convocations: true, _count: { select: { stats: true, plateauResults: true } } },
     orderBy: { date: "asc" },
   });
 
@@ -37,6 +37,7 @@ export default async function MatchsPage() {
         {matches.map((m) => {
           const played = m.status === "Joué";
           const cancelled = m.status === "Annulé";
+          const isPlateau = m.competition === "Plateau";
           return (
             <Link
               key={m.id}
@@ -47,23 +48,33 @@ export default async function MatchsPage() {
               <div>
                 <TeamChip code={m.team.code} />
               </div>
-              <div className={`truncate ${m.opponent ? "font-semibold" : "text-red font-semibold"}`}>{m.opponent ?? "Adversaire à définir"}</div>
+              {isPlateau ? (
+                <div className="truncate text-ink-soft">Plusieurs équipes</div>
+              ) : (
+                <div className={`truncate ${m.opponent ? "font-semibold" : "text-red font-semibold"}`}>{m.opponent ?? "Adversaire à définir"}</div>
+              )}
               <div className="text-ink-soft">{m.competition}</div>
               <div className={m.location ? "text-ink-soft" : "text-red"}>{m.location ?? "—"}</div>
               <div className={`font-mono ${m.time ? "" : "text-red"}`}>{m.time ?? "—"}</div>
-              <div
-                className={`font-mono font-bold ${
-                  played
-                    ? computeMatchResult(m.scoreFor!, m.scoreAgainst!) === "GAGNE"
-                      ? "text-green"
-                      : computeMatchResult(m.scoreFor!, m.scoreAgainst!) === "NUL"
-                        ? "text-muted"
-                        : "text-red"
-                    : "text-muted-2"
-                }`}
-              >
-                {played ? `${m.scoreFor} – ${m.scoreAgainst}` : "—"}
-              </div>
+              {isPlateau ? (
+                <div className="font-mono font-bold text-muted-2">
+                  {m._count.plateauResults} rencontre{m._count.plateauResults > 1 ? "s" : ""}
+                </div>
+              ) : (
+                <div
+                  className={`font-mono font-bold ${
+                    played
+                      ? computeMatchResult(m.scoreFor!, m.scoreAgainst!) === "GAGNE"
+                        ? "text-green"
+                        : computeMatchResult(m.scoreFor!, m.scoreAgainst!) === "NUL"
+                          ? "text-muted"
+                          : "text-red"
+                      : "text-muted-2"
+                  }`}
+                >
+                  {played ? `${m.scoreFor} – ${m.scoreAgainst}` : "—"}
+                </div>
+              )}
               <div>
                 {cancelled ? (
                   <Badge tone="red">Annulé</Badge>

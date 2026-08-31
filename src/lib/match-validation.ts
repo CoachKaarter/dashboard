@@ -71,6 +71,16 @@ export const bilanSchema = z.object({
   notableEvents: freeText(2000),
 });
 
+// Une rencontre au sein d'un plateau (competition === "Plateau") —
+// contrairement à un match classique, un plateau ne se réduit pas à un
+// adversaire/score unique. L'adversaire est requis dès la création d'une
+// rencontre ; les scores restent facultatifs tant qu'elle n'est pas jouée.
+export const plateauResultSchema = z.object({
+  opponent: z.string().trim().min(1).max(120),
+  scoreFor: z.number().int().min(0).max(50).nullable(),
+  scoreAgainst: z.number().int().min(0).max(50).nullable(),
+});
+
 // Only meaningful when competition === "Tournoi", but both fields stay
 // optional throughout — a tournament's ranking is only known once it's
 // over (§13/§14).

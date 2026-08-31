@@ -27,9 +27,13 @@ import {
   updateBilan,
   cancelMatch,
   deleteMatch,
+  addPlateauResult,
+  updatePlateauResult,
+  deletePlateauResult,
+  markPlateauPlayed,
 } from "../actions";
 
-const TABS = [
+const BASE_TABS = [
   { key: "convocation", label: "Convocation" },
   { key: "composition", label: "Composition" },
   { key: "feuille", label: "Feuille de match" },
@@ -53,12 +57,15 @@ export default async function MatchDetailPage({
       convocations: { include: { player: true } },
       slots: { include: { player: true } },
       stats: { include: { player: true }, orderBy: { role: "asc" } },
+      plateauResults: { orderBy: { order: "asc" } },
     },
   });
   if (!match) notFound();
   if (!canAccessTeam(user, match.teamId)) notFound();
 
-  const defaultTab = match.status === "Joué" ? "feuille" : "convocation";
+  const isPlateau = match.competition === "Plateau";
+  const TABS = isPlateau ? [BASE_TABS[0], { key: "plateau", label: "Plateau" }, ...BASE_TABS.slice(1)] : BASE_TABS;
+  const defaultTab = match.status !== "Joué" ? "convocation" : isPlateau ? "plateau" : "feuille";
   const tab = TABS.some((t) => t.key === rawTab) ? rawTab! : defaultTab;
 
   const dayStart = new Date(Date.UTC(match.date.getUTCFullYear(), match.date.getUTCMonth(), match.date.getUTCDate()));
@@ -161,6 +168,10 @@ export default async function MatchDetailPage({
             <div className="font-mono text-xs text-muted">
               {convocatedIds.size} / {match.needed} convoqués
             </div>
+          ) : isPlateau ? (
+            <div className="font-mono text-xs text-muted">
+              {match.plateauResults.length} rencontre{match.plateauResults.length > 1 ? "s" : ""}
+            </div>
           ) : (
             <div className="font-mono text-sm font-bold">
               {match.scoreFor} – {match.scoreAgainst}
@@ -220,7 +231,7 @@ export default async function MatchDetailPage({
           })}
         </div>
 
-        {!played && !cancelled && (
+        {!played && !cancelled && !isPlateau && (
           <form action={recordScore.bind(null, match.id)} className="flex items-center gap-2 mt-3.5 pt-3 border-t border-line-soft">
             <span className="text-xs text-muted mr-1">Enregistrer le score :</span>
             <input name="scoreFor" type="number" min={0} required className="w-14 h-8 border border-line rounded-md text-center text-[13px]" />
@@ -230,6 +241,16 @@ export default async function MatchDetailPage({
               Marquer le match comme joué
             </button>
           </form>
+        )}
+        {!played && !cancelled && isPlateau && (
+          <div className="flex items-center gap-2 mt-3.5 pt-3 border-t border-line-soft">
+            <span className="text-xs text-muted flex-1">Les scores se saisissent rencontre par rencontre dans l&apos;onglet Plateau.</span>
+            <form action={markPlateauPlayed.bind(null, match.id)}>
+              <button type="submit" className="h-8 px-3 rounded-md bg-ink text-white text-xs font-semibold hover:bg-[#2A2E36]">
+                Marquer le plateau comme joué
+              </button>
+            </form>
+          </div>
         )}
       </div>
 
@@ -534,6 +555,77 @@ export default async function MatchDetailPage({
             />
           </section>
         </div>
+      )}
+
+      {tab === "plateau" && (
+        <section className="bg-surface border border-line rounded-lg overflow-hidden max-w-[700px]">
+          <div className="flex items-center gap-2 px-3.5 py-[11px] border-b border-line-soft">
+            <span className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted">Rencontres du plateau</span>
+            <span className="flex-1" />
+            <span className="text-[11.5px] text-muted-2">
+              {match.plateauResults.length} rencontre{match.plateauResults.length > 1 ? "s" : ""}
+            </span>
+          </div>
+          {match.plateauResults.length === 0 && (
+            <div className="px-4 py-6 text-center text-muted text-[13px]">Aucune rencontre ajoutée pour l&apos;instant.</div>
+          )}
+          {match.plateauResults.map((r) => (
+            <form
+              key={r.id}
+              action={updatePlateauResult.bind(null, r.id)}
+              className="flex items-center gap-2.5 px-3.5 py-2 border-b border-line-soft-2 last:border-b-0"
+            >
+              <input
+                name="opponent"
+                defaultValue={r.opponent}
+                placeholder="Adversaire"
+                required
+                className="flex-1 min-w-0 h-8 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none focus:border-blue"
+              />
+              <input
+                name="scoreFor"
+                type="number"
+                min={0}
+                defaultValue={r.scoreFor ?? ""}
+                placeholder="—"
+                className="w-14 h-8 border border-line rounded-md text-center text-[13px]"
+              />
+              <span className="text-muted">–</span>
+              <input
+                name="scoreAgainst"
+                type="number"
+                min={0}
+                defaultValue={r.scoreAgainst ?? ""}
+                placeholder="—"
+                className="w-14 h-8 border border-line rounded-md text-center text-[13px]"
+              />
+              <button type="submit" className="h-8 px-2.5 rounded-md bg-ink text-white text-[11px] font-semibold hover:bg-[#2A2E36]">
+                Enregistrer
+              </button>
+              <button
+                type="submit"
+                formAction={deletePlateauResult.bind(null, r.id)}
+                className="h-8 px-2.5 border border-line rounded-md text-[11px] font-semibold text-red hover:border-red"
+              >
+                Supprimer
+              </button>
+            </form>
+          ))}
+          <form action={addPlateauResult.bind(null, match.id)} className="flex items-center gap-2.5 px-3.5 py-2.5 border-t border-line-soft">
+            <input
+              name="opponent"
+              placeholder="Nouvel adversaire"
+              required
+              className="flex-1 min-w-0 h-8 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none focus:border-blue"
+            />
+            <input name="scoreFor" type="number" min={0} placeholder="—" className="w-14 h-8 border border-line rounded-md text-center text-[13px]" />
+            <span className="text-muted">–</span>
+            <input name="scoreAgainst" type="number" min={0} placeholder="—" className="w-14 h-8 border border-line rounded-md text-center text-[13px]" />
+            <button type="submit" className="h-8 px-3 rounded-md bg-ink text-white text-xs font-semibold hover:bg-[#2A2E36] whitespace-nowrap">
+              + Ajouter
+            </button>
+          </form>
+        </section>
       )}
 
       {tab === "composition" && (
