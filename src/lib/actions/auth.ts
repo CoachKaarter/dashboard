@@ -5,8 +5,11 @@ import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import { sanitizeNextPath } from "@/lib/redirect-policy";
 
-export async function signOutAction() {
-  await signOut({ redirectTo: "/login" });
+// Defaults to the Cockpit's door; the coach profile page binds "/coach/login"
+// so signing out there lands back on the coach's own bookmarkable door,
+// not the Cockpit's — same shared session either way.
+export async function signOutAction(redirectTo: string = "/login") {
+  await signOut({ redirectTo });
 }
 
 export async function loginAction(formData: FormData) {
@@ -22,7 +25,11 @@ export async function loginAction(formData: FormData) {
     });
   } catch (e) {
     if (e instanceof AuthError) {
-      redirect(`/login?error=1&next=${encodeURIComponent(next)}`);
+      // Send the failure back to whichever door it came from (/coach/login
+      // vs /login) — not always the Cockpit's, or a coach retrying after a
+      // typo would silently lose their bookmarked coach URL.
+      const loginPath = next.startsWith("/coach") ? "/coach/login" : "/login";
+      redirect(`${loginPath}?error=1&next=${encodeURIComponent(next)}`);
     }
     throw e;
   }

@@ -31,7 +31,7 @@ export default async function CoachProfilPage() {
         </Link>
       </div>
 
-      <form action={signOutAction}>
+      <form action={signOutAction.bind(null, "/coach/login")}>
         <button type="submit" className="w-full h-12 rounded-xl border border-[#E7E7E2] bg-white text-[14px] font-semibold text-[#8A8D93] active:bg-[#FAFAF8]">
           Se déconnecter
         </button>

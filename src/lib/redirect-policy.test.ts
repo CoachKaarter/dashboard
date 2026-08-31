@@ -45,12 +45,17 @@ test("decideLoginPageRedirect: only a real, DB-confirmed user is sent to /", () 
   assert.equal(decideLoginPageRedirect(false), null);
 });
 
-test("staff: an unauthenticated /coach/* request is sent to /login carrying ?next= so the single login page can flavor itself and return there", () => {
-  assert.deepEqual(decideStaffMiddleware("/coach", false), { type: "redirect", to: "/login?next=%2Fcoach" });
+test("staff: an unauthenticated /coach/* request is sent to its own stable door (/coach/login) carrying ?next= to return there after sign-in", () => {
+  assert.deepEqual(decideStaffMiddleware("/coach", false), { type: "redirect", to: "/coach/login?next=%2Fcoach" });
   assert.deepEqual(decideStaffMiddleware("/coach/seances/abc", false), {
     type: "redirect",
-    to: "/login?next=%2Fcoach%2Fseances%2Fabc",
+    to: "/coach/login?next=%2Fcoach%2Fseances%2Fabc",
   });
+});
+
+test("staff: /coach/login never redirects itself away — same anti-loop invariant as /login", () => {
+  assert.deepEqual(decideStaffMiddleware("/coach/login", true), { type: "next" });
+  assert.deepEqual(decideStaffMiddleware("/coach/login", false), { type: "next" });
 });
 
 test("decideLoginPageRedirect: an already-authed visit to /login?next=/coach lands back on /coach, not the Cockpit home", () => {

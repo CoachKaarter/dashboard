@@ -14,16 +14,16 @@
 export type RouteDecision = { type: "next" } | { type: "redirect"; to: string };
 
 export function decideStaffMiddleware(pathname: string, isLoggedIn: boolean): RouteDecision {
-  const isLoginPage = pathname.startsWith("/login");
+  // /coach/login is a stable, bookmarkable door onto the coach's own
+  // account (src/app/coach/(public)/login) — never requires going through
+  // /coach first. /login (optionally with ?next=/coach...) is kept working
+  // for old bookmarks/links, both share the same staff session.
+  const isLoginPage = pathname.startsWith("/login") || pathname.startsWith("/coach/login");
   // Convocation share links are handed to players/parents who have no
   // account — deliberately public, gated only by the unguessable token.
   const isPublicShare = pathname.startsWith("/convocation/");
   if (!isLoggedIn && !isLoginPage && !isPublicShare) {
-    // /coach and the Cockpit share one login page (same staff account) —
-    // carrying the original path as ?next= is what lets that single page
-    // show the Coach-flavored copy and land the browser back on /coach
-    // after signing in, instead of always dropping it on the Cockpit home.
-    const to = pathname.startsWith("/coach") ? `/login?next=${encodeURIComponent(pathname)}` : "/login";
+    const to = pathname.startsWith("/coach") ? `/coach/login?next=${encodeURIComponent(pathname)}` : "/login";
     return { type: "redirect", to };
   }
   return { type: "next" };

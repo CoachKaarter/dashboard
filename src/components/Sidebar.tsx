@@ -81,7 +81,7 @@ export async function Sidebar() {
           <div className="text-sidebar-text-hover text-xs font-semibold truncate">{user?.name}</div>
           <div className="text-[10px] text-muted truncate">{user?.jobTitle}</div>
         </div>
-        <form action={signOutAction}>
+        <form action={signOutAction.bind(null, "/login")}>
           <button
             type="submit"
             title="Se déconnecter"
