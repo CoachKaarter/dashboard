@@ -12,6 +12,7 @@ import {
   DISPLAY_STATUS_TONE,
   computeEquipmentDisplayStatus,
   daysLate,
+  playerMatchesEquipmentCategory,
   type EquipmentAssignmentLike,
 } from "@/lib/equipment";
 import {
@@ -47,7 +48,11 @@ export default async function MaterielPage() {
       orderBy: [{ category: "asc" }, { code: "asc" }],
     }),
     prisma.team.findMany({ orderBy: { code: "asc" } }),
-    prisma.player.findMany({ where: { archived: false }, orderBy: { lastName: "asc" }, select: { id: true, firstName: true, lastName: true, teamId: true } }),
+    prisma.player.findMany({
+      where: { archived: false },
+      orderBy: { lastName: "asc" },
+      select: { id: true, firstName: true, lastName: true, team: { select: { category: true } } },
+    }),
     prisma.match.findMany({
       where: { ...teamScopeWhere(user), status: { not: "Annulé" } },
       orderBy: { date: "desc" },
@@ -123,7 +128,7 @@ export default async function MaterielPage() {
                           <select name="playerId" defaultValue={active.playerId ?? ""} className={inputClass}>
                             <option value="">Aucun joueur lié</option>
                             {allPlayers
-                              .filter((p) => !e.teamId || p.teamId === e.teamId)
+                              .filter((p) => playerMatchesEquipmentCategory(e.team, p))
                               .map((p) => (
                                 <option key={p.id} value={p.id}>
                                   {p.firstName} {p.lastName}
@@ -195,11 +200,11 @@ export default async function MaterielPage() {
                           <summary className="cursor-pointer text-[11.5px] font-semibold text-muted hover:text-ink select-none">
                             + Réattribuer maintenant (referme ce prêt)
                           </summary>
-                          <AssignForm action={reassignEquipment.bind(null, e.id)} players={allPlayers.filter((p) => !e.teamId || p.teamId === e.teamId)} matches={eligibleMatches} />
+                          <AssignForm action={reassignEquipment.bind(null, e.id)} players={allPlayers.filter((p) => playerMatchesEquipmentCategory(e.team, p))} matches={eligibleMatches} />
                         </details>
                       </>
                     ) : (
-                      <AssignForm action={assignEquipment.bind(null, e.id)} players={allPlayers.filter((p) => !e.teamId || p.teamId === e.teamId)} matches={eligibleMatches} />
+                      <AssignForm action={assignEquipment.bind(null, e.id)} players={allPlayers.filter((p) => playerMatchesEquipmentCategory(e.team, p))} matches={eligibleMatches} />
                     )}
 
                     {e.assignments.length > 0 && (

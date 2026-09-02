@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeEquipmentDisplayStatus, daysLate } from "./equipment";
+import { computeEquipmentDisplayStatus, daysLate, playerMatchesEquipmentCategory } from "./equipment";
 
 const NOW = new Date("2026-09-02T10:00:00.000Z"); // mercredi
 
@@ -39,4 +39,16 @@ test("daysLate: 0 si pas en retard", () => {
 
 test("daysLate: nombre de jours entiers de retard", () => {
   assert.equal(daysLate({ status: "CHEZ_LE_JOUEUR", dueDate: new Date("2026-08-28T00:00:00.000Z") }, NOW), 5);
+});
+
+test("playerMatchesEquipmentCategory: matériel non lié à une équipe -> tout joueur autorisé", () => {
+  assert.equal(playerMatchesEquipmentCategory(null, { team: { category: "U13" } }), true);
+});
+
+test("playerMatchesEquipmentCategory: même catégorie, équipe différente -> autorisé (ex. U13B lave pour U13A)", () => {
+  assert.equal(playerMatchesEquipmentCategory({ category: "U13" }, { team: { category: "U13" } }), true);
+});
+
+test("playerMatchesEquipmentCategory: catégorie différente -> refusé", () => {
+  assert.equal(playerMatchesEquipmentCategory({ category: "U13" }, { team: { category: "U12" } }), false);
 });

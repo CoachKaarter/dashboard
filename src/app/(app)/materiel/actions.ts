@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser, canAccessTeam, canManageCategory } from "@/lib/authz";
 import { getSettings } from "@/lib/settings";
 import { logActivity } from "@/lib/activity";
-import { EQUIPMENT_CATEGORIES, CONDITIONS } from "@/lib/equipment";
+import { EQUIPMENT_CATEGORIES, CONDITIONS, playerMatchesEquipmentCategory } from "@/lib/equipment";
 
 function addDays(base: Date, days: number) {
   const d = new Date(base);
@@ -25,6 +25,19 @@ async function assertAssignmentAccess(assignmentId: string) {
   const assignment = await prisma.equipmentAssignment.findUniqueOrThrow({ where: { id: assignmentId }, include: { equipment: true } });
   if (assignment.equipment.teamId && !canAccessTeam(user, assignment.equipment.teamId)) throw new Error("Accès refusé.");
   return { user, assignment };
+}
+
+// Même règle que le filtre de la page (src/lib/equipment.ts) : un matériel
+// lié à une équipe reste attribuable à tout joueur de la même catégorie,
+// pas seulement ceux administrativement rattachés à cette équipe précise —
+// vérifié aussi côté serveur, le filtre du <select> n'étant qu'un confort.
+async function assertPlayerInEquipmentCategory(equipmentTeamId: string | null, playerId: string) {
+  if (!equipmentTeamId) return;
+  const [equipmentTeam, player] = await Promise.all([
+    prisma.team.findUniqueOrThrow({ where: { id: equipmentTeamId }, select: { category: true } }),
+    prisma.player.findUniqueOrThrow({ where: { id: playerId }, select: { team: { select: { category: true } } } }),
+  ]);
+  if (!playerMatchesEquipmentCategory(equipmentTeam, player)) throw new Error("Ce joueur ne fait pas partie de la catégorie de ce matériel.");
 }
 
 export async function createEquipment(formData: FormData) {
@@ -50,6 +63,7 @@ export async function assignEquipment(equipmentId: string, formData: FormData) {
   const matchId = String(formData.get("matchId") || "") || null;
   const returnLocation = String(formData.get("returnLocation") || "").trim() || null;
   if (!responsibleLabel) return;
+  if (playerId) await assertPlayerInEquipmentCategory(equipment.teamId, playerId);
 
   const active = await prisma.equipmentAssignment.findFirst({
     where: { equipmentId, status: { not: "RECUPERE_STAFF" } },
@@ -99,6 +113,7 @@ export async function reassignEquipment(equipmentId: string, formData: FormData)
   const matchId = String(formData.get("matchId") || "") || null;
   const returnLocation = String(formData.get("returnLocation") || "").trim() || null;
   if (!responsibleLabel) return;
+  if (playerId) await assertPlayerInEquipmentCategory(equipment.teamId, playerId);
 
   const active = await prisma.equipmentAssignment.findFirst({
     where: { equipmentId, status: { not: "RECUPERE_STAFF" } },
@@ -153,6 +168,7 @@ export async function updateAssignment(assignmentId: string, formData: FormData)
   if (!responsibleLabel || !dueDateRaw) return;
   const dueDate = new Date(dueDateRaw);
   if (Number.isNaN(dueDate.getTime())) return;
+  if (playerId) await assertPlayerInEquipmentCategory(assignment.equipment.teamId, playerId);
   const parentAccount = playerId ? await prisma.parentAccount.findUnique({ where: { playerId } }) : null;
 
   await prisma.equipmentAssignment.update({
