@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getWeekStart, getWeekendDate } from "./availability";
+import { getWeekStart, getWeekendDate, isWeekendMatchDate } from "./availability";
 
 // Regression test for a real production bug: parent Saturday-availability
 // writes (src/app/parent/(app)/actions.ts) used to compute eventDate via
@@ -29,4 +29,21 @@ test("getWeekendDate is stable whether weekStartDate round-trips through an ISO 
   const fromIso = getWeekendDate(new Date(monday.toISOString()));
   const direct = getWeekendDate(monday);
   assert.equal(fromIso.getTime(), direct.getTime());
+});
+
+test("isWeekendMatchDate: true for the Saturday of a match's own week", () => {
+  const saturday = getWeekendDate(getWeekStart(new Date("2026-08-24T10:00:00Z")));
+  assert.equal(isWeekendMatchDate(saturday), true);
+});
+
+test("isWeekendMatchDate: false for a midweek match (mercredi)", () => {
+  const monday = getWeekStart(new Date("2026-08-24T10:00:00Z"));
+  const wednesday = new Date(monday.getTime() + 2 * 86400000);
+  assert.equal(isWeekendMatchDate(wednesday), false);
+});
+
+test("isWeekendMatchDate: false for a Sunday (Plateau/tournoi hors samedi)", () => {
+  const monday = getWeekStart(new Date("2026-08-24T10:00:00Z"));
+  const sunday = new Date(monday.getTime() + 6 * 86400000);
+  assert.equal(isWeekendMatchDate(sunday), false);
 });

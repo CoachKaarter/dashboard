@@ -21,6 +21,7 @@ import {
 import { readXlsxFirstSheetGrid, extractMatchRows, buildMatchImportCandidates } from "@/lib/match-import";
 import { TRANSPORT_MODES } from "@/lib/equipment";
 import { resolveMeetTime, resolveEstimatedEnd, resolveEstimatedReturn, resolveField, selectMatchTemplate } from "@/lib/match-parent-info";
+import { getWeekStart, isWeekendMatchDate } from "@/lib/availability";
 
 function computeMeetTime(time: string | null, delaiRdv: number): string | null {
   if (!time) return null;
@@ -167,8 +168,42 @@ async function assertPlayerOnMatchTeam(category: string, playerId: string) {
   if (player.team.category !== category) throw new Error("Ce joueur ne fait pas partie de la catégorie de ce match.");
 }
 
+// Sur un match du samedi (la seule date que /week-end suit — voir
+// isWeekendMatchDate), une convocation ajoutée/retirée directement depuis la
+// fiche match tient la répartition du week-end (WeekendAssignment) à jour
+// dans l'autre sens : le sens week-end → match existait déjà via "Générer
+// les convocations" (convocationsToCreate) ; celui-ci comble match → week-end.
+// Écrase sans hésiter une affectation existante d'un AUTRE joueur — non, d'un
+// autre MATCH/ÉQUIPE pour ce même joueur ce même samedi (WeekendAssignment
+// n'autorise qu'une seule équipe par joueur et par week-end) : une
+// convocation posée à la main sur la fiche match est un choix explicite et
+// plus récent que ce qu'affichait /week-end. À la suppression, ne retire
+// l'affectation que si elle pointait bien vers CE match — jamais celle
+// d'une autre équipe.
+async function syncWeekendAssignmentOnConvocation(
+  match: { id: string; teamId: string; date: Date },
+  playerId: string,
+  userId: string,
+  action: "add" | "remove"
+) {
+  if (!isWeekendMatchDate(match.date)) return;
+  const weekendDate = match.date;
+  if (action === "add") {
+    await prisma.weekendAssignment.upsert({
+      where: { weekendDate_playerId: { weekendDate, playerId } },
+      update: { teamId: match.teamId, matchId: match.id, assignedById: userId },
+      create: { weekStartDate: getWeekStart(weekendDate), weekendDate, playerId, teamId: match.teamId, matchId: match.id, assignedById: userId },
+    });
+  } else {
+    const existing = await prisma.weekendAssignment.findUnique({ where: { weekendDate_playerId: { weekendDate, playerId } } });
+    if (existing && existing.matchId === match.id) {
+      await prisma.weekendAssignment.delete({ where: { id: existing.id } });
+    }
+  }
+}
+
 export async function toggleConvocation(matchId: string, playerId: string) {
-  const { match } = await assertMatchAccess(matchId);
+  const { user, match } = await assertMatchAccess(matchId);
   await assertPlayerOnMatchTeam(match.team.category, playerId);
   const existing = await prisma.matchConvocation.findUnique({
     where: { matchId_playerId: { matchId, playerId } },
@@ -177,14 +212,17 @@ export async function toggleConvocation(matchId: string, playerId: string) {
     await prisma.matchConvocation.delete({ where: { id: existing.id } });
     // also drop any composition slot for that player on this match
     await prisma.compositionSlot.deleteMany({ where: { matchId, playerId } });
+    await syncWeekendAssignmentOnConvocation({ id: matchId, teamId: match.teamId, date: match.date }, playerId, user.id, "remove");
   } else {
     await assertNoSameDayConflict(matchId, match.teamId, match.date, playerId);
     await prisma.matchConvocation.create({ data: { matchId, playerId } });
+    await syncWeekendAssignmentOnConvocation({ id: matchId, teamId: match.teamId, date: match.date }, playerId, user.id, "add");
   }
   revalidatePath(`/matchs/${matchId}`);
   revalidatePath(`/coach/matchs/${matchId}`);
   revalidatePath("/matchs");
   revalidatePath("/");
+  revalidatePath("/week-end");
 }
 
 export async function assignSlot(matchId: string, slotIndex: number, playerId: string) {

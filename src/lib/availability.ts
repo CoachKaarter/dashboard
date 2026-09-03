@@ -31,6 +31,21 @@ export function getWeekendDate(weekStartDate: Date) {
   return addDays(weekStartDate, 5); // samedi
 }
 
+/**
+ * True when `date` IS the Saturday anchor of its own Paris week — i.e. a
+ * match on this date is "the weekend match" that WeekendAssignment/
+ * /week-end tracks, as opposed to a midweek fixture (Amical du mercredi,
+ * Plateau du dimanche, etc.) which /week-end has no slot for. Used to keep
+ * a direct convocation add/remove on a match (matchs/actions.ts,
+ * toggleConvocation) in sync with the week-end répartition — see the
+ * "les deux sens" fix: week-end → match already worked via "Générer les
+ * convocations" (convocationsToCreate), this is the missing match → week-end
+ * direction.
+ */
+export function isWeekendMatchDate(date: Date): boolean {
+  return getWeekendDate(getWeekStart(date)).getTime() === date.getTime();
+}
+
 /** Read-only — never creates a row. Absence of a window row means "jamais ouverte" (CLOSED). */
 export async function getWindowForWeek(weekStartDate: Date) {
   return prisma.weeklyAvailabilityWindow.findUnique({ where: { weekStartDate } });
