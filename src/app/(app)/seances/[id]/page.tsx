@@ -202,6 +202,7 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
       <ExpectationSection
         rows={expectationRows}
         candidates={exceptionalCandidates}
+        sessionTeamCode={session.scopeTeam?.code ?? null}
         onSetExpected={setExpected.bind(null, id)}
         onSetExpectedBulk={setExpectedBulk.bind(null, id)}
         onAddExceptional={addExceptionalExpectation.bind(null, id)}

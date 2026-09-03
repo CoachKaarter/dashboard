@@ -30,12 +30,20 @@ const FILTERS: { key: Filter; label: string }[] = [
 export function ExpectationSection({
   rows,
   candidates,
+  sessionTeamCode,
   onSetExpected,
   onSetExpectedBulk,
   onAddExceptional,
 }: {
   rows: ExpectationRow[];
   candidates: ExceptionalCandidate[];
+  // Code de l'équipe de la séance quand elle est cadrée sur une équipe
+  // précise (session.scopeTeam), null pour une séance de catégorie entière
+  // (plusieurs équipes réunies). Sert à décider quand "Groupe habituel"
+  // apporte une info réelle : jamais pour un joueur de l'équipe de la
+  // séance elle-même, toujours en séance de catégorie (aucune équipe
+  // "par défaut" là où plusieurs se mélangent).
+  sessionTeamCode: string | null;
   onSetExpected: (playerId: string, expected: boolean) => Promise<void>;
   onSetExpectedBulk: (playerIds: string[], expected: boolean) => Promise<void>;
   onAddExceptional: (playerId: string) => Promise<void>;
@@ -209,7 +217,7 @@ export function ExpectationSection({
                 </div>
                 <div className="text-[10.5px] text-muted-2 truncate">
                   {r.category}
-                  {r.teamCode !== r.category ? ` · Groupe habituel : ${r.teamCode}` : ""}
+                  {sessionTeamCode === null || r.teamCode !== sessionTeamCode ? ` · Groupe habituel : ${r.teamCode}` : ""}
                 </div>
               </div>
             </div>
