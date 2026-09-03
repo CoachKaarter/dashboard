@@ -8,11 +8,12 @@ import { getActiveCategoryGroup } from "@/lib/active-category";
 import { signOutAction } from "@/lib/actions/auth";
 
 export async function Sidebar() {
-  const [user, club, playerCount, upcomingMatches, alertGroups] = await Promise.all([
+  const [user, club, playerCount, upcomingMatches, pendingInvitations, alertGroups] = await Promise.all([
     getAuthedUser(),
     getClub(),
     prisma.player.count(),
     prisma.match.count({ where: { status: "Planifié" } }),
+    prisma.tournamentInvitation.count({ where: { status: "EN_ATTENTE" } }),
     getAlertGroups(),
   ]);
   const categoryGroups = user ? buildCategorySwitcherGroups(user) : [];
@@ -29,6 +30,7 @@ export async function Sidebar() {
     { href: "/seances", label: "Séances" },
     { href: "/bibliotheque", label: "Bibliothèque" },
     { href: "/matchs", label: "Matchs", badge: String(upcomingMatches) },
+    { href: "/tournois", label: "Tournois", badge: String(pendingInvitations) },
     { href: "/temps-de-jeu", label: "Temps de jeu" },
     { href: "/mesures", label: "Mesures" },
     { href: "/evaluations", label: "Évaluations" },

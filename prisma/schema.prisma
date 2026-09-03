@@ -33,31 +33,33 @@ model User {
   teamIds               String[]  @default([])
   onboardingCompletedAt DateTime? // null = show the first-login onboarding flow
 
-  teams                     Team[]                    @relation("TeamCoach")
-  notes                     PlayerNote[]
-  evaluations               EvaluationScore[]
-  treatedAlerts             AlertTreated[]            @relation("AlertTreatedBy")
-  assignedAlerts            AlertTreated[]            @relation("AlertAssignee")
-  historyDecisions          TeamHistoryEntry[]
-  unavailabilities          Unavailability[]
-  activityLogs              ActivityLog[]
-  notifications             Notification[]
-  weekendAssignmentsMade    WeekendAssignment[]
-  matchStaffRoles           MatchStaffAssignment[]
-  weekendPlansValidated     WeekendPlan[]
-  interviews                PlayerInterview[]
-  objectivesCreated         PlayerObjective[]
-  attendanceUpdates         Attendance[]
-  sessionExpectationUpdates SessionExpectation[]
-  contentItemsCreated       TrainingContentItem[]
-  contentFavorites          TrainingContentFavorite[]
-  templatesCreated          SessionTemplate[]
-  announcementsPosted       StaffAnnouncement[]
-  physicalTestsRecorded     PhysicalTestResult[]
-  staffAccess               StaffAccess[]             @relation("StaffAccessUser")
-  staffAccessGranted        StaffAccess[]             @relation("StaffAccessGrantedBy")
-  equipmentAssignmentsMade  EquipmentAssignment[]
-  parentInvitationsCreated  ParentInvitation[]
+  teams                        Team[]                    @relation("TeamCoach")
+  notes                        PlayerNote[]
+  evaluations                  EvaluationScore[]
+  treatedAlerts                AlertTreated[]            @relation("AlertTreatedBy")
+  assignedAlerts               AlertTreated[]            @relation("AlertAssignee")
+  historyDecisions             TeamHistoryEntry[]
+  unavailabilities             Unavailability[]
+  activityLogs                 ActivityLog[]
+  notifications                Notification[]
+  weekendAssignmentsMade       WeekendAssignment[]
+  matchStaffRoles              MatchStaffAssignment[]
+  weekendPlansValidated        WeekendPlan[]
+  interviews                   PlayerInterview[]
+  objectivesCreated            PlayerObjective[]
+  attendanceUpdates            Attendance[]
+  sessionExpectationUpdates    SessionExpectation[]
+  contentItemsCreated          TrainingContentItem[]
+  contentFavorites             TrainingContentFavorite[]
+  templatesCreated             SessionTemplate[]
+  announcementsPosted          StaffAnnouncement[]
+  physicalTestsRecorded        PhysicalTestResult[]
+  staffAccess                  StaffAccess[]             @relation("StaffAccessUser")
+  staffAccessGranted           StaffAccess[]             @relation("StaffAccessGrantedBy")
+  equipmentAssignmentsMade     EquipmentAssignment[]
+  parentInvitationsCreated     ParentInvitation[]
+  tournamentInvitationsCreated TournamentInvitation[]    @relation("TournamentInvitationCreatedBy")
+  tournamentInvitationsDecided TournamentInvitation[]    @relation("TournamentInvitationDecidedBy")
 
   createdAt DateTime @default(now())
 }
@@ -789,6 +791,12 @@ model Match {
   tournamentRanking    Int? // ex: 3
   tournamentTeamsCount Int? // ex: 16
 
+  // Lien traçable — jamais obligatoire — vers l'invitation de tournoi dont
+  // ce match est né (src/app/(app)/tournois). Un match "Tournoi" reste
+  // créable à la main comme avant, sans invitation.
+  tournamentInvitation   TournamentInvitation? @relation(fields: [tournamentInvitationId], references: [id], onDelete: SetNull)
+  tournamentInvitationId String?
+
   // Bilan après-match. objectiveStatus répond à preMatchObjective —
   // jamais une ressaisie de l'objectif lui-même, seulement son verdict.
   objectiveStatus  String? // "ATTEINT" | "PARTIEL" | "NON_ATTEINT"
@@ -808,6 +816,36 @@ model Match {
   plateauResults       PlateauResult[]
 
   @@index([teamId])
+  @@index([date])
+  @@index([tournamentInvitationId])
+}
+
+// Invitation reçue d'un autre club à participer à un tournoi — décision du
+// staff (accepter/refuser) distincte du match lui-même : un match "Tournoi"
+// (Match.competition === "Tournoi") reste la réalité qui se joue, cette
+// table est le suivi de la démarche qui y mène (ou pas). Jamais fusionnée
+// avec CalendarEvent.kind === "tournoi", qui reste un simple événement
+// d'agenda (titre/date/heure), pas un workflow de décision.
+model TournamentInvitation {
+  id               String    @id @default(cuid())
+  organizingClub   String
+  date             DateTime
+  location         String?
+  categories       String[]  @default([]) // catégories visées, ex. ["U12", "U13"] — l'équipe précise se choisit seulement à la création du match
+  responseDeadline DateTime?
+  practicalInfo    String? // frais d'engagement / format / contact — texte libre, regroupés à la demande du club
+  status           String    @default("EN_ATTENTE") // "EN_ATTENTE" | "ACCEPTEE" | "REFUSEE"
+  decidedAt        DateTime?
+  decidedBy        User?     @relation("TournamentInvitationDecidedBy", fields: [decidedById], references: [id])
+  decidedById      String?
+  createdBy        User?     @relation("TournamentInvitationCreatedBy", fields: [createdById], references: [id])
+  createdById      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  matches Match[]
+
+  @@index([status])
   @@index([date])
 }
 
