@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Avatar } from "@/components/ui/Avatar";
-import { Badge } from "@/components/ui/Badge";
 import { formatDateLong } from "@/lib/format";
 import { assignPlayerToTeam, unassignPlayer, assignMatchStaff, removeMatchStaff } from "@/app/(app)/week-end/actions";
 
@@ -200,7 +199,6 @@ export function WeekendBoard({
                           <span className="text-[12px] font-semibold flex-1 truncate">
                             {a.player.firstName} {a.player.lastName}
                           </span>
-                          {a.player.teamCode !== c.team.code && <Badge tone="blue">{a.player.teamCode}</Badge>}
                           {editable && (
                             <form action={unassignPlayer.bind(null, weekStartIso, a.player.id)}>
                               <button
