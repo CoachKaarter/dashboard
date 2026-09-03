@@ -17,7 +17,7 @@ async function computeAllPlayerStats() {
       convocations: { include: { match: true } },
       evaluations: { orderBy: { createdAt: "desc" } },
     },
-    orderBy: [{ team: { code: "asc" } }, { lastName: "asc" }],
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });
 
   const minutesByPlayer = new Map<string, number>();

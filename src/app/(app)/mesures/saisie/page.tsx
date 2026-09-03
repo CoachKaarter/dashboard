@@ -51,7 +51,7 @@ export default async function SaisieMesuresPage({
   const playersAll = await prisma.player.findMany({
     where: { archived: false, status: "Actif", ...(scope === "ALL" ? {} : { teamId: { in: scope } }) },
     include: { team: true },
-    orderBy: [{ team: { code: "asc" } }, { lastName: "asc" }],
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });
   const players = playersAll.filter((p) => team === "Toutes" || p.team.category === team);
 

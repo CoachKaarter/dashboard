@@ -48,7 +48,7 @@ export default async function CoachSeanceDetailPage({
     prisma.player.findMany({
       where: { archived: false, team: { category: session.category } },
       include: { team: true },
-      orderBy: { lastName: "asc" },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
     prisma.playerAvailability.findMany({ where: { sessionId: id, type: "TRAINING" } }),
     prisma.sessionBlock.findMany({ where: { sessionId: id }, orderBy: { order: "asc" } }),

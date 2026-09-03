@@ -87,7 +87,7 @@ export default async function DisponibilitesPage({
           : undefined,
     },
     include: { team: true },
-    orderBy: [{ team: { code: "asc" } }, { lastName: "asc" }],
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });
 
   const answers = await prisma.playerAvailability.findMany({ where: { weekStartDate: baseWeek } });

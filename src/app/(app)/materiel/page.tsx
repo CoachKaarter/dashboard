@@ -50,7 +50,7 @@ export default async function MaterielPage() {
     prisma.team.findMany({ orderBy: { code: "asc" } }),
     prisma.player.findMany({
       where: { archived: false },
-      orderBy: { lastName: "asc" },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       select: { id: true, firstName: true, lastName: true, team: { select: { category: true } } },
     }),
     prisma.match.findMany({

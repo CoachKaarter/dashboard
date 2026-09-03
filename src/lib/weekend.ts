@@ -41,7 +41,7 @@ export async function getWeekendBoard(weekStartDate: Date, scope: Scope) {
     prisma.player.findMany({
       where: { archived: false, teamId: { in: teamIds } },
       include: { team: true },
-      orderBy: [{ lastName: "asc" }],
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
     prisma.weekendAssignment.findMany({
       where: { weekendDate, teamId: { in: teamIds } },

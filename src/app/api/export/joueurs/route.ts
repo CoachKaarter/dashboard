@@ -8,7 +8,7 @@ export async function GET() {
   const players = await prisma.player.findMany({
     where: { ...teamScopeWhere(user), archived: false },
     include: { team: true },
-    orderBy: [{ team: { code: "asc" } }, { lastName: "asc" }],
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });
 
   const csv = toCsv(

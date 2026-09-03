@@ -39,7 +39,7 @@ export async function getMeasurementTable(scope: string[] | "ALL"): Promise<Meas
   const players = await prisma.player.findMany({
     where: { archived: false, ...(scope === "ALL" ? {} : { teamId: { in: scope } }) },
     include: { team: true },
-    orderBy: [{ team: { code: "asc" } }, { lastName: "asc" }],
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });
   if (players.length === 0) return [];
 

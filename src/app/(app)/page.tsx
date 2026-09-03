@@ -73,6 +73,7 @@ export default async function CockpitPage() {
   const unavailablePlayers = await prisma.player.findMany({
     where: { status: { not: "Actif" }, archived: false, ...teamFilter },
     include: { team: true },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     take: 4,
   });
   const unavailableCount = await prisma.player.count({

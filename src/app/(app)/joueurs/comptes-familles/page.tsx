@@ -25,7 +25,7 @@ export default async function ComptesFamillesPage() {
       parentAccount: { select: { id: true, active: true } },
       parentInvitations: { where: { revokedAt: null }, orderBy: { createdAt: "desc" }, take: 1 },
     },
-    orderBy: [{ team: { code: "asc" } }, { lastName: "asc" }],
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });
 
   const rows = players.map((p) => ({

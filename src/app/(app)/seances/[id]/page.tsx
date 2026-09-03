@@ -50,7 +50,7 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
     prisma.player.findMany({
       where: { archived: false, team: { category: session.category } },
       include: { team: true },
-      orderBy: { lastName: "asc" },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
     prisma.sessionBlock.findMany({ where: { sessionId: id }, orderBy: { order: "asc" } }),
   ]);
