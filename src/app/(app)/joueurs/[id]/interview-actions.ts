@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireUser, canAccessTeam } from "@/lib/authz";
+import { requireUser, canAccessCategory } from "@/lib/authz";
 import { logActivity } from "@/lib/activity";
 import { interviewTypeSchema, objectiveCategorySchema, objectiveStatusSchema } from "@/lib/interview-validation";
 import { revalidatePath } from "next/cache";
@@ -14,7 +14,7 @@ function str(fd: FormData, key: string): string | null {
 async function requirePlayerAccess(playerId: string) {
   const user = await requireUser();
   const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
-  if (!canAccessTeam(user, player.teamId)) throw new Error("Accès non autorisé à ce joueur.");
+  if (!canAccessCategory(user, player.category)) throw new Error("Accès non autorisé à ce joueur.");
   return { user, player };
 }
 

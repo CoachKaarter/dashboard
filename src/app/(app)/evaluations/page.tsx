@@ -7,7 +7,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { NumField } from "@/components/ui/NumField";
 import { EVAL_PERIODS, CATEGORY_FILTERS } from "@/lib/constants";
 import { toQueryString } from "@/lib/query";
-import { requireUser, scopedTeamIds } from "@/lib/authz";
+import { requireUser, scopedTeamIds, getAccessibleCategories } from "@/lib/authz";
 import { upsertEvaluation } from "./actions";
 
 export default async function EvaluationsPage({
@@ -28,9 +28,12 @@ export default async function EvaluationsPage({
 
   const user = await requireUser();
   const scope = scopedTeamIds(user);
+  // A player with no fixed team (Player.teamId null) is still in scope
+  // whenever their category is.
+  const accessibleCategories = new Set(getAccessibleCategories(user));
   const players = allStats.filter(
     (p) =>
-      (scope === "ALL" || scope.includes(p.teamId)) &&
+      (scope === "ALL" || (p.teamId !== null && scope.includes(p.teamId)) || accessibleCategories.has(p.category)) &&
       (team === "Toutes" || p.category === team)
   );
 

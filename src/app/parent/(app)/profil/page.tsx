@@ -8,7 +8,7 @@ import { parentSignOutAction } from "../actions";
 
 export default async function ParentProfilPage({ searchParams }: { searchParams: Promise<{ declared?: string }> }) {
   const parent = await requireParentReady();
-  const player = await prisma.player.findUniqueOrThrow({ where: { id: parent.playerId }, include: { team: true } });
+  const player = await prisma.player.findUniqueOrThrow({ where: { id: parent.playerId } });
   const { declared } = await searchParams;
 
   return (
@@ -24,7 +24,7 @@ export default async function ParentProfilPage({ searchParams }: { searchParams:
             {player.firstName} {player.lastName}
           </div>
           <div className="text-[13px] text-[#6E7178] mt-0.5">
-            {player.team.category} · Saison 2026 / 2027
+            {player.category} · Saison 2026 / 2027
           </div>
         </div>
       </div>

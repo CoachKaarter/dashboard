@@ -58,7 +58,7 @@ export async function ensureSessionExpectations(sessionId: string): Promise<void
   });
 }
 
-export type CategoryScopedPlayer = { archived: boolean; team: { category: string } };
+export type CategoryScopedPlayer = { archived: boolean; category: string };
 
 /**
  * Pure — scope CATÉGORIE large (pas équipe), pour les ajouts exceptionnels :
@@ -68,7 +68,7 @@ export type CategoryScopedPlayer = { archived: boolean; team: { category: string
  */
 export function playerInSessionCategory(session: SessionForExpectation, player: CategoryScopedPlayer): boolean {
   if (player.archived) return false;
-  return player.team.category === session.category;
+  return player.category === session.category;
 }
 
 /** Throws unless playerId est un joueur actif de la même catégorie que la séance. */

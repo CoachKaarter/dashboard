@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireUser, scopedTeamIds } from "@/lib/authz";
+import { requireUser, scopedTeamIds, getAccessibleCategories } from "@/lib/authz";
 import { getTestTypes } from "@/lib/measurements";
 import { Avatar } from "@/components/ui/Avatar";
 import { TeamChip } from "@/components/ui/TeamChip";
@@ -48,12 +48,13 @@ export default async function SaisieMesuresPage({
   const dateIso = sp.date && !Number.isNaN(new Date(sp.date).getTime()) ? sp.date : todayIso();
   const team = sp.team ?? "Toutes";
 
+  const accessibleCategories = getAccessibleCategories(user);
   const playersAll = await prisma.player.findMany({
-    where: { archived: false, status: "Actif", ...(scope === "ALL" ? {} : { teamId: { in: scope } }) },
+    where: { archived: false, status: "Actif", ...(scope === "ALL" ? {} : { category: { in: accessibleCategories } }) },
     include: { team: true },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });
-  const players = playersAll.filter((p) => team === "Toutes" || p.team.category === team);
+  const players = playersAll.filter((p) => team === "Toutes" || p.category === team);
 
   const date = new Date(dateIso);
   const dayStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -106,7 +107,7 @@ export default async function SaisieMesuresPage({
               </div>
             </div>
             <div>
-              <TeamChip code={p.team.category} />
+              <TeamChip code={p.category} />
             </div>
             <NumField name="value" defaultValue={existingByPlayer.get(p.id) ?? ""} step="0.1" />
           </form>

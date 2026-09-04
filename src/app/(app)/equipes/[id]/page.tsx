@@ -12,6 +12,7 @@ import { toQueryString } from "@/lib/query";
 import { computeTeamStats, computeForm, flattenPlayedMatches } from "@/lib/team-stats";
 import { COMPETITION_TYPES } from "@/lib/match-validation";
 import { TRANSPORT_MODES, TRANSPORT_MODE_LABELS } from "@/lib/equipment";
+import { partitionCategoryRoster } from "@/lib/team-roster";
 import { updateTeamTarget, updateTeamFormat, updateTeamCoach, updateTeamLevel, updateTeamDefaults } from "../actions";
 
 const inputClass =
@@ -46,12 +47,25 @@ export default async function EquipeDetailPage({
 
   const team = await prisma.team.findUnique({
     where: { id },
-    include: {
-      coach: true,
-      players: { where: { archived: false }, orderBy: [{ position: "asc" }, { lastName: "asc" }] },
-    },
+    include: { coach: true },
   });
   if (!team) notFound();
+
+  // A player floats freely across the teams of their category by default
+  // (Player.teamId nullable) — this team's real effectif is whoever is
+  // explicitly fixed here (Changer de groupe) plus whoever hasn't been
+  // fixed anywhere but has actually played the most matches with this team
+  // (see src/lib/team-roster.ts). Players still with zero match history
+  // and no fixed team show up separately below ("À affecter").
+  const categoryPlayersRaw = await prisma.player.findMany({
+    where: { archived: false, category: team.category },
+    include: { matchStats: { include: { match: { include: { team: true } } } } },
+    orderBy: [{ position: "asc" }, { lastName: "asc" }],
+  });
+  const categoryPlayers = categoryPlayersRaw.map((p) => ({ ...p, matchTeamCodes: p.matchStats.map((m) => m.match.team.code) }));
+  const { fixed, calculated, unassigned } = partitionCategoryRoster(categoryPlayers, team);
+  const fixedIds = new Set(fixed.map((p) => p.id));
+  const rosterPlayers = [...fixed, ...calculated];
 
   const periode = PERIODS.some((p) => p.key === sp.periode) ? sp.periode! : "saison";
   const competitionFilter = COMPETITION_TYPES.includes(sp.competition as (typeof COMPETITION_TYPES)[number]) ? sp.competition : undefined;
@@ -95,14 +109,14 @@ export default async function EquipeDetailPage({
     take: 20,
   });
 
-  const byPosition = new Map<string, typeof team.players>();
+  const byPosition = new Map<string, typeof rosterPlayers>();
   for (const pos of [...POSITIONS, "Non renseigné"]) byPosition.set(pos, []);
-  for (const p of team.players) {
+  for (const p of rosterPlayers) {
     if (!byPosition.has(p.position)) byPosition.set(p.position, []);
     byPosition.get(p.position)!.push(p);
   }
 
-  const actual = team.players.length;
+  const actual = rosterPlayers.length;
   const target = team.targetSize;
 
   return (
@@ -312,12 +326,39 @@ export default async function EquipeDetailPage({
               <Link key={p.id} href={`/joueurs/${p.id}`} className="flex items-center gap-2 px-3 py-1.5 border-b border-line-soft-2 last:border-b-0 hover:bg-[#FAFAF8]">
                 <Avatar initials={`${p.firstName[0]}${p.lastName[0]}`} size={22} />
                 <span className="text-[12.5px] font-medium truncate">{p.firstName} {p.lastName}</span>
-                {p.status !== "Actif" && <Badge tone="orange" className="ml-auto">{p.status}</Badge>}
+                <span className="flex-1" />
+                {!fixedIds.has(p.id) && (
+                  <span className="text-[10px] text-muted-2 shrink-0" title="Équipe calculée depuis les matchs joués">
+                    calculé
+                  </span>
+                )}
+                {p.status !== "Actif" && <Badge tone="orange">{p.status}</Badge>}
               </Link>
             ))}
           </div>
         ))}
       </div>
+
+      {unassigned.length > 0 && (
+        <>
+          <div className="text-[13px] font-bold mt-5 mb-2">
+            Joueurs {team.category} à affecter <span className="text-muted font-normal">({unassigned.length})</span>
+          </div>
+          <div className="bg-surface border border-line rounded-lg overflow-hidden">
+            <div className="px-3.5 py-2 text-[11.5px] text-muted-2 border-b border-line-soft">
+              Aucun match joué pour l&apos;instant, donc aucune équipe précise calculée — restent visibles ici tant qu&apos;ils n&apos;ont pas
+              été convoqués sur un match, ou fixés à la main sur une équipe (fiche joueur → Changer de groupe).
+            </div>
+            {unassigned.map((p) => (
+              <Link key={p.id} href={`/joueurs/${p.id}`} className="flex items-center gap-2 px-3.5 py-1.5 border-b border-line-soft-2 last:border-b-0 hover:bg-[#FAFAF8]">
+                <Avatar initials={`${p.firstName[0]}${p.lastName[0]}`} size={22} />
+                <span className="text-[12.5px] font-medium truncate">{p.firstName} {p.lastName}</span>
+                <span className="text-[11.5px] text-muted ml-auto">{p.position}</span>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="text-[13px] font-bold mt-5 mb-2">Historique des mouvements</div>
       <div className="bg-surface border border-line rounded-lg overflow-hidden">

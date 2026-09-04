@@ -18,9 +18,9 @@ import { revalidatePath } from "next/cache";
  */
 export async function sendInvitationBulkAction(playerId: string): Promise<IssueInvitationResult> {
   const user = await requireUser();
-  const player = await prisma.player.findUnique({ where: { id: playerId }, include: { team: true } });
+  const player = await prisma.player.findUnique({ where: { id: playerId } });
   if (!player) return { ok: false, playerId, playerName: "?", error: "Joueur introuvable." };
-  if (user.role !== "ADMIN" && !canManageCategory(user, player.team.category)) {
+  if (user.role !== "ADMIN" && !canManageCategory(user, player.category)) {
     return { ok: false, playerId, playerName: `${player.firstName} ${player.lastName}`, error: "Hors de votre périmètre." };
   }
 

@@ -192,8 +192,21 @@ model Player {
   firstName   String
   lastName    String
   birthYear   Int
-  team        Team    @relation(fields: [teamId], references: [id])
-  teamId      String
+  // Catégorie du joueur (ex. "U12") — source de vérité permanente,
+  // indépendante de teamId : un joueur n'est plus jamais rattaché à une
+  // équipe précise (U12A/B/C) par défaut, seulement à sa catégorie. Même
+  // idiome que TrainingSession.category/RecurringSlot.category (texte
+  // simple, pas une FK).
+  category    String
+  // Équipe précise, désormais optionnelle — n'est plus jamais exigée à la
+  // création/import, seulement écrite quand un responsable choisit
+  // explicitement de "fixer" un joueur sur une équipe (Changer de groupe).
+  // Quand null, l'équipe "actuelle" affichée est CALCULÉE depuis les
+  // matchs réellement joués (voir computeUsualTeamCode dans
+  // src/lib/player-history.ts) — jamais un champ stocké séparément, pour
+  // éviter toute désynchronisation.
+  team        Team?   @relation(fields: [teamId], references: [id])
+  teamId      String?
   position    String
   positionAlt String
   foot        String // "Gauche" | "Droit" | "Les deux"
@@ -230,6 +243,7 @@ model Player {
   createdAt DateTime @default(now())
 
   @@index([teamId])
+  @@index([category])
 }
 
 model Unavailability {

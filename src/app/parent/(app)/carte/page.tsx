@@ -65,7 +65,7 @@ export default async function ParentCartePage() {
               {player.lastName.toUpperCase()}
             </div>
             <div className="text-[11.5px] font-semibold tracking-[0.04em] opacity-80 mt-1 uppercase">
-              {player.team.code} · {player.team.category}
+              {player.team ? `${player.team.code} · ${player.category}` : player.category}
             </div>
           </div>
 

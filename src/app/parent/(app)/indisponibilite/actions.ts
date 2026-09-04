@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { requireParent } from "@/lib/parent-session";
-import { notifyTeamStaff } from "@/lib/notifications";
+import { notifyTeamStaff, notifyCategoryStaff } from "@/lib/notifications";
 import { logActivity } from "@/lib/activity";
 import { redirect } from "next/navigation";
 
@@ -38,12 +38,17 @@ export async function declareUnavailabilityByParent(formData: FormData) {
     entityId: parent.playerId,
   });
 
-  await notifyTeamStaff(parent.player.teamId, {
+  const notifyPayload = {
     type: "unavailability-declared",
     title: `${parent.player.firstName} ${parent.player.lastName} — nouvelle indisponibilité déclarée`,
     body: `${type} — à valider`,
     href: `/joueurs/${parent.playerId}`,
-  });
+  };
+  if (parent.player.teamId) {
+    await notifyTeamStaff(parent.player.teamId, notifyPayload);
+  } else {
+    await notifyCategoryStaff(parent.player.teamCategory, notifyPayload);
+  }
 
   redirect("/parent/profil?declared=1");
 }

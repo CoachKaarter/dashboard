@@ -1,19 +1,22 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireUser, teamScopeWhere } from "@/lib/authz";
+import { requireUser, scopedTeamIds, getAccessibleCategories } from "@/lib/authz";
 import { toCsv } from "@/lib/csv";
 
 export async function GET() {
   const user = await requireUser();
+  const scope = scopedTeamIds(user);
+  // A player with no fixed team (Player.teamId null) is still in scope
+  // whenever their category is.
   const players = await prisma.player.findMany({
-    where: { ...teamScopeWhere(user), archived: false },
+    where: { ...(scope === "ALL" ? {} : { category: { in: getAccessibleCategories(user) } }), archived: false },
     include: { team: true },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });
 
   const csv = toCsv(
     ["Nom", "Prénom", "Équipe", "Catégorie", "Année de naissance", "Poste", "Pied fort", "Statut", "Arrivée au club"],
-    players.map((p) => [p.lastName, p.firstName, p.team.code, p.team.category, p.birthYear, p.position, p.foot, p.status, p.joinedLabel])
+    players.map((p) => [p.lastName, p.firstName, p.team?.code ?? "", p.category, p.birthYear, p.position, p.foot, p.status, p.joinedLabel])
   );
 
   return new NextResponse(csv, {

@@ -66,7 +66,7 @@ export async function getPlayerWeekSessions(playerId: string, weekStartDate: Dat
     where: {
       date: { gte: weekStartDate, lt: weekEnd },
       status: { not: "Annulée" },
-      OR: [{ scopeTeamId: player.teamId }, { scopeTeamId: null, category: player.team.category }],
+      OR: [{ scopeTeamId: player.teamId }, { scopeTeamId: null, category: player.category }],
     },
     orderBy: { date: "asc" },
   });

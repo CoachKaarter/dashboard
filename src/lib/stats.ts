@@ -33,10 +33,10 @@ async function computeAllPlayerStats() {
   // recommend.ts) — only what they're averaged over changes.
   const categoryMinutesTotals = new Map<string, { sum: number; count: number }>();
   for (const p of players) {
-    const cur = categoryMinutesTotals.get(p.team.category) ?? { sum: 0, count: 0 };
+    const cur = categoryMinutesTotals.get(p.category) ?? { sum: 0, count: 0 };
     cur.sum += minutesByPlayer.get(p.id) ?? 0;
     cur.count += 1;
-    categoryMinutesTotals.set(p.team.category, cur);
+    categoryMinutesTotals.set(p.category, cur);
   }
 
   const recentCutoff = new Date(now);
@@ -64,7 +64,7 @@ async function computeAllPlayerStats() {
     const matchsJoues = p.matchStats.length;
     const titularisations = p.matchStats.filter((m) => m.role === "Titulaire").length;
 
-    const categoryTotals = categoryMinutesTotals.get(p.team.category)!;
+    const categoryTotals = categoryMinutesTotals.get(p.category)!;
     const teamAvgMinutes = categoryTotals.count ? Math.round(categoryTotals.sum / categoryTotals.count) : 0;
     const ecart = minutes - teamAvgMinutes;
     const trend: "décroche" | "en tête" | "stable" =
@@ -102,8 +102,8 @@ async function computeAllPlayerStats() {
       initials: `${p.firstName[0]}${p.lastName[0]}`,
       birthYear: p.birthYear,
       teamId: p.teamId,
-      teamCode: p.team.code,
-      category: p.team.category,
+      teamCode: p.team?.code ?? null,
+      category: p.category,
       position: p.position,
       positionAlt: p.positionAlt,
       foot: p.foot,

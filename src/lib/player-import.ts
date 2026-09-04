@@ -143,8 +143,9 @@ export function guessBirthYearForCategory(category: string, today: Date = new Da
 export type PlayerImportCandidate = {
   firstName: string;
   lastName: string;
-  teamId: string;
-  teamCode: string;
+  category: string;
+  teamId: string | null;
+  teamCode: string | null;
   birthYear: number;
   position: string;
   parentName: string | null;
@@ -157,19 +158,21 @@ export type PlayerImportOutcome =
   | { ok: false; sourceRow: number; error: string };
 
 export type ImportableTeam = { id: string; code: string; category: string; allowed: boolean };
+export type ImportableCategory = { code: string; allowed: boolean };
 
-// The team comes, in order of preference, from: (1) the row's own "Équipe"
-// column when the file has one and the code matches exactly; (2) the row's
-// "Catégorie" column, resolved to the single team in that category — an
-// ambiguous category (several teams, e.g. U12A/U12B/U12C) falls through to
-// the chosen default team only when that default is itself in the same
-// category; (3) the default team chosen once for the whole import.
+// A player is never pinned to a specific team (U12A/B/C) by import — only to
+// a category. teamId stays null (the "à affecter" case on /équipes; their
+// real team gets computed later from matches actually played, see
+// computeUsualTeamCode) unless the file has its own explicit "Équipe"
+// column with an exact code — a deliberate override some staff still want,
+// kept for backward compatibility, never inferred automatically from a
+// category even when it currently maps to a single team.
 export function buildPlayerImportCandidates(
   rows: RawPlayerImportRow[],
-  opts: { teams: ImportableTeam[]; fallbackTeamId: string | null; existingPlayerKeys: Set<string> }
+  opts: { teams: ImportableTeam[]; categories: ImportableCategory[]; fallbackCategory: string | null; existingPlayerKeys: Set<string> }
 ): PlayerImportOutcome[] {
   const teamByCode = new Map(opts.teams.map((t) => [t.code.toUpperCase(), t]));
-  const fallbackTeam = opts.teams.find((t) => t.id === opts.fallbackTeamId) ?? null;
+  const categoryByCode = new Map(opts.categories.map((c) => [c.code.toUpperCase(), c]));
 
   return rows.map((r, i) => {
     const sourceRow = i + 2;
@@ -178,39 +181,31 @@ export function buildPlayerImportCandidates(
     if (!lastName || !firstName) return { ok: false, sourceRow, error: "Nom ou prénom manquant" };
 
     const codeRaw = r.teamCode?.trim().toUpperCase() || null;
-    const categoryRaw = r.category?.trim().toUpperCase() || null;
-    let team: ImportableTeam | null;
+    let teamId: string | null = null;
+    let teamCode: string | null = null;
+    let category: string;
+
     if (codeRaw) {
       const found = teamByCode.get(codeRaw);
       if (!found) return { ok: false, sourceRow, error: `Équipe "${codeRaw}" introuvable` };
       if (!found.allowed) return { ok: false, sourceRow, error: `Équipe "${codeRaw}" non autorisée pour votre compte` };
-      team = found;
-    } else if (categoryRaw) {
-      const inCategory = opts.teams.filter((t) => t.category.toUpperCase() === categoryRaw);
-      if (inCategory.length === 1) {
-        team = inCategory[0];
-      } else if (inCategory.length === 0) {
-        return { ok: false, sourceRow, error: `Aucune équipe pour la catégorie "${categoryRaw}"` };
-      } else if (fallbackTeam && fallbackTeam.category.toUpperCase() === categoryRaw) {
-        team = fallbackTeam;
-      } else {
-        return {
-          ok: false,
-          sourceRow,
-          error: `Plusieurs équipes existent pour la catégorie "${categoryRaw}" — choisissez une équipe par défaut de cette catégorie`,
-        };
-      }
-      if (!team.allowed) return { ok: false, sourceRow, error: `Équipe "${team.code}" non autorisée pour votre compte` };
+      teamId = found.id;
+      teamCode = found.code;
+      category = found.category;
     } else {
-      team = fallbackTeam;
-    }
-    if (!team) {
-      return { ok: false, sourceRow, error: "Équipe manquante (pas de colonne « Équipe »/« Catégorie » et aucune équipe par défaut choisie)" };
+      const categoryRaw = r.category?.trim().toUpperCase() || opts.fallbackCategory?.toUpperCase() || null;
+      if (!categoryRaw) {
+        return { ok: false, sourceRow, error: "Catégorie manquante (pas de colonne « Catégorie »/« Équipe » et aucune catégorie par défaut choisie)" };
+      }
+      const found = categoryByCode.get(categoryRaw);
+      if (!found) return { ok: false, sourceRow, error: `Catégorie "${categoryRaw}" introuvable` };
+      if (!found.allowed) return { ok: false, sourceRow, error: `Catégorie "${categoryRaw}" non autorisée pour votre compte` };
+      category = found.code;
     }
 
-    const birthYear = r.birthYear ?? guessBirthYearForCategory(team.category) ?? new Date().getFullYear() - 10;
+    const birthYear = r.birthYear ?? guessBirthYearForCategory(category) ?? new Date().getFullYear() - 10;
     const position = r.position && POSITIONS.includes(r.position) ? r.position : "Non renseigné";
-    const key = `${team.id}|${lastName.toUpperCase()}|${firstName.toLowerCase()}`;
+    const key = `${category}|${lastName.toUpperCase()}|${firstName.toLowerCase()}`;
 
     return {
       ok: true,
@@ -218,8 +213,9 @@ export function buildPlayerImportCandidates(
       candidate: {
         firstName,
         lastName: lastName.toUpperCase(),
-        teamId: team.id,
-        teamCode: team.code,
+        category,
+        teamId,
+        teamCode,
         birthYear,
         position,
         parentName: r.parentName?.trim() || null,

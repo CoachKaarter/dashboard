@@ -60,7 +60,7 @@ export default async function WeekEndPage({
         position: a.player.position,
         positionAlt: a.player.positionAlt,
         foot: a.player.foot,
-        teamCode: a.player.team.code,
+        teamCode: a.player.team?.code ?? a.player.category,
       },
     })),
     keeper: c.keeper
@@ -72,7 +72,7 @@ export default async function WeekEndPage({
             position: c.keeper.player.position,
             positionAlt: c.keeper.player.positionAlt,
             foot: c.keeper.player.foot,
-            teamCode: c.keeper.player.team.code,
+            teamCode: c.keeper.player.team?.code ?? c.keeper.player.category,
           },
         }
       : null,
@@ -88,7 +88,7 @@ export default async function WeekEndPage({
     position: p.position,
     positionAlt: p.positionAlt,
     foot: p.foot,
-    teamCode: p.team.code,
+    teamCode: p.team?.code ?? p.category,
   }));
 
   // Checklist d'anomalies avant validation — certaines sont "assumables" (le

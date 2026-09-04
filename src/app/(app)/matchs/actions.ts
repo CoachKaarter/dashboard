@@ -164,8 +164,8 @@ async function assertNoSameDayConflict(matchId: string, teamId: string, date: Da
 // unrelated club roster) being convoked/placed/rated on a match they have
 // no business being in.
 async function assertPlayerOnMatchTeam(category: string, playerId: string) {
-  const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId }, select: { team: { select: { category: true } } } });
-  if (player.team.category !== category) throw new Error("Ce joueur ne fait pas partie de la catégorie de ce match.");
+  const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId }, select: { category: true } });
+  if (player.category !== category) throw new Error("Ce joueur ne fait pas partie de la catégorie de ce match.");
 }
 
 // Sur un match du samedi (la seule date que /week-end suit — voir

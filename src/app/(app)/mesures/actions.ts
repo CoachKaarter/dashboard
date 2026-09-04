@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { requireUser, requireAdmin, canAccessTeam } from "@/lib/authz";
+import { requireUser, requireAdmin, canAccessCategory } from "@/lib/authz";
 import { logActivity } from "@/lib/activity";
 
 function revalidateMeasurementPaths(playerId: string) {
@@ -14,7 +14,7 @@ function revalidateMeasurementPaths(playerId: string) {
 export async function recordMeasurement(playerId: string, testTypeId: string, dateIso: string, formData: FormData) {
   const user = await requireUser();
   const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
-  if (!canAccessTeam(user, player.teamId)) return;
+  if (!canAccessCategory(user, player.category)) return;
 
   const date = new Date(dateIso);
   if (Number.isNaN(date.getTime())) return;
@@ -44,7 +44,7 @@ export async function recordMeasurement(playerId: string, testTypeId: string, da
 export async function addPlayerMeasurement(playerId: string, formData: FormData) {
   const user = await requireUser();
   const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
-  if (!canAccessTeam(user, player.teamId)) return;
+  if (!canAccessCategory(user, player.category)) return;
 
   const testTypeId = String(formData.get("testTypeId") ?? "");
   const testType = await prisma.physicalTestType.findUnique({ where: { id: testTypeId } });
@@ -68,7 +68,7 @@ export async function addPlayerMeasurement(playerId: string, formData: FormData)
 export async function deleteMeasurement(playerId: string, resultId: string) {
   const user = await requireUser();
   const result = await prisma.physicalTestResult.findUniqueOrThrow({ where: { id: resultId }, include: { player: true } });
-  if (result.playerId !== playerId || !canAccessTeam(user, result.player.teamId)) return;
+  if (result.playerId !== playerId || !canAccessCategory(user, result.player.category)) return;
   await prisma.physicalTestResult.delete({ where: { id: resultId } });
   revalidateMeasurementPaths(playerId);
 }

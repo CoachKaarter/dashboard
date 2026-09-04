@@ -16,15 +16,15 @@ export async function GET() {
     where: {
       archived: false,
       parentEmail: null,
-      ...(manageableCategories !== null ? { team: { category: { in: manageableCategories } } } : {}),
+      ...(manageableCategories !== null ? { category: { in: manageableCategories } } : {}),
     },
     include: { team: true },
-    orderBy: [{ team: { code: "asc" } }, { lastName: "asc" }],
+    orderBy: [{ category: "asc" }, { lastName: "asc" }],
   });
 
   const csv = toCsv(
     ["Nom", "Prénom", "Équipe", "Catégorie", "Nom du parent", "Téléphone"],
-    players.map((p) => [p.lastName, p.firstName, p.team.code, p.team.category, p.parentName ?? "", p.parentPhone ?? ""])
+    players.map((p) => [p.lastName, p.firstName, p.team?.code ?? "", p.category, p.parentName ?? "", p.parentPhone ?? ""])
   );
 
   return new NextResponse(csv, {

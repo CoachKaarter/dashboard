@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireUser, scopedTeamIds } from "@/lib/authz";
+import { requireUser, scopedTeamIds, getAccessibleCategories } from "@/lib/authz";
 import { POSITIONS } from "@/lib/constants";
 import { createPlayer } from "../actions";
 
@@ -9,6 +9,7 @@ const inputClass =
 
 export default async function NouveauJoueurPage() {
   const user = await requireUser();
+  const categories = getAccessibleCategories(user);
   const scope = scopedTeamIds(user);
   const allTeams = await prisma.team.findMany({ orderBy: { code: "asc" } });
   const teams = scope === "ALL" ? allTeams : allTeams.filter((t) => scope.includes(t.id));
@@ -20,8 +21,8 @@ export default async function NouveauJoueurPage() {
       </Link>
       <div className="bg-surface border border-line rounded-lg p-5">
         <div className="text-lg font-bold tracking-[-0.01em] mb-4">Nouveau joueur</div>
-        {teams.length === 0 ? (
-          <div className="text-[13px] text-muted">Aucune équipe autorisée pour votre compte.</div>
+        {categories.length === 0 ? (
+          <div className="text-[13px] text-muted">Aucune catégorie autorisée pour votre compte.</div>
         ) : (
           <form action={createPlayer} className="flex flex-col gap-3.5">
             <div className="grid grid-cols-2 gap-3">
@@ -33,10 +34,10 @@ export default async function NouveauJoueurPage() {
               </Field>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Équipe">
-                <select name="teamId" required className={inputClass}>
-                  {teams.map((t) => (
-                    <option key={t.id} value={t.id}>{t.code}</option>
+              <Field label="Catégorie">
+                <select name="category" required className={inputClass}>
+                  {categories.map((c) => (
+                    <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
               </Field>
@@ -44,6 +45,16 @@ export default async function NouveauJoueurPage() {
                 <input type="number" name="birthYear" required defaultValue={2014} className={inputClass} />
               </Field>
             </div>
+            <Field label="Fixer une équipe précise dès maintenant (optionnel)">
+              <select name="teamId" defaultValue="" className={inputClass}>
+                <option value="">
+                  — Aucune, l&apos;équipe se déterminera d&apos;elle-même selon les matchs joués —
+                </option>
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>{t.code}</option>
+                ))}
+              </select>
+            </Field>
             <Field label="Poste principal (optionnel)">
               <select name="position" defaultValue="Non renseigné" className={inputClass}>
                 <option value="Non renseigné">Non renseigné</option>

@@ -115,7 +115,7 @@ export async function getMonthlyTrends(scope: Scope) {
   const teamIdWhere = scope === "ALL" ? {} : { teamId: { in: scope } };
   const rangeStart = months[0].start;
 
-  const [attendances, matchStats] = await Promise.all([
+  const [attendances, matchStats, scopeCategories] = await Promise.all([
     prisma.attendance.findMany({
       where: { session: { date: { gte: rangeStart } } },
       include: { session: true, player: true },
@@ -124,10 +124,17 @@ export async function getMonthlyTrends(scope: Scope) {
       where: { match: { date: { gte: rangeStart }, ...teamIdWhere } },
       include: { match: true },
     }),
+    scope === "ALL"
+      ? Promise.resolve(null)
+      : prisma.team.findMany({ where: { id: { in: scope } }, select: { category: true } }).then((ts) => new Set(ts.map((t) => t.category))),
   ]);
 
+  // A player with no fixed team (Player.teamId null) is still in scope
+  // whenever their category is.
   const scopedAttendances =
-    scope === "ALL" ? attendances : attendances.filter((a) => scope.includes(a.player.teamId));
+    scope === "ALL"
+      ? attendances
+      : attendances.filter((a) => (a.player.teamId !== null && scope.includes(a.player.teamId)) || scopeCategories!.has(a.player.category));
 
   return months.map((m) => {
     const monthAtt = scopedAttendances.filter((a) => a.session.date >= m.start && a.session.date < m.end);

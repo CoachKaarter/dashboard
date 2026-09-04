@@ -20,19 +20,19 @@ test("playersNeedingExpectationInit: liste vide quand tout le monde a déjà une
 
 test("playerInSessionCategory: même catégorie, équipe différente de scopeTeamId — autorisé (ajout exceptionnel)", () => {
   const session = { scopeTeamId: "team-u13a", category: "U13" };
-  const player = { archived: false, team: { category: "U13" } };
+  const player = { archived: false, category: "U13" };
   assert.equal(playerInSessionCategory(session, player), true);
 });
 
 test("playerInSessionCategory: catégorie différente — refusé", () => {
   const session = { scopeTeamId: null, category: "U13" };
-  const player = { archived: false, team: { category: "U12" } };
+  const player = { archived: false, category: "U12" };
   assert.equal(playerInSessionCategory(session, player), false);
 });
 
 test("playerInSessionCategory: joueur archivé — toujours refusé même si bonne catégorie", () => {
   const session = { scopeTeamId: null, category: "U13" };
-  const player = { archived: true, team: { category: "U13" } };
+  const player = { archived: true, category: "U13" };
   assert.equal(playerInSessionCategory(session, player), false);
 });
 

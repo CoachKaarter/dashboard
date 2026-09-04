@@ -13,9 +13,9 @@ import { revalidatePath } from "next/cache";
 // server-side, avant toute écriture.
 async function assertCanManageFamilyAccess(playerId: string) {
   const user = await requireUser();
-  const player = await prisma.player.findUnique({ where: { id: playerId }, include: { team: true } });
+  const player = await prisma.player.findUnique({ where: { id: playerId } });
   if (!player) redirect("/joueurs");
-  if (user.role !== "ADMIN" && !canManageCategory(user, player.team.category)) redirect(`/joueurs/${playerId}`);
+  if (user.role !== "ADMIN" && !canManageCategory(user, player.category)) redirect(`/joueurs/${playerId}`);
   return { user, player };
 }
 

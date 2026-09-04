@@ -173,6 +173,7 @@ export async function seedDevDatabase(prisma: PrismaClient) {
           lastName: person.nom,
           birthYear: g.category === "U13" ? 2014 : 2015,
           teamId: teamByCode.get(g.code)!.id,
+          category: g.category,
           position: "Non renseigné",
           positionAlt: "Non renseigné",
           foot: "Non renseigné",

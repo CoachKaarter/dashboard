@@ -14,12 +14,12 @@
 import { prisma } from "@/lib/prisma";
 
 export type SessionScope = { scopeTeamId: string | null; category: string };
-export type ScopedPlayer = { teamId: string; archived: boolean; team: { category: string } };
+export type ScopedPlayer = { teamId: string | null; category: string; archived: boolean };
 
 /** Pure decision — no DB access — so it's directly unit-testable. */
 export function playerMatchesSessionScope(session: SessionScope, player: ScopedPlayer): boolean {
   if (player.archived) return false;
-  return session.scopeTeamId ? player.teamId === session.scopeTeamId : player.team.category === session.category;
+  return session.scopeTeamId ? player.teamId === session.scopeTeamId : player.category === session.category;
 }
 
 /** Pure decision — no DB access — so it's directly unit-testable. */

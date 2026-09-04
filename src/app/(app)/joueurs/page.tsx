@@ -30,9 +30,12 @@ export default async function JoueursPage({
   const activeGroup = await getActiveCategoryGroup(user);
   const team = sp.team ?? activeGroup?.categories[0] ?? "Toutes";
   const all = await getAllPlayerStats();
+  // A player with no fixed team (Player.teamId null) is still in scope
+  // whenever their category is.
+  const accessibleCategorySet = new Set(accessibleCategories);
   const players = all.filter(
     (p) =>
-      (scope === "ALL" || scope.includes(p.teamId)) &&
+      (scope === "ALL" || (p.teamId !== null && scope.includes(p.teamId)) || accessibleCategorySet.has(p.category)) &&
       (team === "Toutes" || p.category === team) &&
       (pos === "Tous" || p.position === pos) &&
       (statut === "Tous" || p.status === statut) &&

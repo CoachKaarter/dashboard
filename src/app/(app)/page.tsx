@@ -36,9 +36,14 @@ export default async function CockpitPage() {
   const allTeams = await prisma.team.findMany({ select: { id: true, code: true, category: true } });
   const categoryTeamIds = scopedTeamIdsInCategory(user, allTeams, activeCategories);
   const teamFilter = { teamId: { in: categoryTeamIds } };
+  // A player with no fixed team (Player.teamId null) is still in scope
+  // whenever their category is — Player queries use this instead of
+  // teamFilter, which only makes sense for Match/team-scoped models.
+  const inScopeCategories = [...new Set(allTeams.filter((t) => categoryTeamIds.includes(t.id)).map((t) => t.category))];
+  const playerCategoryFilter = { category: { in: inScopeCategories } };
 
   const [playerCount, alertGroups, dataChecks, club] = await Promise.all([
-    prisma.player.count({ where: { archived: false, ...teamFilter } }),
+    prisma.player.count({ where: { archived: false, ...playerCategoryFilter } }),
     getAlertGroups(categoryTeamIds),
     getDataChecks(categoryTeamIds),
     getClub(),
@@ -65,19 +70,19 @@ export default async function CockpitPage() {
   const sessionExpected = await Promise.all(
     nextSessions.map((s) =>
       prisma.player.count({
-        where: s.scopeTeamId ? { teamId: s.scopeTeamId } : { team: { category: s.category } },
+        where: s.scopeTeamId ? { teamId: s.scopeTeamId } : { category: s.category },
       })
     )
   );
 
   const unavailablePlayers = await prisma.player.findMany({
-    where: { status: { not: "Actif" }, archived: false, ...teamFilter },
+    where: { status: { not: "Actif" }, archived: false, ...playerCategoryFilter },
     include: { team: true },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     take: 4,
   });
   const unavailableCount = await prisma.player.count({
-    where: { status: { not: "Actif" }, archived: false, ...teamFilter },
+    where: { status: { not: "Actif" }, archived: false, ...playerCategoryFilter },
   });
 
   const urgentCount = alertGroups.find((g) => g.key === "urgent")?.items.filter((i) => !i.treated).length ?? 0;
@@ -315,7 +320,7 @@ export default async function CockpitPage() {
                       {p.firstName} {p.lastName}
                     </div>
                     <div className="text-[11.5px] text-muted">
-                      {p.team.category} · {p.status}
+                      {p.category} · {p.status}
                     </div>
                   </div>
                 </Link>

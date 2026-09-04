@@ -42,6 +42,17 @@ type Scope = string[] | "ALL";
 async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
   const settings = await getSettings();
   const now = new Date();
+  // A player with no fixed team (Player.teamId null) is still in scope
+  // whenever their category is — same idiom as canAccessCategory/
+  // getPlayerStatsByCategory elsewhere — otherwise they'd silently vanish
+  // from every team-scoped alert the moment they stop being pinned to a
+  // specific team.
+  const scopeCategories =
+    scope === "ALL"
+      ? null
+      : new Set((await prisma.team.findMany({ where: { id: { in: scope } }, select: { category: true } })).map((t) => t.category));
+  const inScope = (teamId: string | null, category: string) =>
+    scope === "ALL" || (teamId !== null && scope.includes(teamId)) || scopeCategories!.has(category);
   const treatedRows = await prisma.alertTreated.findMany({
     include: { assignedTo: true, treatedBy: true },
   });
@@ -115,7 +126,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
   }
 
   const allPlayerStats = await getAllPlayerStats();
-  const playerStats = scope === "ALL" ? allPlayerStats : allPlayerStats.filter((p) => scope.includes(p.teamId));
+  const playerStats = allPlayerStats.filter((p) => inScope(p.teamId, p.category));
 
   for (const p of playerStats) {
     if (p.status !== "Actif") continue;
@@ -352,15 +363,14 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
     include: { player: { include: { team: true } } },
     orderBy: { preAnsweredAt: "desc" },
   });
-  const recentFeedback =
-    scope === "ALL" ? recentFeedbackAll : recentFeedbackAll.filter((f) => scope.includes(f.player.teamId));
+  const recentFeedback = recentFeedbackAll.filter((f) => inScope(f.player.teamId, f.player.category));
 
   for (const f of recentFeedback) {
     if (f.pain) {
       const key = `pain-reported:${f.id}`;
       urgent.push({
         key,
-        tag: f.player.team.category,
+        tag: f.player.category,
         title: `${f.player.firstName} ${f.player.lastName} — douleur signalée`,
         detail: f.painLocation ? `Douleur signalée : ${f.painLocation}` : "Douleur signalée avant la séance, sans précision.",
         meta: "Douleur",
@@ -374,7 +384,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
       const key = `high-rpe:${f.id}`;
       traiter.push({
         key,
-        tag: f.player.team.category,
+        tag: f.player.category,
         title: `${f.player.firstName} ${f.player.lastName} — difficulté perçue très élevée`,
         detail: `RPE ${f.rpe}/10 rapporté après la séance.`,
         meta: `RPE ${f.rpe}`,
@@ -399,7 +409,7 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
     const key = `repeated-fatigue:${playerId}`;
     traiter.push({
       key,
-      tag: player.team.category,
+      tag: player.category,
       title: `${player.firstName} ${player.lastName} — fatigue élevée répétée`,
       detail: `${count} séances récentes avec une fatigue déclarée "Beaucoup".`,
       meta: "Fatigue",
@@ -415,12 +425,12 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
     include: { player: { include: { team: true } } },
     orderBy: { createdAt: "desc" },
   });
-  const pendingUnavail = scope === "ALL" ? pendingUnavailAll : pendingUnavailAll.filter((u) => scope.includes(u.player.teamId));
+  const pendingUnavail = pendingUnavailAll.filter((u) => inScope(u.player.teamId, u.player.category));
   for (const u of pendingUnavail) {
     const key = `pending-unavailability:${u.id}`;
     urgent.push({
       key,
-      tag: u.player.team.category,
+      tag: u.player.category,
       title: `${u.player.firstName} ${u.player.lastName} — indisponibilité déclarée par la famille`,
       detail: `${u.type}, depuis le ${formatDateShort(u.startDate)} — en attente de validation.`,
       meta: "À valider",
@@ -436,7 +446,10 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
     where: { status: "OPEN", closesAt: { gte: now, lte: in24h } },
   });
   for (const w of soonClosingWindows) {
-    const playersInScope = scope === "ALL" ? await prisma.player.count({ where: { archived: false } }) : await prisma.player.count({ where: { archived: false, teamId: { in: scope } } });
+    const playersInScope =
+      scope === "ALL"
+        ? await prisma.player.count({ where: { archived: false } })
+        : await prisma.player.count({ where: { archived: false, category: { in: [...scopeCategories!] } } });
     const answeredPlayerIds = new Set(
       (await prisma.playerAvailability.findMany({ where: { weekStartDate: w.weekStartDate }, select: { playerId: true } })).map((a) => a.playerId)
     );
@@ -552,12 +565,12 @@ async function computeAlertGroups(scope: Scope = "ALL"): Promise<AlertGroup[]> {
   });
   for (const iv of dueInterviews) {
     if (!iv.nextReviewDate || !activePlayerIds.has(iv.playerId)) continue;
-    if (scope !== "ALL" && !scope.includes(iv.player.teamId)) continue;
+    if (!inScope(iv.player.teamId, iv.player.category)) continue;
     const overdue = iv.nextReviewDate.getTime() < now.getTime();
     const key = `interview-due:${iv.playerId}`;
     (overdue ? traiter : surveiller).push({
       key,
-      tag: iv.player.team.category,
+      tag: iv.player.category,
       title: overdue
         ? `${iv.player.firstName} ${iv.player.lastName} — point de suivi dépassé`
         : `${iv.player.firstName} ${iv.player.lastName} — point de suivi à prévoir bientôt`,
@@ -617,8 +630,18 @@ export type DataCheck = { label: string; value: number; ok: boolean };
 
 async function computeDataChecks(scope: Scope = "ALL"): Promise<DataCheck[]> {
   const teamFilter = scope === "ALL" ? {} : { teamId: { in: scope } };
+  // Players floating with no fixed team must still count in scope — same
+  // category-fallback idiom as computeAlertGroups's inScope above.
+  const playerFilter =
+    scope === "ALL"
+      ? {}
+      : {
+          category: {
+            in: (await prisma.team.findMany({ where: { id: { in: scope } }, select: { category: true } })).map((t) => t.category),
+          },
+        };
   const players = await prisma.player.findMany({
-    where: teamFilter,
+    where: playerFilter,
     select: { firstName: true, lastName: true, birthYear: true },
   });
   const seen = new Set<string>();

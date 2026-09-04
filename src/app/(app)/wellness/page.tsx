@@ -17,7 +17,16 @@ export default async function WellnessPage() {
     include: { player: { include: { team: true } }, session: true },
     orderBy: { postAnsweredAt: "desc" },
   });
-  const feedback = scope === "ALL" ? feedbackAll : feedbackAll.filter((f) => scope.includes(f.player.teamId));
+  // A player with no fixed team (Player.teamId null) is still in scope
+  // whenever their category is — same idiom as computeAlertGroups's
+  // inScope (src/lib/alerts.ts).
+  const scopeCategories =
+    scope === "ALL"
+      ? null
+      : new Set((await prisma.team.findMany({ where: { id: { in: scope } }, select: { category: true } })).map((t) => t.category));
+  const feedback = feedbackAll.filter(
+    (f) => scope === "ALL" || (f.player.teamId !== null && scope.includes(f.player.teamId)) || scopeCategories!.has(f.player.category)
+  );
 
   const pain = feedback.filter((f) => f.pain);
   const highRpe = feedback.filter((f) => f.rpe && f.rpe >= 8);
@@ -91,7 +100,7 @@ function Row({
 }: {
   tone: "red" | "orange";
   icon: string;
-  player: { id: string; firstName: string; lastName: string; team: { category: string } };
+  player: { id: string; firstName: string; lastName: string; category: string };
   detail: string;
   date: Date | null;
 }) {
@@ -101,7 +110,7 @@ function Row({
       className="flex items-center gap-2.5 px-3.5 py-2.5 border-b border-line-soft-2 last:border-b-0 hover:bg-[#FAFAF8]"
     >
       <span>{icon}</span>
-      <TeamChip code={player.team.category} />
+      <TeamChip code={player.category} />
       <span className="text-[12.5px] font-semibold">{player.firstName} {player.lastName}</span>
       <span className={`text-[12px] ${tone === "red" ? "text-red" : "text-orange"}`}>{detail}</span>
       <span className="flex-1" />

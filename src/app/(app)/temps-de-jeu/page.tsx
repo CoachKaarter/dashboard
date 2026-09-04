@@ -45,8 +45,13 @@ export default async function TempsDeJeuPage({ searchParams }: { searchParams: P
   const periode = PERIODS.some((p) => p.key === sp.periode) ? sp.periode! : "saison";
 
   const allStats = await getAllPlayerStats();
+  // A player with no fixed team (Player.teamId null) is still in scope
+  // whenever their category is.
+  const accessibleCategories = new Set(availableCategories);
   const players = allStats.filter(
-    (p) => (scope === "ALL" || scope.includes(p.teamId)) && (category === "Toutes" || p.category === category)
+    (p) =>
+      (scope === "ALL" || (p.teamId !== null && scope.includes(p.teamId)) || accessibleCategories.has(p.category)) &&
+      (category === "Toutes" || p.category === category)
   );
   const settings = await getSettings();
 

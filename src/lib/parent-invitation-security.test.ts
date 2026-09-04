@@ -31,6 +31,7 @@ async function makeTeamAndPlayer(suffix: string) {
       lastName: `Test${suffix}`,
       birthYear: 2014,
       teamId: team.id,
+      category: team.category,
       position: "MIL",
       positionAlt: "",
       foot: "Droit",

@@ -11,7 +11,7 @@ import { ProgressChart } from "@/components/ui/ProgressChart";
 import { ParentAccountPanel } from "@/components/ParentAccountPanel";
 import { DeletePlayerButton } from "@/components/DeletePlayerButton";
 import { updateObjectives } from "../../evaluations/actions";
-import { requireUser, canAccessTeam, scopedTeamIds, canManageCategory } from "@/lib/authz";
+import { requireUser, canAccessCategory, scopedTeamIds, canManageCategory } from "@/lib/authz";
 import { computeFamilyAccessStatus } from "@/lib/parent-invitation-status";
 import { getInterviewPrep } from "@/lib/interview-prep";
 import { computeEvaluationDelta } from "@/lib/evaluation";
@@ -85,9 +85,11 @@ export default async function FichePage({
     getTestTypes(),
   ]);
   if (!player || !stats) notFound();
-  if (!canAccessTeam(user, player.teamId)) notFound();
+  if (!canAccessCategory(user, player.category)) notFound();
   const scope = scopedTeamIds(user);
-  const reassignableTeams = scope === "ALL" ? allTeams : allTeams.filter((t) => scope.includes(t.id));
+  const reassignableTeams = (scope === "ALL" ? allTeams : allTeams.filter((t) => scope.includes(t.id))).filter(
+    (t) => t.category === player.category
+  );
 
   return (
     <div className="max-w-[1400px] mx-auto animate-fadein">
@@ -699,11 +701,12 @@ export default async function FichePage({
               <button type="submit" className={editButtonClass + " w-auto px-3"}>OK</button>
             </form>
 
-            {reassignableTeams.length > 1 && (
+            {reassignableTeams.length > 0 && (
               <>
                 <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted mt-4 mb-[11px]">Changer de groupe</div>
                 <form action={changeTeam.bind(null, id)} className="flex flex-col gap-2">
-                  <select name="toTeamId" defaultValue={player.teamId} className={editInputClass}>
+                  <select name="toTeamId" defaultValue={player.teamId ?? ""} className={editInputClass}>
+                    <option value="">— Aucune (catégorie seule, équipe calculée selon les matchs) —</option>
                     {reassignableTeams.map((t) => (
                       <option key={t.id} value={t.id}>{t.code}</option>
                     ))}
@@ -743,7 +746,7 @@ export default async function FichePage({
             </form>
           </div>
 
-          {(user.role === "ADMIN" || canManageCategory(user, player.team.category)) && (
+          {(user.role === "ADMIN" || canManageCategory(user, player.category)) && (
             <ParentAccountPanel
               playerId={player.id}
               playerName={`${player.firstName} ${player.lastName}`}

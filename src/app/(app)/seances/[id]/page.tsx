@@ -48,7 +48,7 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
       orderBy: { player: { lastName: "asc" } },
     }),
     prisma.player.findMany({
-      where: { archived: false, team: { category: session.category } },
+      where: { archived: false, category: session.category },
       include: { team: true },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
@@ -64,14 +64,14 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
     id: e.playerId,
     firstName: e.player.firstName,
     lastName: e.player.lastName,
-    category: e.player.team.category,
-    teamCode: e.player.team.code,
+    category: e.player.category,
+    teamCode: e.player.team?.code ?? e.player.category,
     expected: e.expected,
   }));
   const expectedPlayerIds = new Set(expectations.map((e) => e.playerId));
   const exceptionalCandidates: ExceptionalCandidate[] = categoryPlayers
     .filter((p) => !expectedPlayerIds.has(p.id))
-    .map((p) => ({ id: p.id, firstName: p.firstName, lastName: p.lastName, teamCode: p.team.code }));
+    .map((p) => ({ id: p.id, firstName: p.firstName, lastName: p.lastName, teamCode: p.team?.code ?? p.category }));
 
   const counts: Record<string, number> = { P: 0, R: 0, AJ: 0, ANJ: 0, B: 0 };
   let pointed = 0;
@@ -268,7 +268,7 @@ export default async function SeanceDetailPage({ params }: { params: Promise<{ i
                 </div>
               </div>
               <div>
-                <TeamChip code={p.team.category} />
+                <TeamChip code={p.category} />
               </div>
               <div className="text-[12.5px] text-ink-soft">{p.position}</div>
               <div className="flex gap-[5px]">

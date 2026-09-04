@@ -36,8 +36,12 @@ export type MeasurementTableRow = {
 // type — the /mesures table is a snapshot of where the squad stands today,
 // not a full history dump (that's what the fiche joueur panel is for).
 export async function getMeasurementTable(scope: string[] | "ALL"): Promise<MeasurementTableRow[]> {
+  // A player with no fixed team (Player.teamId null) is still in scope
+  // whenever their category is.
+  const scopeCategories =
+    scope === "ALL" ? null : new Set((await prisma.team.findMany({ where: { id: { in: scope } }, select: { category: true } })).map((t) => t.category));
   const players = await prisma.player.findMany({
-    where: { archived: false, ...(scope === "ALL" ? {} : { teamId: { in: scope } }) },
+    where: { archived: false, ...(scopeCategories ? { category: { in: [...scopeCategories] } } : {}) },
     include: { team: true },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });
@@ -58,7 +62,7 @@ export async function getMeasurementTable(scope: string[] | "ALL"): Promise<Meas
     id: p.id,
     firstName: p.firstName,
     lastName: p.lastName,
-    category: p.team.category,
+    category: p.category,
     latest: latestByPlayer.get(p.id) ?? new Map(),
   }));
 }

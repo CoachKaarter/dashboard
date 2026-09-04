@@ -35,7 +35,7 @@ async function assertPlayerInEquipmentCategory(equipmentTeamId: string | null, p
   if (!equipmentTeamId) return;
   const [equipmentTeam, player] = await Promise.all([
     prisma.team.findUniqueOrThrow({ where: { id: equipmentTeamId }, select: { category: true } }),
-    prisma.player.findUniqueOrThrow({ where: { id: playerId }, select: { team: { select: { category: true } } } }),
+    prisma.player.findUniqueOrThrow({ where: { id: playerId }, select: { category: true } }),
   ]);
   if (!playerMatchesEquipmentCategory(equipmentTeam, player)) throw new Error("Ce joueur ne fait pas partie de la catégorie de ce matériel.");
 }

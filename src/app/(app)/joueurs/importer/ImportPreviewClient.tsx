@@ -7,7 +7,7 @@ import { previewPlayerImport, confirmPlayerImport, type PlayerImportPreviewState
 const inputClass =
   "h-9 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none w-full focus:border-blue focus:ring-[3px] focus:ring-blue-bg";
 
-export function ImportPreviewClient({ teams }: { teams: { id: string; code: string }[] }) {
+export function ImportPreviewClient({ categories }: { categories: string[] }) {
   const [state, formAction] = useActionState<PlayerImportPreviewState, FormData>(previewPlayerImport, null);
 
   if (!state || "error" in state) {
@@ -16,13 +16,13 @@ export function ImportPreviewClient({ teams }: { teams: { id: string; code: stri
         {state?.error && <div className="px-3 py-2 rounded-md bg-red-bg text-red text-[12.5px] font-medium">{state.error}</div>}
         <label className="flex flex-col gap-1.5">
           <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-muted">
-            Équipe par défaut (si le fichier n&apos;a pas de colonne Équipe)
+            Catégorie par défaut (si le fichier n&apos;a pas de colonne Catégorie)
           </span>
-          <select name="teamId" defaultValue="" className={inputClass}>
-            <option value="">— Aucune (fichier avec colonne Équipe) —</option>
-            {teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.code}
+          <select name="category" defaultValue="" className={inputClass}>
+            <option value="">— Aucune (fichier avec colonne Catégorie) —</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
               </option>
             ))}
           </select>
@@ -72,7 +72,7 @@ export function ImportPreviewClient({ teams }: { teams: { id: string; code: stri
                 <span className="font-semibold flex-1 min-w-0 truncate">
                   {r.firstName} {r.lastName}
                 </span>
-                <span className="text-ink-soft w-14 shrink-0">{r.teamCode}</span>
+                <span className="text-ink-soft w-14 shrink-0">{r.teamCode ?? r.category}</span>
                 <span className="font-mono text-muted-2 w-12 shrink-0">{r.birthYear}</span>
                 {(r.parentPhone || r.parentEmail) && (
                   <span className="text-blue text-[10.5px] font-semibold shrink-0" title="Contact parent détecté">

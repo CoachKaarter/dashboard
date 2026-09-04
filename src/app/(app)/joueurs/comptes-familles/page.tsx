@@ -18,7 +18,7 @@ export default async function ComptesFamillesPage() {
   const players = await prisma.player.findMany({
     where: {
       archived: false,
-      ...(manageableCategories !== null ? { team: { category: { in: manageableCategories } } } : {}),
+      ...(manageableCategories !== null ? { category: { in: manageableCategories } } : {}),
     },
     include: {
       team: true,
@@ -31,7 +31,7 @@ export default async function ComptesFamillesPage() {
   const rows = players.map((p) => ({
     id: p.id,
     name: `${p.firstName} ${p.lastName}`,
-    teamCode: p.team.code,
+    teamCode: p.team?.code ?? p.category,
     email: p.parentEmail,
     status: computeFamilyAccessStatus({
       parentEmail: p.parentEmail,
@@ -94,7 +94,7 @@ export default async function ComptesFamillesPage() {
           </div>
           {missingEmail.map((p) => (
             <div key={p.id} className="flex items-center gap-3 px-3.5 py-2.5 border-b border-line-soft-2 last:border-b-0">
-              <TeamChip code={p.team.code} />
+              <TeamChip code={p.team?.code ?? p.category} />
               <div className="flex-1 min-w-0 text-[12.5px] font-semibold truncate">
                 {p.firstName} {p.lastName}
               </div>

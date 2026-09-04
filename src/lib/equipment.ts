@@ -75,9 +75,9 @@ export const DISPLAY_STATUS_TONE: Record<EquipmentDisplayStatus, "red" | "orange
 // et playerInSessionCategory (session-expectation.ts) : un U13B qui prend
 // le relais du lavage des maillots U13A doit pouvoir être sélectionné.
 // Matériel non lié à une équipe (teamId null) : tous les joueurs.
-export function playerMatchesEquipmentCategory(equipmentTeam: { category: string } | null, player: { team: { category: string } }): boolean {
+export function playerMatchesEquipmentCategory(equipmentTeam: { category: string } | null, player: { category: string }): boolean {
   if (!equipmentTeam) return true;
-  return player.team.category === equipmentTeam.category;
+  return player.category === equipmentTeam.category;
 }
 
 export type EquipmentAssignmentLike = { status: string; dueDate: Date };

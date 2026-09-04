@@ -42,13 +42,13 @@ test("daysLate: nombre de jours entiers de retard", () => {
 });
 
 test("playerMatchesEquipmentCategory: matériel non lié à une équipe -> tout joueur autorisé", () => {
-  assert.equal(playerMatchesEquipmentCategory(null, { team: { category: "U13" } }), true);
+  assert.equal(playerMatchesEquipmentCategory(null, { category: "U13" }), true);
 });
 
 test("playerMatchesEquipmentCategory: même catégorie, équipe différente -> autorisé (ex. U13B lave pour U13A)", () => {
-  assert.equal(playerMatchesEquipmentCategory({ category: "U13" }, { team: { category: "U13" } }), true);
+  assert.equal(playerMatchesEquipmentCategory({ category: "U13" }, { category: "U13" }), true);
 });
 
 test("playerMatchesEquipmentCategory: catégorie différente -> refusé", () => {
-  assert.equal(playerMatchesEquipmentCategory({ category: "U13" }, { team: { category: "U12" } }), false);
+  assert.equal(playerMatchesEquipmentCategory({ category: "U13" }, { category: "U12" }), false);
 });

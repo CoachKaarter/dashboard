@@ -6,6 +6,7 @@ import {
   guessBirthYearForCategory,
   buildPlayerImportCandidates,
   type ImportableTeam,
+  type ImportableCategory,
 } from "./player-import";
 
 const NO_COLS = { parentFirstName: -1, parentLastName: -1, parentEmail: -1, parentPhone: -1, mainPhone: -1 };
@@ -139,30 +140,57 @@ const TEAMS: ImportableTeam[] = [
   { id: "u12a", code: "U12A", category: "U12", allowed: true },
   { id: "u13a", code: "U13A", category: "U13", allowed: false },
 ];
+const CATEGORIES: ImportableCategory[] = [
+  { code: "U8", allowed: true },
+  { code: "U9", allowed: true },
+  { code: "U12", allowed: true },
+  { code: "U13", allowed: false },
+];
 
 test("buildPlayerImportCandidates: a row with its own Équipe column resolves that exact team", () => {
   const outcomes = buildPlayerImportCandidates(
     [{ lastName: "Dupont", firstName: "Léo", teamCode: "U8A", birthYear: null, position: null }],
-    { teams: TEAMS, fallbackTeamId: null, existingPlayerKeys: new Set() }
+    { teams: TEAMS, categories: CATEGORIES, fallbackCategory: null, existingPlayerKeys: new Set() }
   );
   assert.equal(outcomes.length, 1);
   assert.equal(outcomes[0].ok, true);
-  if (outcomes[0].ok) assert.equal(outcomes[0].candidate.teamId, "u8a");
+  if (outcomes[0].ok) {
+    assert.equal(outcomes[0].candidate.teamId, "u8a");
+    assert.equal(outcomes[0].candidate.category, "U8");
+  }
 });
 
-test("buildPlayerImportCandidates: no Équipe column falls back to the chosen default team", () => {
+// The normal path now: a player is never pinned to a specific team by
+// import, only to a category — teamId stays null.
+test("buildPlayerImportCandidates: a Catégorie column with no Équipe column resolves the category, no team", () => {
   const outcomes = buildPlayerImportCandidates(
-    [{ lastName: "Dupont", firstName: "Léo", teamCode: null, birthYear: null, position: null }],
-    { teams: TEAMS, fallbackTeamId: "u9a", existingPlayerKeys: new Set() }
+    [{ lastName: "Dupont", firstName: "Léo", teamCode: null, category: "U8", birthYear: null, position: null }],
+    { teams: TEAMS, categories: CATEGORIES, fallbackCategory: null, existingPlayerKeys: new Set() }
   );
   assert.equal(outcomes[0].ok, true);
-  if (outcomes[0].ok) assert.equal(outcomes[0].candidate.teamId, "u9a");
+  if (outcomes[0].ok) {
+    assert.equal(outcomes[0].candidate.teamId, null);
+    assert.equal(outcomes[0].candidate.teamCode, null);
+    assert.equal(outcomes[0].candidate.category, "U8");
+  }
 });
 
-test("buildPlayerImportCandidates: no Équipe column and no fallback team is an error, not a silent default", () => {
+test("buildPlayerImportCandidates: no Catégorie column falls back to the chosen default category", () => {
   const outcomes = buildPlayerImportCandidates(
-    [{ lastName: "Dupont", firstName: "Léo", teamCode: null, birthYear: null, position: null }],
-    { teams: TEAMS, fallbackTeamId: null, existingPlayerKeys: new Set() }
+    [{ lastName: "Dupont", firstName: "Léo", teamCode: null, category: null, birthYear: null, position: null }],
+    { teams: TEAMS, categories: CATEGORIES, fallbackCategory: "U9", existingPlayerKeys: new Set() }
+  );
+  assert.equal(outcomes[0].ok, true);
+  if (outcomes[0].ok) {
+    assert.equal(outcomes[0].candidate.teamId, null);
+    assert.equal(outcomes[0].candidate.category, "U9");
+  }
+});
+
+test("buildPlayerImportCandidates: no Catégorie column and no fallback category is an error, not a silent default", () => {
+  const outcomes = buildPlayerImportCandidates(
+    [{ lastName: "Dupont", firstName: "Léo", teamCode: null, category: null, birthYear: null, position: null }],
+    { teams: TEAMS, categories: CATEGORIES, fallbackCategory: null, existingPlayerKeys: new Set() }
   );
   assert.equal(outcomes[0].ok, false);
 });
@@ -170,35 +198,53 @@ test("buildPlayerImportCandidates: no Équipe column and no fallback team is an 
 test("buildPlayerImportCandidates: a team the user isn't authorized for is rejected even if it exists", () => {
   const outcomes = buildPlayerImportCandidates(
     [{ lastName: "Dupont", firstName: "Léo", teamCode: "U13A", birthYear: null, position: null }],
-    { teams: TEAMS, fallbackTeamId: null, existingPlayerKeys: new Set() }
+    { teams: TEAMS, categories: CATEGORIES, fallbackCategory: null, existingPlayerKeys: new Set() }
   );
   assert.equal(outcomes[0].ok, false);
   if (!outcomes[0].ok) assert.match(outcomes[0].error, /non autorisée/);
 });
 
+test("buildPlayerImportCandidates: a category the user isn't authorized for is rejected even if it exists", () => {
+  const outcomes = buildPlayerImportCandidates(
+    [{ lastName: "Dupont", firstName: "Léo", teamCode: null, category: "U13", birthYear: null, position: null }],
+    { teams: TEAMS, categories: CATEGORIES, fallbackCategory: null, existingPlayerKeys: new Set() }
+  );
+  assert.equal(outcomes[0].ok, false);
+  if (!outcomes[0].ok) assert.match(outcomes[0].error, /non autorisée/);
+});
+
+test("buildPlayerImportCandidates: an unknown category is rejected", () => {
+  const outcomes = buildPlayerImportCandidates(
+    [{ lastName: "Dupont", firstName: "Léo", teamCode: null, category: "U10", birthYear: null, position: null }],
+    { teams: TEAMS, categories: CATEGORIES, fallbackCategory: null, existingPlayerKeys: new Set() }
+  );
+  assert.equal(outcomes[0].ok, false);
+  if (!outcomes[0].ok) assert.match(outcomes[0].error, /introuvable/);
+});
+
 test("buildPlayerImportCandidates: missing name is rejected", () => {
   const outcomes = buildPlayerImportCandidates(
     [{ lastName: "", firstName: "Léo", teamCode: "U8A", birthYear: null, position: null }],
-    { teams: TEAMS, fallbackTeamId: null, existingPlayerKeys: new Set() }
+    { teams: TEAMS, categories: CATEGORIES, fallbackCategory: null, existingPlayerKeys: new Set() }
   );
   assert.equal(outcomes[0].ok, false);
 });
 
-test("buildPlayerImportCandidates: flags a row matching an existing player in the same team as a duplicate, but still returns a valid candidate", () => {
-  const existingPlayerKeys = new Set(["u8a|DUPONT|léo"]);
+test("buildPlayerImportCandidates: flags a row matching an existing player in the same category as a duplicate, but still returns a valid candidate", () => {
+  const existingPlayerKeys = new Set(["U8|DUPONT|léo"]);
   const outcomes = buildPlayerImportCandidates(
     [{ lastName: "Dupont", firstName: "Léo", teamCode: "U8A", birthYear: null, position: null }],
-    { teams: TEAMS, fallbackTeamId: null, existingPlayerKeys }
+    { teams: TEAMS, categories: CATEGORIES, fallbackCategory: null, existingPlayerKeys }
   );
   assert.equal(outcomes[0].ok, true);
   if (outcomes[0].ok) assert.equal(outcomes[0].duplicate, true);
 });
 
-test("buildPlayerImportCandidates: the same name in a different team is not flagged as a duplicate", () => {
-  const existingPlayerKeys = new Set(["u9a|DUPONT|léo"]);
+test("buildPlayerImportCandidates: the same name in a different category is not flagged as a duplicate", () => {
+  const existingPlayerKeys = new Set(["U9|DUPONT|léo"]);
   const outcomes = buildPlayerImportCandidates(
     [{ lastName: "Dupont", firstName: "Léo", teamCode: "U8A", birthYear: null, position: null }],
-    { teams: TEAMS, fallbackTeamId: null, existingPlayerKeys }
+    { teams: TEAMS, categories: CATEGORIES, fallbackCategory: null, existingPlayerKeys }
   );
   assert.equal(outcomes[0].ok, true);
   if (outcomes[0].ok) assert.equal(outcomes[0].duplicate, false);
@@ -207,57 +253,22 @@ test("buildPlayerImportCandidates: the same name in a different team is not flag
 test("buildPlayerImportCandidates: an explicit birth year column wins over the category guess", () => {
   const outcomes = buildPlayerImportCandidates(
     [{ lastName: "Dupont", firstName: "Léo", teamCode: "U8A", birthYear: 2017, position: null }],
-    { teams: TEAMS, fallbackTeamId: null, existingPlayerKeys: new Set() }
+    { teams: TEAMS, categories: CATEGORIES, fallbackCategory: null, existingPlayerKeys: new Set() }
   );
   assert.equal(outcomes[0].ok, true);
   if (outcomes[0].ok) assert.equal(outcomes[0].candidate.birthYear, 2017);
 });
 
-test("buildPlayerImportCandidates: a Catégorie column with a single matching team auto-resolves it", () => {
-  const outcomes = buildPlayerImportCandidates(
-    [{ lastName: "Dupont", firstName: "Léo", teamCode: null, category: "U8", birthYear: null, position: null }],
-    { teams: TEAMS, fallbackTeamId: null, existingPlayerKeys: new Set() }
-  );
-  assert.equal(outcomes[0].ok, true);
-  if (outcomes[0].ok) assert.equal(outcomes[0].candidate.teamId, "u8a");
-});
-
-test("buildPlayerImportCandidates: a Catégorie column with no matching team is an error", () => {
-  const outcomes = buildPlayerImportCandidates(
-    [{ lastName: "Dupont", firstName: "Léo", teamCode: null, category: "U10", birthYear: null, position: null }],
-    { teams: TEAMS, fallbackTeamId: null, existingPlayerKeys: new Set() }
-  );
-  assert.equal(outcomes[0].ok, false);
-  if (!outcomes[0].ok) assert.match(outcomes[0].error, /Aucune équipe/);
-});
-
-test("buildPlayerImportCandidates: a Catégorie column with several matching teams is ambiguous without a matching default", () => {
-  const teams = [...TEAMS, { id: "u12b", code: "U12B", category: "U12", allowed: true }];
-  const outcomes = buildPlayerImportCandidates(
-    [{ lastName: "Dupont", firstName: "Léo", teamCode: null, category: "U12", birthYear: null, position: null }],
-    { teams, fallbackTeamId: null, existingPlayerKeys: new Set() }
-  );
-  assert.equal(outcomes[0].ok, false);
-  if (!outcomes[0].ok) assert.match(outcomes[0].error, /Plusieurs équipes/);
-});
-
-test("buildPlayerImportCandidates: an ambiguous Catégorie resolves via a default team of the same category", () => {
-  const teams = [...TEAMS, { id: "u12b", code: "U12B", category: "U12", allowed: true }];
-  const outcomes = buildPlayerImportCandidates(
-    [{ lastName: "Dupont", firstName: "Léo", teamCode: null, category: "U12", birthYear: null, position: null }],
-    { teams, fallbackTeamId: "u12b", existingPlayerKeys: new Set() }
-  );
-  assert.equal(outcomes[0].ok, true);
-  if (outcomes[0].ok) assert.equal(outcomes[0].candidate.teamId, "u12b");
-});
-
 test("buildPlayerImportCandidates: an explicit Équipe column wins over Catégorie when both are present", () => {
   const outcomes = buildPlayerImportCandidates(
     [{ lastName: "Dupont", firstName: "Léo", teamCode: "U9A", category: "U8", birthYear: null, position: null }],
-    { teams: TEAMS, fallbackTeamId: null, existingPlayerKeys: new Set() }
+    { teams: TEAMS, categories: CATEGORIES, fallbackCategory: null, existingPlayerKeys: new Set() }
   );
   assert.equal(outcomes[0].ok, true);
-  if (outcomes[0].ok) assert.equal(outcomes[0].candidate.teamId, "u9a");
+  if (outcomes[0].ok) {
+    assert.equal(outcomes[0].candidate.teamId, "u9a");
+    assert.equal(outcomes[0].candidate.category, "U9");
+  }
 });
 
 test("buildPlayerImportCandidates: carries parent contact info through to the candidate", () => {
@@ -274,7 +285,7 @@ test("buildPlayerImportCandidates: carries parent contact info through to the ca
         parentPhone: "0618323253",
       },
     ],
-    { teams: TEAMS, fallbackTeamId: null, existingPlayerKeys: new Set() }
+    { teams: TEAMS, categories: CATEGORIES, fallbackCategory: null, existingPlayerKeys: new Set() }
   );
   assert.equal(outcomes[0].ok, true);
   if (outcomes[0].ok) {

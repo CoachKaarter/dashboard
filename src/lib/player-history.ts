@@ -8,3 +8,13 @@ export function computeDistribution(values: string[]): DistributionEntry[] {
     .map(([value, count]) => ({ value, count, pct: total > 0 ? Math.round((count / total) * 100) : 0 }))
     .sort((a, b) => b.count - a.count);
 }
+
+// A player no longer has a fixed team by default (see Player.teamId,
+// nullable) — this is THE way "which team is this player really on right
+// now" gets answered wherever Player.teamId is null: whichever team they've
+// actually played the most matches with. null when they haven't played any
+// yet (the "à affecter" case on /équipes).
+export function computeUsualTeamCode(teamCodes: string[]): string | null {
+  const distribution = computeDistribution(teamCodes);
+  return distribution[0]?.value ?? null;
+}

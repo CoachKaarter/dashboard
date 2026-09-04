@@ -46,7 +46,7 @@ export default async function CoachSeanceDetailPage({
       orderBy: { player: { lastName: "asc" } },
     }),
     prisma.player.findMany({
-      where: { archived: false, team: { category: session.category } },
+      where: { archived: false, category: session.category },
       include: { team: true },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
@@ -61,7 +61,7 @@ export default async function CoachSeanceDetailPage({
   const allExpectationPlayerIds = new Set(expectations.map((e) => e.playerId));
   const exceptionalCandidates = categoryPlayers
     .filter((p) => !allExpectationPlayerIds.has(p.id))
-    .map((p) => ({ id: p.id, firstName: p.firstName, lastName: p.lastName, teamCode: p.team.code }));
+    .map((p) => ({ id: p.id, firstName: p.firstName, lastName: p.lastName, teamCode: p.team?.code ?? p.category }));
 
   const availByPlayer = new Map(availabilities.map((a) => [a.playerId, a]));
   const [sh, sm] = session.startTime.split(":").map(Number);

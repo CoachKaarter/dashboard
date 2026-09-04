@@ -23,6 +23,12 @@ export async function getWeekendBoard(weekStartDate: Date, scope: Scope) {
     prisma.weeklyAvailabilityWindow.findUnique({ where: { weekStartDate } }),
   ]);
   const teamIds = teams.map((t) => t.id);
+  // A player with no fixed team (Player.teamId null) still belongs to the
+  // board whenever their category is in scope — the whole point of the
+  // board is assigning them to one of these teams, so filtering the player
+  // pool by teamId would make a category-only player invisible here of all
+  // places.
+  const categories = [...new Set(teams.map((t) => t.category))];
 
   const today = parisStartOfDay(new Date());
   const [matches, nextMatches, players, assignments, staffAssignments, availability, unavailAll] = await Promise.all([
@@ -39,7 +45,7 @@ export async function getWeekendBoard(weekStartDate: Date, scope: Scope) {
       orderBy: { date: "asc" },
     }),
     prisma.player.findMany({
-      where: { archived: false, teamId: { in: teamIds } },
+      where: { archived: false, category: { in: categories } },
       include: { team: true },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
@@ -52,13 +58,13 @@ export async function getWeekendBoard(weekStartDate: Date, scope: Scope) {
       include: { user: true },
     }),
     prisma.playerAvailability.findMany({
-      where: { type: "WEEKEND", eventDate: weekendDate, player: { teamId: { in: teamIds } } },
+      where: { type: "WEEKEND", eventDate: weekendDate, player: { category: { in: categories } } },
     }),
     prisma.unavailability.findMany({
       where: {
         status: "VALIDATED",
         actualReturn: null,
-        player: { teamId: { in: teamIds } },
+        player: { category: { in: categories } },
         startDate: { lte: weekendDate },
       },
       select: { playerId: true },

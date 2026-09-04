@@ -13,9 +13,18 @@ export async function GET(req: NextRequest) {
   const teamWhere = scope === "ALL" ? {} : { teamId: { in: scope } };
   const teamIdWhere = scope === "ALL" ? {} : { id: { in: scope } };
 
+  let allowedCategories: Set<string> | null = null;
+  if (scope !== "ALL") {
+    const scopedTeams = await prisma.team.findMany({ where: { id: { in: scope } }, select: { category: true } });
+    allowedCategories = new Set(scopedTeams.map((t) => t.category));
+  }
+  // A player with no fixed team (Player.teamId null) is still in scope
+  // whenever their category is.
+  const playerWhere = scope === "ALL" ? {} : { category: { in: [...allowedCategories!] } };
+
   const [playersRaw, teams, matchesRaw, sessionsRaw] = await Promise.all([
     prisma.player.findMany({
-      where: { archived: false, ...teamWhere, OR: [{ firstName: { contains: q, mode: "insensitive" } }, { lastName: { contains: q, mode: "insensitive" } }] },
+      where: { archived: false, ...playerWhere, OR: [{ firstName: { contains: q, mode: "insensitive" } }, { lastName: { contains: q, mode: "insensitive" } }] },
       include: { team: true },
       take: 6,
     }),
@@ -37,17 +46,12 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  let allowedCategories: Set<string> | null = null;
-  if (scope !== "ALL") {
-    const scopedTeams = await prisma.team.findMany({ where: { id: { in: scope } }, select: { category: true } });
-    allowedCategories = new Set(scopedTeams.map((t) => t.category));
-  }
   const sessions = sessionsRaw.filter((s) =>
     scope === "ALL" ? true : s.scopeTeamId ? scope.includes(s.scopeTeamId) : allowedCategories!.has(s.category)
   );
 
   return NextResponse.json({
-    players: playersRaw.map((p) => ({ id: p.id, label: `${p.firstName} ${p.lastName}`, sub: p.team.category, href: `/joueurs/${p.id}` })),
+    players: playersRaw.map((p) => ({ id: p.id, label: `${p.firstName} ${p.lastName}`, sub: p.category, href: `/joueurs/${p.id}` })),
     teams: teams.map((t) => ({ id: t.id, label: t.code, sub: t.category, href: `/equipes/${t.id}` })),
     matches: matchesRaw.map((m) => ({
       id: m.id,

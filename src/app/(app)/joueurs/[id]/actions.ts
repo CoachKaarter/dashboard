@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireUser, requireAdmin, canAccessTeam } from "@/lib/authz";
+import { requireUser, requireAdmin, canAccessTeam, canAccessCategory } from "@/lib/authz";
 import { PLAYER_STATUSES, POSITIONS } from "@/lib/constants";
 import { logActivity } from "@/lib/activity";
 
@@ -18,13 +18,22 @@ export async function addPlayerNote(playerId: string, formData: FormData) {
   revalidatePath(`/joueurs/${playerId}`);
 }
 
+// toTeamId empty means "aucune équipe fixée (catégorie seule)" — a player
+// is never required to have one; this both sets and clears Player.teamId.
 export async function changeTeam(playerId: string, formData: FormData) {
   const user = await requireUser();
-  const toTeamId = String(formData.get("toTeamId") ?? "");
+  const toTeamId = String(formData.get("toTeamId") ?? "") || null;
   const reason = String(formData.get("reason") ?? "").trim() || "Changement de groupe";
   const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
-  if (!toTeamId || toTeamId === player.teamId) return;
-  if (!canAccessTeam(user, player.teamId) || !canAccessTeam(user, toTeamId)) return;
+  if (toTeamId === player.teamId) return;
+  if (!canAccessCategory(user, player.category)) return;
+
+  let toTeam = null;
+  if (toTeamId) {
+    if (!canAccessTeam(user, toTeamId)) return;
+    toTeam = await prisma.team.findUniqueOrThrow({ where: { id: toTeamId } });
+    if (toTeam.category !== player.category) return;
+  }
 
   await prisma.$transaction([
     prisma.player.update({ where: { id: playerId }, data: { teamId: toTeamId } }),
@@ -39,15 +48,17 @@ export async function changeTeam(playerId: string, formData: FormData) {
       },
     }),
   ]);
-  const toTeam = await prisma.team.findUnique({ where: { id: toTeamId } });
   await logActivity({
     actorId: user.id,
-    summary: `a changé le groupe de ${player.firstName} ${player.lastName} vers ${toTeam?.code ?? toTeamId} (${reason})`,
+    summary: `a changé le groupe de ${player.firstName} ${player.lastName} vers ${toTeam?.code ?? "aucune équipe (catégorie seule)"} (${reason})`,
     entityType: "Player",
     entityId: playerId,
   });
   revalidatePath(`/joueurs/${playerId}`);
   revalidatePath("/joueurs");
+  revalidatePath("/equipes");
+  if (player.teamId) revalidatePath(`/equipes/${player.teamId}`);
+  if (toTeamId) revalidatePath(`/equipes/${toTeamId}`);
 }
 
 export async function changeStatus(playerId: string, formData: FormData) {
@@ -55,7 +66,7 @@ export async function changeStatus(playerId: string, formData: FormData) {
   const status = String(formData.get("status") ?? "");
   if (!PLAYER_STATUSES.includes(status)) return;
   const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
-  if (!canAccessTeam(user, player.teamId)) return;
+  if (!canAccessCategory(user, player.category)) return;
 
   await prisma.player.update({ where: { id: playerId }, data: { status } });
   await logActivity({
@@ -72,7 +83,7 @@ export async function changeStatus(playerId: string, formData: FormData) {
 export async function updatePlayer(playerId: string, formData: FormData) {
   const user = await requireUser();
   const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
-  if (!canAccessTeam(user, player.teamId)) return;
+  if (!canAccessCategory(user, player.category)) return;
 
   const firstName = String(formData.get("firstName") ?? "").trim();
   const lastName = String(formData.get("lastName") ?? "").trim();
@@ -107,7 +118,7 @@ export async function updatePlayer(playerId: string, formData: FormData) {
 export async function updateParentContact(playerId: string, formData: FormData) {
   const user = await requireUser();
   const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
-  if (!canAccessTeam(user, player.teamId)) return;
+  if (!canAccessCategory(user, player.category)) return;
 
   const parentName = String(formData.get("parentName") ?? "").trim() || null;
   const parentPhone = String(formData.get("parentPhone") ?? "").trim() || null;
@@ -128,7 +139,7 @@ const STATUS_BY_TYPE: Record<string, string> = {
 export async function declareUnavailability(playerId: string, formData: FormData) {
   const user = await requireUser();
   const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
-  if (!canAccessTeam(user, player.teamId)) return;
+  if (!canAccessCategory(user, player.category)) return;
 
   const type = String(formData.get("type") ?? "");
   if (!UNAVAILABILITY_TYPES.includes(type)) return;
@@ -157,7 +168,7 @@ export async function declareUnavailability(playerId: string, formData: FormData
 export async function endUnavailability(playerId: string, unavailabilityId: string) {
   const user = await requireUser();
   const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
-  if (!canAccessTeam(user, player.teamId)) return;
+  if (!canAccessCategory(user, player.category)) return;
 
   await prisma.$transaction([
     prisma.unavailability.update({ where: { id: unavailabilityId }, data: { actualReturn: new Date() } }),
@@ -181,7 +192,7 @@ export async function endUnavailability(playerId: string, unavailabilityId: stri
 export async function validateUnavailability(playerId: string, unavailabilityId: string) {
   const user = await requireUser();
   const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
-  if (!canAccessTeam(user, player.teamId)) return;
+  if (!canAccessCategory(user, player.category)) return;
   const u = await prisma.unavailability.findUniqueOrThrow({ where: { id: unavailabilityId } });
 
   await prisma.$transaction([
@@ -201,7 +212,7 @@ export async function validateUnavailability(playerId: string, unavailabilityId:
 export async function refuseUnavailability(playerId: string, unavailabilityId: string) {
   const user = await requireUser();
   const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
-  if (!canAccessTeam(user, player.teamId)) return;
+  if (!canAccessCategory(user, player.category)) return;
 
   await prisma.unavailability.update({ where: { id: unavailabilityId }, data: { status: "REFUSED" } });
   await logActivity({
@@ -216,7 +227,7 @@ export async function refuseUnavailability(playerId: string, unavailabilityId: s
 export async function setArchived(playerId: string, archived: boolean) {
   const user = await requireUser();
   const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
-  if (!canAccessTeam(user, player.teamId)) return;
+  if (!canAccessCategory(user, player.category)) return;
 
   await prisma.player.update({ where: { id: playerId }, data: { archived } });
   await logActivity({

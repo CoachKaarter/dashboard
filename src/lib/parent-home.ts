@@ -343,7 +343,7 @@ export async function getParentHomeState(parent: AuthedParent): Promise<ParentHo
   return {
     clubName: club.name,
     firstName: player.firstName,
-    category: player.team.category,
+    category: player.category,
     weekLabel: `Semaine du ${weekStart.getDate()} au ${weekEndLabel(weekStart)}`,
     hero,
     upcoming,

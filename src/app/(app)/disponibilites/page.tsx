@@ -76,15 +76,19 @@ export default async function DisponibilitesPage({
     sessions: sessionsAll.filter((s) => s.date.toISOString().slice(0, 10) === key),
   }));
 
+  // A player with no fixed team (Player.teamId null) is still in scope
+  // whenever their category is — filtering by teamId/team relation alone
+  // would silently drop them, category being the actual source of truth.
+  const scopeCategories = scope === "ALL" ? null : new Set(allTeams.filter((t) => scope.includes(t.id)).map((t) => t.category));
   const players = await prisma.player.findMany({
     where: {
       archived: false,
-      teamId: scope === "ALL" ? undefined : { in: scope },
-      team: selectedCategory
+      ...(scopeCategories ? { category: { in: [...scopeCategories] } } : {}),
+      ...(selectedCategory
         ? { category: selectedCategory }
         : selectedTeamCode
-          ? { OR: [{ code: selectedTeamCode }, { category: selectedTeamCode }] }
-          : undefined,
+          ? { team: { OR: [{ code: selectedTeamCode }, { category: selectedTeamCode }] } }
+          : {}),
     },
     include: { team: true },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
@@ -96,7 +100,7 @@ export default async function DisponibilitesPage({
   const weekendAnswerByPlayer = new Map(answers.filter((a) => a.type === "WEEKEND").map((a) => [a.playerId, a]));
 
   function sessionFor(player: (typeof players)[number], col: (typeof dayColumns)[number]) {
-    return col.sessions.find((s) => s.scopeTeamId === player.teamId) ?? col.sessions.find((s) => !s.scopeTeamId && s.category === player.team.category);
+    return col.sessions.find((s) => s.scopeTeamId === player.teamId) ?? col.sessions.find((s) => !s.scopeTeamId && s.category === player.category);
   }
 
   const rows = players.map((p) => {
@@ -217,7 +221,7 @@ export default async function DisponibilitesPage({
             style={{ gridTemplateColumns: `minmax(180px,1fr) repeat(${dayColumns.length + 1}, 72px)` }}
           >
             <div className="flex items-center gap-2 min-w-0">
-              <TeamChip code={r.player.team.category} />
+              <TeamChip code={r.player.category} />
               <span className="font-semibold truncate">{r.player.firstName} {r.player.lastName}</span>
             </div>
             {r.cells.map((c, i) =>
