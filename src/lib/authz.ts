@@ -252,6 +252,19 @@ export function canManageCategory(user: AuthedUser, category: string): boolean {
 }
 
 /**
+ * Catégories à proposer dans un formulaire de création (séance, créneau
+ * récurrent...) : un ADMIN doit pouvoir démarrer n'importe quelle catégorie
+ * du club même sans StaffAccess personnel dessus (même exception que
+ * createTeam dans equipes/actions.ts) ; les autres restent limités à
+ * getAccessibleCategories.
+ */
+export async function getManageableCategories(user: AuthedUser): Promise<string[]> {
+  if (user.role !== "ADMIN") return getAccessibleCategories(user).sort();
+  const rows = await prisma.team.findMany({ distinct: ["category"], select: { category: true }, orderBy: { category: "asc" } });
+  return rows.map((t) => t.category);
+}
+
+/**
  * TrainingSession targets either one specific team (scopeTeamId set) or an
  * entire category (U12/U13). For the category-wide case, access requires the
  * user to be authorized for at least one team in that category.

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireUser, getAccessibleCategories } from "@/lib/authz";
+import { requireUser, getManageableCategories } from "@/lib/authz";
 import { createSession } from "../actions";
 
 const inputClass =
@@ -8,7 +8,7 @@ const inputClass =
 
 export default async function NouvelleSeancePage() {
   const user = await requireUser();
-  const categories = getAccessibleCategories(user).sort();
+  const categories = await getManageableCategories(user);
   const teams = await prisma.team.findMany({
     where: { category: { in: categories } },
     orderBy: { code: "asc" },

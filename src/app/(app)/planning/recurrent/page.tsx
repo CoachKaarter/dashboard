@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireUser, scopedTeamIds, getAccessibleCategories } from "@/lib/authz";
+import { requireUser, scopedTeamIds, getManageableCategories } from "@/lib/authz";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Badge } from "@/components/ui/Badge";
 import { createSlot, toggleSlotActive, deleteSlot } from "./actions";
@@ -12,15 +12,20 @@ const inputClass =
 export default async function PlanningRecurrentPage() {
   const user = await requireUser();
   const isAdmin = user.role === "ADMIN";
-  const categories = getAccessibleCategories(user).sort();
+  const categories = await getManageableCategories(user);
   const scope = scopedTeamIds(user);
 
   const [slotsAll, allTeams] = await Promise.all([
     prisma.recurringSlot.findMany({ include: { scopeTeam: true }, orderBy: [{ weekday: "asc" }, { startTime: "asc" }] }),
     prisma.team.findMany({ orderBy: { code: "asc" } }),
   ]);
-  const slots = scope === "ALL" ? slotsAll : slotsAll.filter((s) => s.scopeTeamId && scope.includes(s.scopeTeamId));
-  const teams = scope === "ALL" ? allTeams : allTeams.filter((t) => scope.includes(t.id));
+  // Un créneau "toute la catégorie" (scopeTeamId null) se juge par catégorie,
+  // pas par équipe — sinon il disparaît pour quiconque n'a pas "ALL" (bug
+  // identique à celui corrigé sur seances/page.tsx pour les U9 sans équipe).
+  const slots = slotsAll.filter((s) =>
+    s.scopeTeamId ? scope === "ALL" || scope.includes(s.scopeTeamId) : categories.includes(s.category)
+  );
+  const teams = isAdmin ? allTeams : scope === "ALL" ? allTeams : allTeams.filter((t) => scope.includes(t.id));
 
   return (
     <div className="max-w-[900px] mx-auto animate-fadein">
