@@ -74,6 +74,11 @@ export function ImportPreviewClient({ teams }: { teams: { id: string; code: stri
                 </span>
                 <span className="text-ink-soft w-14 shrink-0">{r.teamCode}</span>
                 <span className="font-mono text-muted-2 w-12 shrink-0">{r.birthYear}</span>
+                {(r.parentPhone || r.parentEmail) && (
+                  <span className="text-blue text-[10.5px] font-semibold shrink-0" title="Contact parent détecté">
+                    Parent ✓
+                  </span>
+                )}
                 {r.duplicate && <span className="text-orange text-[10.5px] font-semibold shrink-0 w-24 text-right">Déjà présent</span>}
               </>
             ) : (

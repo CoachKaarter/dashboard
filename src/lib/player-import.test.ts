@@ -8,19 +8,58 @@ import {
   type ImportableTeam,
 } from "./player-import";
 
+const NO_COLS = { parentFirstName: -1, parentLastName: -1, parentEmail: -1, parentPhone: -1, mainPhone: -1 };
+
 test("findPlayerColumns: recognizes the club's export header wording regardless of accents/case", () => {
   const cols = findPlayerColumns(["Nom", "Prénom", "Équipe", "Catégorie", "Année de naissance", "Poste", "Pied fort"]);
-  assert.deepEqual(cols, { lastName: 0, firstName: 1, team: 2, birthYear: 4, position: 5 });
+  assert.deepEqual(cols, { lastName: 0, firstName: 1, team: 2, category: 3, birthYear: 4, position: 5, ...NO_COLS });
 });
 
 test("findPlayerColumns: tolerant of column order, and Équipe/Année/Poste are optional", () => {
   const cols = findPlayerColumns(["Prenom", "NOM"]);
-  assert.deepEqual(cols, { lastName: 1, firstName: 0, team: -1, birthYear: -1, position: -1 });
+  assert.deepEqual(cols, { lastName: 1, firstName: 0, team: -1, category: -1, birthYear: -1, position: -1, ...NO_COLS });
 });
 
 test("findPlayerColumns: returns null when Nom or Prénom is missing", () => {
   assert.equal(findPlayerColumns(["Prénom", "Équipe"]), null);
   assert.equal(findPlayerColumns(["Nom", "Équipe"]), null);
+});
+
+// Real header wording from the club's own fill-in template: "(Obligatoire)"
+// suffixes, a "Catégorie" column instead of "Équipe", "Date de naissance"
+// instead of "Année de naissance", and Parent 1/Parent 2 contact columns —
+// "Parent 1 Nom(Obligatoire)" must resolve to a parent column, never to the
+// player's own "Nom(Obligatoire)".
+test("findPlayerColumns: recognizes the club template's wording (Obligatoire suffixes, Date de naissance, Parent 1)", () => {
+  const cols = findPlayerColumns([
+    "Catégorie",
+    "Prénom(Obligatoire)",
+    "Nom(Obligatoire)",
+    "Date de naissance",
+    "Poste",
+    "Numéro de téléphone (Obligatoire)",
+    "Parent 1 Prénom(Obligatoire)",
+    "Parent 1 Nom(Obligatoire) ",
+    "Parent 1 Email(Obligatoire) ",
+    "Parent 1 Numéro de téléphone(Obligatoire) ",
+    "Parent 2 Prénom",
+    "Parent 2 Nom",
+    "Parent 2 Email",
+    "Parent 2 Numéro de téléphone",
+  ]);
+  assert.deepEqual(cols, {
+    lastName: 2,
+    firstName: 1,
+    team: -1,
+    category: 0,
+    birthYear: 3,
+    position: 4,
+    mainPhone: 5,
+    parentFirstName: 6,
+    parentLastName: 7,
+    parentEmail: 8,
+    parentPhone: 9,
+  });
 });
 
 test("extractPlayerRows: reads rows and skips blank lines", () => {
@@ -31,9 +70,49 @@ test("extractPlayerRows: reads rows and skips blank lines", () => {
     ["MARTIN", "Zoé", ""],
   ];
   assert.deepEqual(extractPlayerRows(grid), [
-    { lastName: "DUPONT", firstName: "Léo", teamCode: "U12A", birthYear: null, position: null },
-    { lastName: "MARTIN", firstName: "Zoé", teamCode: null, birthYear: null, position: null },
+    { lastName: "DUPONT", firstName: "Léo", teamCode: "U12A", category: null, birthYear: null, position: null, parentName: null, parentEmail: null, parentPhone: null },
+    { lastName: "MARTIN", firstName: "Zoé", teamCode: null, category: null, birthYear: null, position: null, parentName: null, parentEmail: null, parentPhone: null },
   ]);
+});
+
+test("extractPlayerRows: club template — Date de naissance (Excel serial), Catégorie, Parent 1 contact, phone missing its leading 0", () => {
+  const grid = [
+    [
+      "Catégorie",
+      "Prénom(Obligatoire)",
+      "Nom(Obligatoire)",
+      "Date de naissance",
+      "Poste",
+      "Numéro de téléphone (Obligatoire)",
+      "Parent 1 Prénom(Obligatoire)",
+      "Parent 1 Nom(Obligatoire) ",
+      "Parent 1 Email(Obligatoire) ",
+      "Parent 1 Numéro de téléphone(Obligatoire) ",
+    ],
+    // 2019-02-05 as an Excel serial (days since 1899-12-30).
+    ["U8", "Aerik", "AGBOKANZO", 43501, null, 618323253, "Selom", "AGBOKANZO", "selomagbokanzo@gmail.com", 618323253],
+  ];
+  const rows = extractPlayerRows(grid);
+  assert.equal(rows.length, 1);
+  assert.deepEqual(rows[0], {
+    lastName: "AGBOKANZO",
+    firstName: "Aerik",
+    teamCode: null,
+    category: "U8",
+    birthYear: 2019,
+    position: null,
+    parentName: "Selom AGBOKANZO",
+    parentEmail: "selomagbokanzo@gmail.com",
+    parentPhone: "0618323253",
+  });
+});
+
+test("extractPlayerRows: falls back to the top-level phone column when Parent 1's own phone is blank", () => {
+  const grid = [
+    ["Nom(Obligatoire)", "Prénom(Obligatoire)", "Numéro de téléphone (Obligatoire)", "Parent 1 Numéro de téléphone(Obligatoire)"],
+    ["Martin", "Zoé", "0623598071", null],
+  ];
+  assert.equal(extractPlayerRows(grid)[0].parentPhone, "0623598071");
 });
 
 test("guessBirthYearForCategory: generalizes to any U-category, not just U12/U13", () => {
@@ -132,4 +211,75 @@ test("buildPlayerImportCandidates: an explicit birth year column wins over the c
   );
   assert.equal(outcomes[0].ok, true);
   if (outcomes[0].ok) assert.equal(outcomes[0].candidate.birthYear, 2017);
+});
+
+test("buildPlayerImportCandidates: a Catégorie column with a single matching team auto-resolves it", () => {
+  const outcomes = buildPlayerImportCandidates(
+    [{ lastName: "Dupont", firstName: "Léo", teamCode: null, category: "U8", birthYear: null, position: null }],
+    { teams: TEAMS, fallbackTeamId: null, existingPlayerKeys: new Set() }
+  );
+  assert.equal(outcomes[0].ok, true);
+  if (outcomes[0].ok) assert.equal(outcomes[0].candidate.teamId, "u8a");
+});
+
+test("buildPlayerImportCandidates: a Catégorie column with no matching team is an error", () => {
+  const outcomes = buildPlayerImportCandidates(
+    [{ lastName: "Dupont", firstName: "Léo", teamCode: null, category: "U10", birthYear: null, position: null }],
+    { teams: TEAMS, fallbackTeamId: null, existingPlayerKeys: new Set() }
+  );
+  assert.equal(outcomes[0].ok, false);
+  if (!outcomes[0].ok) assert.match(outcomes[0].error, /Aucune équipe/);
+});
+
+test("buildPlayerImportCandidates: a Catégorie column with several matching teams is ambiguous without a matching default", () => {
+  const teams = [...TEAMS, { id: "u12b", code: "U12B", category: "U12", allowed: true }];
+  const outcomes = buildPlayerImportCandidates(
+    [{ lastName: "Dupont", firstName: "Léo", teamCode: null, category: "U12", birthYear: null, position: null }],
+    { teams, fallbackTeamId: null, existingPlayerKeys: new Set() }
+  );
+  assert.equal(outcomes[0].ok, false);
+  if (!outcomes[0].ok) assert.match(outcomes[0].error, /Plusieurs équipes/);
+});
+
+test("buildPlayerImportCandidates: an ambiguous Catégorie resolves via a default team of the same category", () => {
+  const teams = [...TEAMS, { id: "u12b", code: "U12B", category: "U12", allowed: true }];
+  const outcomes = buildPlayerImportCandidates(
+    [{ lastName: "Dupont", firstName: "Léo", teamCode: null, category: "U12", birthYear: null, position: null }],
+    { teams, fallbackTeamId: "u12b", existingPlayerKeys: new Set() }
+  );
+  assert.equal(outcomes[0].ok, true);
+  if (outcomes[0].ok) assert.equal(outcomes[0].candidate.teamId, "u12b");
+});
+
+test("buildPlayerImportCandidates: an explicit Équipe column wins over Catégorie when both are present", () => {
+  const outcomes = buildPlayerImportCandidates(
+    [{ lastName: "Dupont", firstName: "Léo", teamCode: "U9A", category: "U8", birthYear: null, position: null }],
+    { teams: TEAMS, fallbackTeamId: null, existingPlayerKeys: new Set() }
+  );
+  assert.equal(outcomes[0].ok, true);
+  if (outcomes[0].ok) assert.equal(outcomes[0].candidate.teamId, "u9a");
+});
+
+test("buildPlayerImportCandidates: carries parent contact info through to the candidate", () => {
+  const outcomes = buildPlayerImportCandidates(
+    [
+      {
+        lastName: "Dupont",
+        firstName: "Léo",
+        teamCode: "U8A",
+        birthYear: null,
+        position: null,
+        parentName: "Selom AGBOKANZO",
+        parentEmail: "selom@example.com",
+        parentPhone: "0618323253",
+      },
+    ],
+    { teams: TEAMS, fallbackTeamId: null, existingPlayerKeys: new Set() }
+  );
+  assert.equal(outcomes[0].ok, true);
+  if (outcomes[0].ok) {
+    assert.equal(outcomes[0].candidate.parentName, "Selom AGBOKANZO");
+    assert.equal(outcomes[0].candidate.parentEmail, "selom@example.com");
+    assert.equal(outcomes[0].candidate.parentPhone, "0618323253");
+  }
 });

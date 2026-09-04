@@ -174,7 +174,7 @@ export type RawMatchImportRow = {
 
 const EXCEL_EPOCH_UTC_MS = Date.UTC(1899, 11, 30);
 
-function excelSerialToUtcDate(serial: number): Date {
+export function excelSerialToUtcDate(serial: number): Date {
   return new Date(EXCEL_EPOCH_UTC_MS + Math.floor(serial) * 86400000);
 }
 

@@ -64,6 +64,9 @@ export type PlayerImportPreviewRow = {
   teamCode?: string;
   birthYear?: number;
   position?: string;
+  parentName?: string | null;
+  parentEmail?: string | null;
+  parentPhone?: string | null;
 };
 export type PlayerImportPreviewState = { rows: PlayerImportPreviewRow[] } | { error: string } | null;
 
@@ -115,6 +118,9 @@ export async function previewPlayerImport(
           teamCode: o.candidate.teamCode,
           birthYear: o.candidate.birthYear,
           position: o.candidate.position,
+          parentName: o.candidate.parentName,
+          parentEmail: o.candidate.parentEmail,
+          parentPhone: o.candidate.parentPhone,
         }
       : { sourceRow: o.sourceRow, ok: false, error: o.error }
   );
@@ -152,6 +158,9 @@ export async function confirmPlayerImport(formData: FormData) {
         foot: "Non renseigné",
         status: "Actif",
         joinedLabel: "Saison 2026/2027",
+        parentName: r.parentName || undefined,
+        parentEmail: r.parentEmail || undefined,
+        parentPhone: r.parentPhone || undefined,
       },
     });
     await prisma.teamHistoryEntry.create({

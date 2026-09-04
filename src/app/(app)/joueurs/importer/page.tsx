@@ -23,13 +23,15 @@ export default async function ImporterJoueursPage({
         <div className="text-lg font-bold tracking-[-0.01em] mb-2">Importer des joueurs</div>
         <div className="text-[12.5px] text-muted mb-4 leading-relaxed">
           Fichier <strong>.csv</strong> ou <strong>.xlsx</strong> avec une ligne d&apos;en-tête. Colonnes attendues :{" "}
-          <strong>Nom</strong>, <strong>Prénom</strong> — Équipe (code, ex. &quot;U8A&quot;), Année de naissance et Poste
-          sont optionnels. Fonctionne avec un export du bouton &quot;Exporter CSV&quot; de l&apos;écran Joueurs.
+          <strong>Nom</strong>, <strong>Prénom</strong> — Équipe ou Catégorie, Année ou Date de naissance, Poste, et
+          contact du Parent 1 (prénom/nom/email/téléphone) sont optionnels. Fonctionne avec un export du bouton
+          &quot;Exporter CSV&quot; de l&apos;écran Joueurs comme avec un modèle club (colonnes &quot;Nom(Obligatoire)&quot;,
+          &quot;Date de naissance&quot;, etc.).
         </div>
         <div className="text-[12.5px] text-muted mb-4 leading-relaxed">
-          Si le fichier n&apos;a pas de colonne Équipe (ou qu&apos;elle est vide sur certaines lignes), choisissez une
-          équipe par défaut ci-dessous. Le fichier est d&apos;abord analysé — vous voyez chaque ligne (doublons
-          potentiels y compris) avant de confirmer l&apos;import.
+          Si le fichier n&apos;a pas de colonne Équipe/Catégorie (ou qu&apos;elle est vide ou ambiguë sur certaines
+          lignes), choisissez une équipe par défaut ci-dessous. Le fichier est d&apos;abord analysé — vous voyez
+          chaque ligne (doublons potentiels y compris) avant de confirmer l&apos;import.
         </div>
 
         {sp.error && <div className="mb-3 px-3 py-2 rounded-md bg-red-bg text-red text-[12.5px] font-medium">{sp.error}</div>}
