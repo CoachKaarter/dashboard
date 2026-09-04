@@ -44,7 +44,7 @@ export async function ensureSessionExpectations(sessionId: string): Promise<void
   const naturalPlayers = await prisma.player.findMany({
     where: {
       archived: false,
-      ...(session.scopeTeamId ? { teamId: session.scopeTeamId } : { team: { category: session.category } }),
+      ...(session.scopeTeamId ? { teamId: session.scopeTeamId } : { category: session.category }),
     },
     select: { id: true },
   });

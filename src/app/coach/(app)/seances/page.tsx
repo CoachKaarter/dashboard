@@ -28,7 +28,7 @@ export default async function CoachSeancesPage() {
   const withCounts = await Promise.all(
     sessions.map(async (s) => {
       const total = await prisma.player.count({
-        where: s.scopeTeamId ? { teamId: s.scopeTeamId, archived: false } : { team: { category: s.category }, archived: false },
+        where: s.scopeTeamId ? { teamId: s.scopeTeamId, archived: false } : { category: s.category, archived: false },
       });
       return { ...s, playerTotal: total, pointed: s.attendances.length };
     })

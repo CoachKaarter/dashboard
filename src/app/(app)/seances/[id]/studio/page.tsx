@@ -17,7 +17,7 @@ export default async function SessionStudioPage({ params }: { params: Promise<{ 
   const [blocks, playersCount, availabilities, favorites, recent, templates] = await Promise.all([
     prisma.sessionBlock.findMany({ where: { sessionId: id }, orderBy: { order: "asc" } }),
     prisma.player.count({
-      where: session.scopeTeamId ? { teamId: session.scopeTeamId, archived: false } : { team: { category: session.category }, archived: false },
+      where: session.scopeTeamId ? { teamId: session.scopeTeamId, archived: false } : { category: session.category, archived: false },
     }),
     prisma.playerAvailability.findMany({ where: { sessionId: id, type: "TRAINING" } }),
     prisma.trainingContentItem.findMany({

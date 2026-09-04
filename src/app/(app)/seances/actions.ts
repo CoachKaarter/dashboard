@@ -21,7 +21,7 @@ async function scopePlayers(sessionId: string) {
   return prisma.player.findMany({
     where: {
       archived: false,
-      ...(session.scopeTeamId ? { teamId: session.scopeTeamId } : { team: { category: session.category } }),
+      ...(session.scopeTeamId ? { teamId: session.scopeTeamId } : { category: session.category }),
     },
   });
 }

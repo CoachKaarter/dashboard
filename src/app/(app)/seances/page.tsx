@@ -27,7 +27,7 @@ export default async function SeancesPage() {
 
   const expectedBySession = await Promise.all(
     sessions.map((s) =>
-      prisma.player.count({ where: s.scopeTeamId ? { teamId: s.scopeTeamId } : { team: { category: s.category } } })
+      prisma.player.count({ where: s.scopeTeamId ? { teamId: s.scopeTeamId } : { category: s.category } })
     )
   );
 
