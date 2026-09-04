@@ -1,13 +1,38 @@
 "use server";
 
 import { parentSignOut } from "@/parent-auth";
-import { requireParent } from "@/lib/parent-session";
+import { requireParent, ACTIVE_CHILD_COOKIE } from "@/lib/parent-session";
 import { prisma } from "@/lib/prisma";
 import { getWeekStart, getWeekendDate, getWindowForWeek, upsertAvailability } from "@/lib/availability";
 import { availabilityStatusSchema, absenceReasonSchema } from "@/lib/parent-validation";
 import { sessionInParentScope } from "@/lib/parent-scope";
 import { recordSeen, recordSeenSnapshot, sessionSnapshot } from "@/lib/parent-content-state";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { sanitizeNextPath } from "@/lib/redirect-policy";
+
+// Bascule l'enfant actif — jamais confiance dans le playerId soumis, on ne
+// pose le cookie que s'il appartient réellement à un enfant de ce compte.
+// Le cookie n'est qu'une préférence d'affichage (pas de secret dedans), un
+// simple cookie non httpOnly conviendrait, mais httpOnly reste la valeur
+// par défaut la plus sûre ici, sans downside : rien ne le lit côté client.
+export async function setActiveChildAction(formData: FormData) {
+  const parent = await requireParent();
+  const playerId = String(formData.get("playerId") || "");
+  const redirectTo = sanitizeNextPath(String(formData.get("redirectTo") || "/parent"));
+  if (!parent.children.some((c) => c.id === playerId)) redirect(redirectTo);
+
+  const store = await cookies();
+  store.set(ACTIVE_CHILD_COOKIE, playerId, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 60 * 60 * 24 * 365,
+  });
+  redirect(redirectTo);
+}
 
 /**
  * Accueil Parent v2 — éteint l'animation NEW une fois pour toutes (le
@@ -25,20 +50,20 @@ export async function markParentContentSeen(entityType: string, entityId: string
   if (entityType === "TRAINING_SESSION") {
     const session = await prisma.trainingSession.findUnique({ where: { id: entityId } });
     if (!session || !sessionInParentScope(session, parent)) return;
-    await recordSeenSnapshot(parent.parentAccountId, ref, sessionSnapshot(session));
+    await recordSeenSnapshot(parent.parentAccountId, parent.activePlayerId, ref, sessionSnapshot(session));
     return;
   }
 
   if (entityType === "CONVOCATION") {
     const weekend = new Date(entityId);
     if (Number.isNaN(weekend.getTime())) return;
-    const live = await prisma.matchConvocation.findFirst({ where: { playerId: parent.playerId, match: { date: weekend } } });
+    const live = await prisma.matchConvocation.findFirst({ where: { playerId: parent.activePlayerId, match: { date: weekend } } });
     if (live) {
-      await recordSeen(parent.parentAccountId, ref);
+      await recordSeen(parent.parentAccountId, parent.activePlayerId, ref);
     } else {
       // Rien de vivant ce week-end : la carte affichée était un retrait —
       // l'acquitter pour de bon (sinon elle réapparaîtrait indéfiniment).
-      await recordSeenSnapshot(parent.parentAccountId, ref, { withdrawn: "true" });
+      await recordSeenSnapshot(parent.parentAccountId, parent.activePlayerId, ref, { withdrawn: "true" });
     }
     return;
   }
@@ -50,7 +75,7 @@ export async function markParentContentSeen(entityType: string, entityId: string
     entityType === "OBJECTIVE_UPDATE" ||
     entityType === "EQUIPMENT_ASSIGNMENT"
   ) {
-    await recordSeen(parent.parentAccountId, ref);
+    await recordSeen(parent.parentAccountId, parent.activePlayerId, ref);
   }
 }
 
@@ -99,7 +124,7 @@ export async function setSessionAvailability(sessionId: string, statusRaw: strin
   if (!(await assertWindowOpenNow(weekStart))) return;
 
   await upsertAvailability({
-    playerId: parent.playerId,
+    playerId: parent.activePlayerId,
     type: "TRAINING",
     sessionId,
     eventDate: session.date,
@@ -121,7 +146,7 @@ export async function setSessionAbsenceReason(sessionId: string, formData: FormD
   const absenceReason = reasonParsed.success ? reasonParsed.data : null;
   const comment = String(formData.get("comment") || "").trim() || null;
   await upsertAvailability({
-    playerId: parent.playerId,
+    playerId: parent.activePlayerId,
     type: "TRAINING",
     sessionId,
     eventDate: session.date,
@@ -144,7 +169,7 @@ export async function setWeekendAvailability(weekStartIso: string, statusRaw: st
   const eventDate = getWeekendDate(weekStart);
 
   await upsertAvailability({
-    playerId: parent.playerId,
+    playerId: parent.activePlayerId,
     type: "WEEKEND",
     sessionId: null,
     eventDate,
@@ -165,7 +190,7 @@ export async function setWeekendAbsenceReason(weekStartIso: string, formData: Fo
   const absenceReason = reasonParsed.success ? reasonParsed.data : null;
   const comment = String(formData.get("comment") || "").trim() || null;
   await upsertAvailability({
-    playerId: parent.playerId,
+    playerId: parent.activePlayerId,
     type: "WEEKEND",
     sessionId: null,
     eventDate,

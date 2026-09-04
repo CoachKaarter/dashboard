@@ -76,13 +76,13 @@ export async function assignEquipment(equipmentId: string, formData: FormData) {
   const dueDateRaw = String(formData.get("dueDate") || "");
   const dueDate = dueDateRaw ? new Date(dueDateRaw) : addDays(issuedDate, settings.delaiMaillots);
 
-  const parentAccount = playerId ? await prisma.parentAccount.findUnique({ where: { playerId } }) : null;
+  const parentAccountLink = playerId ? await prisma.parentAccountPlayer.findUnique({ where: { playerId } }) : null;
 
   await prisma.equipmentAssignment.create({
     data: {
       equipmentId,
       playerId,
-      parentAccountId: parentAccount?.id ?? null,
+      parentAccountId: parentAccountLink?.parentAccountId ?? null,
       responsibleLabel,
       matchId,
       returnLocation,
@@ -123,7 +123,7 @@ export async function reassignEquipment(equipmentId: string, formData: FormData)
   const issuedDate = new Date();
   const dueDateRaw = String(formData.get("dueDate") || "");
   const dueDate = dueDateRaw ? new Date(dueDateRaw) : addDays(issuedDate, settings.delaiMaillots);
-  const parentAccount = playerId ? await prisma.parentAccount.findUnique({ where: { playerId } }) : null;
+  const parentAccountLink = playerId ? await prisma.parentAccountPlayer.findUnique({ where: { playerId } }) : null;
 
   await prisma.$transaction(async (tx) => {
     if (active) {
@@ -133,7 +133,7 @@ export async function reassignEquipment(equipmentId: string, formData: FormData)
       data: {
         equipmentId,
         playerId,
-        parentAccountId: parentAccount?.id ?? null,
+        parentAccountId: parentAccountLink?.parentAccountId ?? null,
         responsibleLabel,
         matchId,
         returnLocation,
@@ -169,11 +169,11 @@ export async function updateAssignment(assignmentId: string, formData: FormData)
   const dueDate = new Date(dueDateRaw);
   if (Number.isNaN(dueDate.getTime())) return;
   if (playerId) await assertPlayerInEquipmentCategory(assignment.equipment.teamId, playerId);
-  const parentAccount = playerId ? await prisma.parentAccount.findUnique({ where: { playerId } }) : null;
+  const parentAccountLink = playerId ? await prisma.parentAccountPlayer.findUnique({ where: { playerId } }) : null;
 
   await prisma.equipmentAssignment.update({
     where: { id: assignmentId },
-    data: { playerId, parentAccountId: parentAccount?.id ?? null, responsibleLabel, matchId, returnLocation, dueDate },
+    data: { playerId, parentAccountId: parentAccountLink?.parentAccountId ?? null, responsibleLabel, matchId, returnLocation, dueDate },
   });
   await logActivity({ actorId: user.id, summary: `a modifié l'attribution de ${assignment.equipment.code}`, entityType: "EquipmentAssignment", entityId: assignmentId });
   revalidatePath("/materiel");

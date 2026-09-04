@@ -1,4 +1,5 @@
 import type { ClubIdentity } from "@/lib/club";
+import { ChildSwitcher, type SwitcherChild } from "./ChildSwitcher";
 
 /**
  * Mobile counterpart to ParentTopNav (desktop-only, `hidden md:block`) —
@@ -6,7 +7,17 @@ import type { ClubIdentity } from "@/lib/club";
  * a navy top bar with the club crest, not the plain text block mobile had
  * before. Same information ParentTopNav already shows, nothing new.
  */
-export function ParentHeaderBar({ category, club }: { category: string; club: ClubIdentity }) {
+export function ParentHeaderBar({
+  category,
+  club,
+  familyChildren,
+  activePlayerId,
+}: {
+  category: string;
+  club: ClubIdentity;
+  familyChildren: SwitcherChild[];
+  activePlayerId: string;
+}) {
   return (
     <header className="md:hidden bg-parent-navy pt-[env(safe-area-inset-top)]">
       <div className="max-w-[560px] mx-auto flex items-center gap-3 px-4 h-16">
@@ -16,12 +27,13 @@ export function ParentHeaderBar({ category, club }: { category: string; club: Cl
         ) : (
           <div className="w-9 h-9 rounded-lg bg-parent-crimson shrink-0" />
         )}
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="text-white text-[15px] font-bold tracking-[0.01em] uppercase truncate" style={{ fontFamily: "var(--font-parent-display)" }}>
             {club.name}
           </div>
           <div className="text-[11.5px] text-white/55 truncate">Catégorie {category} — Espace parents</div>
         </div>
+        <ChildSwitcher familyChildren={familyChildren} activePlayerId={activePlayerId} variant="dark" />
       </div>
     </header>
   );

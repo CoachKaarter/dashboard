@@ -42,17 +42,22 @@ export async function issueParentInvitation(playerId: string, actorUserId: strin
   const email = normalizeEmail(player.parentEmail);
   if (!isValidEmail(email)) return { ok: false, playerId, playerName, error: "Email parent invalide." };
 
-  const existingAccount = await prisma.parentAccount.findUnique({ where: { playerId } });
-  if (existingAccount) {
+  const existingLink = await prisma.parentAccountPlayer.findUnique({ where: { playerId }, include: { parentAccount: true } });
+  if (existingLink) {
     return {
       ok: false,
       playerId,
       playerName,
-      error: existingAccount.active
+      error: existingLink.parentAccount.active
         ? "Un compte actif existe déjà pour ce joueur."
         : "Un compte désactivé existe déjà pour ce joueur — réactivez-le plutôt que d'inviter à nouveau.",
     };
   }
+
+  // Si cette adresse est déjà celle d'un compte famille actif (un aîné
+  // déjà activé, typiquement), l'email et l'activation le disent
+  // explicitement plutôt que de présenter à tort une "création de compte".
+  const existingAccountForEmail = await prisma.parentAccount.findFirst({ where: { email, active: true } });
 
   const priorInvitation = await prisma.parentInvitation.findFirst({
     where: { playerId, revokedAt: null },
@@ -86,6 +91,7 @@ export async function issueParentInvitation(playerId: string, actorUserId: strin
     playerFirstName: player.firstName,
     playerLastName: player.lastName,
     activationUrl,
+    existingAccount: Boolean(existingAccountForEmail),
   });
 
   if (emailResult.ok) {

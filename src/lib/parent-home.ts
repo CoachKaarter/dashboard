@@ -85,20 +85,20 @@ export async function getParentHomeState(parent: AuthedParent): Promise<ParentHo
   ] = await Promise.all([
       getClub(),
       getWindowForWeek(weekStart),
-      getPlayerWeekSessions(parent.playerId, weekStart),
-      prisma.playerAvailability.findMany({ where: { playerId: parent.playerId, weekStartDate: weekStart } }),
+      getPlayerWeekSessions(parent.activePlayerId, weekStart),
+      prisma.playerAvailability.findMany({ where: { playerId: parent.activePlayerId, weekStartDate: weekStart } }),
       // Convocation OFFICIELLE de CE joueur — jamais une lecture par équipe.
-      prisma.matchConvocation.findFirst({ where: { playerId: parent.playerId, match: { date: weekend } }, include: { match: { include: { team: true } } } }),
+      prisma.matchConvocation.findFirst({ where: { playerId: parent.activePlayerId, match: { date: weekend } }, include: { match: { include: { team: true } } } }),
       // Existence check (select id) uniquement — jamais de champ du match lui-même avant publication.
-      prisma.match.findFirst({ where: { team: { category: parent.player.teamCategory }, date: weekend, status: { not: "Annulé" } }, select: { id: true } }),
-      prisma.weekendAssignment.findUnique({ where: { weekendDate_playerId: { weekendDate: weekend, playerId: parent.playerId } } }),
+      prisma.match.findFirst({ where: { team: { category: parent.activePlayer.teamCategory }, date: weekend, status: { not: "Annulé" } }, select: { id: true } }),
+      prisma.weekendAssignment.findUnique({ where: { weekendDate_playerId: { weekendDate: weekend, playerId: parent.activePlayerId } } }),
       prisma.staffAnnouncement.findMany({
-        where: { OR: [{ scopeTeamId: parent.player.teamId }, { scopeTeamId: null, targetCategory: parent.player.teamCategory }] },
+        where: { OR: [{ scopeTeamId: parent.activePlayer.teamId }, { scopeTeamId: null, targetCategory: parent.activePlayer.teamCategory }] },
         orderBy: { createdAt: "desc" },
         take: 3,
       }),
       prisma.playerObjective.findMany({
-        where: { playerId: parent.playerId, visibleToPlayer: true },
+        where: { playerId: parent.activePlayerId, visibleToPlayer: true },
         select: { id: true, title: true, category: true, status: true, createdAt: true },
         orderBy: { createdAt: "desc" },
         take: 3,
@@ -107,7 +107,7 @@ export async function getParentHomeState(parent: AuthedParent): Promise<ParentHo
       // récent, tous objectifs visibles confondus, pas seulement celui de
       // l'objectif le plus récemment CRÉÉ (deux notions différentes).
       prisma.playerObjectiveUpdate.findFirst({
-        where: { objective: { playerId: parent.playerId, visibleToPlayer: true } },
+        where: { objective: { playerId: parent.activePlayerId, visibleToPlayer: true } },
         orderBy: { createdAt: "desc" },
       }),
       // Cockpit v1.1 §7 — seul le compte parent lié au joueur qui a le sac
@@ -120,7 +120,7 @@ export async function getParentHomeState(parent: AuthedParent): Promise<ParentHo
     ]);
 
   const feedbacks = sessions.length
-    ? await prisma.sessionFeedback.findMany({ where: { playerId: parent.playerId, sessionId: { in: sessions.map((s) => s.id) } } })
+    ? await prisma.sessionFeedback.findMany({ where: { playerId: parent.activePlayerId, sessionId: { in: sessions.map((s) => s.id) } } })
     : [];
   const feedbackBySession = new Map(feedbacks.map((f) => [f.sessionId, f]));
   const answerBySession = new Map(answers.filter((a) => a.sessionId).map((a) => [a.sessionId, a]));
@@ -132,7 +132,7 @@ export async function getParentHomeState(parent: AuthedParent): Promise<ParentHo
   if (sessions.length) await Promise.all(sessions.map((s) => ensureSessionExpectations(s.id)));
   const myExpectations = sessions.length
     ? await prisma.sessionExpectation.findMany({
-        where: { sessionId: { in: sessions.map((s) => s.id) }, playerId: parent.playerId },
+        where: { sessionId: { in: sessions.map((s) => s.id) }, playerId: parent.activePlayerId },
         select: { sessionId: true, expected: true },
       })
     : [];
@@ -157,7 +157,7 @@ export async function getParentHomeState(parent: AuthedParent): Promise<ParentHo
     ...(latestObjectiveUpdate ? [{ entityType: "OBJECTIVE_UPDATE", entityId: latestObjectiveUpdate.id }] : []),
     ...(activeJerseyAssignment ? [{ entityType: "EQUIPMENT_ASSIGNMENT", entityId: activeJerseyAssignment.id }] : []),
   ];
-  const states = await loadContentStates(parent.parentAccountId, refs);
+  const states = await loadContentStates(parent.parentAccountId, parent.activePlayerId, refs);
 
   // ---- Cycle 1 — Disponibilités ----
   const isOpen = window?.status === "OPEN";

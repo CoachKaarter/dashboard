@@ -6,5 +6,4 @@ import type { DefaultSession } from "next-auth";
 export type ParentSessionUser = {
   id: string;
   username: string;
-  playerId: string;
 } & DefaultSession["user"];

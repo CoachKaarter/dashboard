@@ -5,7 +5,7 @@ import { AuthCardShell } from "@/components/parent/AuthCardShell";
 import { PasswordField } from "@/components/parent/PasswordField";
 import { SubmitButton } from "@/components/SubmitButton";
 import { LockIcon, ShieldCheckIcon } from "@/components/parent/icons";
-import { activateAction } from "./actions";
+import { activateAction, confirmLinkAction } from "./actions";
 
 const COOKIE_NAME = "parent-activation";
 
@@ -74,6 +74,33 @@ export default async function ActivationPage({ searchParams }: { searchParams: P
   }
 
   const childDisplay = `${check.playerFirstName} ${check.playerLastName.toUpperCase()}`;
+
+  if (check.mode === "link") {
+    return (
+      <AuthCardShell title="Ajouter un enfant à votre espace famille" subtitle="Vous avez déjà un accès Onzevo pour cette adresse email.">
+        <div className="text-[20px] font-bold tracking-[-0.01em]" style={{ fontFamily: "var(--font-parent-display)" }}>
+          Un enfant de plus dans votre espace
+        </div>
+        <div className="mt-3 rounded-xl bg-[#F6F6F4] px-3.5 py-3">
+          <div className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#9A9DA3]">Nouvel accès pour</div>
+          <div className="text-[15px] font-bold text-[#16181c] mt-0.5">{childDisplay}</div>
+          <div className="text-[12.5px] text-[#6E7178] mt-0.5">{check.clubName}</div>
+        </div>
+        <p className="text-[13px] text-[#6E7178] mt-4 leading-relaxed">
+          Votre identifiant <span className="font-semibold text-[#16181c]">{check.existingUsername}</span> donne déjà accès à votre espace famille. Confirmez
+          pour y ajouter {check.playerFirstName} — vous vous connecterez ensuite avec vos identifiants habituels.
+        </p>
+        <form action={confirmLinkAction} className="mt-4">
+          <SubmitButton
+            pendingLabel="Ajout en cours…"
+            className="h-12 w-full border-none rounded-xl text-white text-[15px] font-bold cursor-pointer bg-[linear-gradient(135deg,#1f8a58,#00c97a)]"
+          >
+            AJOUTER {check.playerFirstName.toUpperCase()} À MON ESPACE
+          </SubmitButton>
+        </form>
+      </AuthCardShell>
+    );
+  }
 
   return (
     <AuthCardShell

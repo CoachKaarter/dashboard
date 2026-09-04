@@ -33,33 +33,34 @@ model User {
   teamIds               String[]  @default([])
   onboardingCompletedAt DateTime? // null = show the first-login onboarding flow
 
-  teams                        Team[]                    @relation("TeamCoach")
-  notes                        PlayerNote[]
-  evaluations                  EvaluationScore[]
-  treatedAlerts                AlertTreated[]            @relation("AlertTreatedBy")
-  assignedAlerts               AlertTreated[]            @relation("AlertAssignee")
-  historyDecisions             TeamHistoryEntry[]
-  unavailabilities             Unavailability[]
-  activityLogs                 ActivityLog[]
-  notifications                Notification[]
-  weekendAssignmentsMade       WeekendAssignment[]
-  matchStaffRoles              MatchStaffAssignment[]
-  weekendPlansValidated        WeekendPlan[]
-  interviews                   PlayerInterview[]
-  objectivesCreated            PlayerObjective[]
-  attendanceUpdates            Attendance[]
-  sessionExpectationUpdates    SessionExpectation[]
-  contentItemsCreated          TrainingContentItem[]
-  contentFavorites             TrainingContentFavorite[]
-  templatesCreated             SessionTemplate[]
-  announcementsPosted          StaffAnnouncement[]
-  physicalTestsRecorded        PhysicalTestResult[]
-  staffAccess                  StaffAccess[]             @relation("StaffAccessUser")
-  staffAccessGranted           StaffAccess[]             @relation("StaffAccessGrantedBy")
-  equipmentAssignmentsMade     EquipmentAssignment[]
-  parentInvitationsCreated     ParentInvitation[]
-  tournamentInvitationsCreated TournamentInvitation[]    @relation("TournamentInvitationCreatedBy")
-  tournamentInvitationsDecided TournamentInvitation[]    @relation("TournamentInvitationDecidedBy")
+  teams                         Team[]                       @relation("TeamCoach")
+  notes                         PlayerNote[]
+  evaluations                   EvaluationScore[]
+  treatedAlerts                 AlertTreated[]               @relation("AlertTreatedBy")
+  assignedAlerts                AlertTreated[]               @relation("AlertAssignee")
+  historyDecisions              TeamHistoryEntry[]
+  unavailabilities              Unavailability[]
+  activityLogs                  ActivityLog[]
+  notifications                 Notification[]
+  weekendAssignmentsMade        WeekendAssignment[]
+  matchStaffRoles               MatchStaffAssignment[]
+  weekendPlansValidated         WeekendPlan[]
+  interviews                    PlayerInterview[]
+  objectivesCreated             PlayerObjective[]
+  attendanceUpdates             Attendance[]
+  sessionExpectationUpdates     SessionExpectation[]
+  contentItemsCreated           TrainingContentItem[]
+  contentFavorites              TrainingContentFavorite[]
+  templatesCreated              SessionTemplate[]
+  announcementsPosted           StaffAnnouncement[]
+  physicalTestsRecorded         PhysicalTestResult[]
+  staffAccess                   StaffAccess[]                @relation("StaffAccessUser")
+  staffAccessGranted            StaffAccess[]                @relation("StaffAccessGrantedBy")
+  equipmentAssignmentsMade      EquipmentAssignment[]
+  parentInvitationsCreated      ParentInvitation[]
+  familyInfoSubmissionsReviewed PlayerFamilyInfoSubmission[]
+  tournamentInvitationsCreated  TournamentInvitation[]       @relation("TournamentInvitationCreatedBy")
+  tournamentInvitationsDecided  TournamentInvitation[]       @relation("TournamentInvitationDecidedBy")
 
   createdAt DateTime @default(now())
 }
@@ -221,24 +222,34 @@ model Player {
   parentPhone String?
   parentEmail String?
 
-  notes                PlayerNote[]
-  attendances          Attendance[]
-  convocations         MatchConvocation[]
-  compositionSlots     CompositionSlot[]
-  matchStats           MatchPlayerStat[]
-  evaluations          EvaluationScore[]
-  history              TeamHistoryEntry[]
-  equipmentAssignments EquipmentAssignment[]
-  unavailabilities     Unavailability[]
-  parentAccount        ParentAccount?
-  parentInvitations    ParentInvitation[]
-  availabilities       PlayerAvailability[]
-  sessionFeedback      SessionFeedback[]
-  weekendAssignments   WeekendAssignment[]
-  interviews           PlayerInterview[]
-  objectives           PlayerObjective[]
-  physicalTests        PhysicalTestResult[]
-  sessionExpectations  SessionExpectation[]
+  // Numéro de licence + date de naissance précise — remplis uniquement par
+  // validation staff d'une PlayerFamilyInfoSubmission déclarée par la
+  // famille (jamais écrits directement depuis l'espace parent). birthDate
+  // s'ajoute à birthYear sans le remplacer : birthYear reste la source de
+  // vérité utilisée partout ailleurs dans l'app.
+  licenseNumber String?
+  birthDate     DateTime?
+
+  notes                 PlayerNote[]
+  attendances           Attendance[]
+  convocations          MatchConvocation[]
+  compositionSlots      CompositionSlot[]
+  matchStats            MatchPlayerStat[]
+  evaluations           EvaluationScore[]
+  history               TeamHistoryEntry[]
+  equipmentAssignments  EquipmentAssignment[]
+  unavailabilities      Unavailability[]
+  parentAccounts        ParentAccountPlayer[]
+  parentInvitations     ParentInvitation[]
+  familyInfoSubmissions PlayerFamilyInfoSubmission[]
+  contentStates         ParentContentState[]
+  availabilities        PlayerAvailability[]
+  sessionFeedback       SessionFeedback[]
+  weekendAssignments    WeekendAssignment[]
+  interviews            PlayerInterview[]
+  objectives            PlayerObjective[]
+  physicalTests         PhysicalTestResult[]
+  sessionExpectations   SessionExpectation[]
 
   createdAt DateTime @default(now())
 
@@ -266,24 +277,87 @@ model Unavailability {
 
 // ---------- Espace Parents / Joueurs ----------
 
-// Compte famille — un par joueur (V1). Volontairement séparé du modèle User
-// (staff) : aucune permission d'équipe, aucun accès au Cockpit interne, et
-// une session cookie distincte (voir src/parent-auth.ts) pour qu'il n'y ait
-// jamais de confusion possible entre les deux systèmes d'identité.
+// Compte famille — identité de connexion d'UNE FAMILLE, plus 1:1 avec un
+// joueur : plusieurs enfants peuvent être liés au même compte via
+// ParentAccountPlayer (même idiome que StaffAccess côté staff — une
+// identité, plusieurs lignes de scope). Volontairement séparé du modèle
+// User (staff) : aucune permission d'équipe, aucun accès au Cockpit
+// interne, et une session cookie distincte (voir src/parent-auth.ts) pour
+// qu'il n'y ait jamais de confusion possible entre les deux systèmes
+// d'identité.
 model ParentAccount {
-  id                   String                     @id @default(cuid())
-  player               Player                     @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  playerId             String                     @unique
-  username             String                     @unique
-  passwordHash         String
-  active               Boolean                    @default(true)
-  mustChangePassword   Boolean                    @default(true)
-  lastLoginAt          DateTime?
-  createdAt            DateTime                   @default(now())
-  updatedAt            DateTime                   @updatedAt
-  contentStates        ParentContentState[]
-  equipmentAssignments EquipmentAssignment[]
-  passwordResetTokens  ParentPasswordResetToken[]
+  id                    String                       @id @default(cuid())
+  // Email de la famille — sert à détecter automatiquement qu'un 2e enfant
+  // doit rejoindre ce compte existant plutôt que d'en créer un nouveau
+  // (voir activateParentAccount dans src/lib/parent-activation.ts).
+  email                 String
+  // Coordonnées propres du parent, saisies par lui-même lors de
+  // l'onboarding obligatoire (/parent/informations) — écrites directement,
+  // jamais soumises à validation staff (contrairement aux infos de
+  // l'enfant, voir PlayerFamilyInfoSubmission). Distinct des champs
+  // Player.parentName/parentPhone (coordonnées administratives saisies par
+  // le staff sur la fiche joueur).
+  firstName             String?
+  lastName              String?
+  phone                 String?
+  username              String                       @unique
+  passwordHash          String
+  active                Boolean                      @default(true)
+  mustChangePassword    Boolean                      @default(true)
+  lastLoginAt           DateTime?
+  // Passage obligatoire par /parent/informations avant tout autre écran,
+  // même mécanisme que User.onboardingCompletedAt côté staff
+  // (decideOnboardingRedirect) — backfillé à la migration pour les comptes
+  // déjà activés, ne s'applique qu'aux comptes créés après ce déploiement.
+  onboardingCompletedAt DateTime?
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+  players               ParentAccountPlayer[]
+  contentStates         ParentContentState[]
+  equipmentAssignments  EquipmentAssignment[]
+  passwordResetTokens   ParentPasswordResetToken[]
+  familyInfoSubmissions PlayerFamilyInfoSubmission[]
+}
+
+// Table de liaison many-to-many ParentAccount<->Player. playerId reste
+// unique SEUL (pas composite) : un enfant donné n'appartient qu'à un seul
+// compte famille à la fois — c'est exactement l'invariant que
+// ParentAccount.playerId @unique garantissait avant cette refonte, juste
+// déplacé ici pour permettre à un compte d'avoir plusieurs lignes.
+model ParentAccountPlayer {
+  id              String        @id @default(cuid())
+  parentAccount   ParentAccount @relation(fields: [parentAccountId], references: [id], onDelete: Cascade)
+  parentAccountId String
+  player          Player        @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId        String        @unique
+  createdAt       DateTime      @default(now())
+
+  @@index([parentAccountId])
+}
+
+// Déclaration par un parent des informations officielles de son enfant
+// (nom, date de naissance, numéro de licence) lors de l'onboarding — même
+// idiome que Unavailability.source/status : jamais écrit directement sur
+// Player, en attente de validation staff (validatePlayerFamilyInfo /
+// refusePlayerFamilyInfo dans src/app/(app)/joueurs/[id]/actions.ts).
+model PlayerFamilyInfoSubmission {
+  id            String        @id @default(cuid())
+  player        Player        @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId      String
+  submittedBy   ParentAccount @relation(fields: [submittedById], references: [id], onDelete: Cascade)
+  submittedById String
+  firstName     String
+  lastName      String
+  birthDate     DateTime
+  licenseNumber String
+  status        String        @default("PENDING") // "PENDING" | "VALIDATED" | "REFUSED"
+  reviewedBy    User?         @relation(fields: [reviewedById], references: [id])
+  reviewedById  String?
+  reviewedAt    DateTime?
+  createdAt     DateTime      @default(now())
+
+  @@index([playerId])
+  @@index([status])
 }
 
 // Droit d'accès accordé par le club à un parent, avant toute activation —
@@ -369,6 +443,12 @@ model ParentContentState {
   id              String        @id @default(cuid())
   parentAccount   ParentAccount @relation(fields: [parentAccountId], references: [id], onDelete: Cascade)
   parentAccountId String
+  // Quel enfant du compte ce contenu concerne — indispensable depuis que
+  // ParentAccount peut avoir plusieurs enfants : sans ça, marquer une
+  // AVAILABILITY_WEEK "vue" pour l'un la marquerait aussi vue pour l'autre
+  // (entityId est une date de semaine, pas un id joueur).
+  player          Player        @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId        String
   entityType      String // "AVAILABILITY_WEEK" | "CONVOCATION" | "TRAINING_SESSION" | "OBJECTIVE" | "OBJECTIVE_UPDATE" | "ANNOUNCEMENT"
   entityId        String // ex. weekStartDate ISO, MatchConvocation.id, TrainingSession.id, PlayerObjective.id...
   seenAt          DateTime?
@@ -377,8 +457,9 @@ model ParentContentState {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  @@unique([parentAccountId, entityType, entityId])
+  @@unique([parentAccountId, playerId, entityType, entityId])
   @@index([parentAccountId])
+  @@index([playerId])
 }
 
 // Disponibilité PRÉVISIONNELLE déclarée par la famille — distincte

@@ -16,8 +16,8 @@ export default async function ParentAppLayout({ children }: { children: React.Re
     // identity from the Claude Design "Espace Parent v2" mockup) — Cockpit
     // and Coach keep the default Archivo body font untouched.
     <div className="min-h-screen bg-[#F6F6F4] flex flex-col" style={{ fontFamily: "var(--font-parent-body)" }}>
-      <ParentHeaderBar category={parent.player.teamCategory} club={club} />
-      <ParentTopNav category={parent.player.teamCategory} club={club} />
+      <ParentHeaderBar category={parent.activePlayer.teamCategory} club={club} familyChildren={parent.children} activePlayerId={parent.activePlayerId} />
+      <ParentTopNav category={parent.activePlayer.teamCategory} club={club} familyChildren={parent.children} activePlayerId={parent.activePlayerId} />
       <main className="flex-1 max-w-[560px] md:max-w-[720px] w-full mx-auto px-4 md:px-6 pt-5 pb-28 md:pb-12">{children}</main>
       <ParentBottomNav />
     </div>

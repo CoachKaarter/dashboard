@@ -13,18 +13,18 @@ export default async function ParentSuiviPage() {
   const parent = await requireParentReady();
 
   const [player, objectives, feedbacks] = await Promise.all([
-    prisma.player.findUniqueOrThrow({ where: { id: parent.playerId } }),
+    prisma.player.findUniqueOrThrow({ where: { id: parent.activePlayerId } }),
     // Uniquement les objectifs publiés explicitement par le staff — jamais
     // automatique. Titre/catégorie/statut/échéance seulement : les notes du
     // coach, la parole du joueur en entretien et les décisions internes ne
     // sortent jamais de cette table.
     prisma.playerObjective.findMany({
-      where: { playerId: parent.playerId, visibleToPlayer: true },
+      where: { playerId: parent.activePlayerId, visibleToPlayer: true },
       select: { id: true, title: true, category: true, status: true, targetDate: true },
       orderBy: { createdAt: "desc" },
     }),
     prisma.sessionFeedback.findMany({
-      where: { playerId: parent.playerId, OR: [{ preAnsweredAt: { not: null } }, { postAnsweredAt: { not: null } }] },
+      where: { playerId: parent.activePlayerId, OR: [{ preAnsweredAt: { not: null } }, { postAnsweredAt: { not: null } }] },
       include: { session: true },
       orderBy: { session: { date: "desc" } },
       take: 5,

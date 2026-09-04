@@ -32,7 +32,7 @@ export default async function BienvenuePage() {
 
   return (
     <div className="flex flex-col gap-4 animate-fadein">
-      <ParentPageHeader title={`Bienvenue dans l'espace de ${parent.player.firstName}`} subtitle="Voici comment fonctionne l'espace famille." />
+      <ParentPageHeader title={`Bienvenue dans l'espace de ${parent.activePlayer.firstName}`} subtitle="Voici comment fonctionne l'espace famille." />
 
       <ParentCard>
         <div className="flex flex-col gap-4">

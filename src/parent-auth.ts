@@ -67,7 +67,7 @@ export const { handlers: parentHandlers, auth: parentAuth, signIn: parentSignIn,
         const password = typeof credentials?.password === "string" ? credentials.password : "";
         if (!username || !password) return null;
 
-        const account = await prisma.parentAccount.findUnique({ where: { username }, include: { player: true } });
+        const account = await prisma.parentAccount.findUnique({ where: { username } });
         if (!account || !account.active) return null;
 
         const valid = await bcrypt.compare(password, account.passwordHash);
@@ -75,20 +75,28 @@ export const { handlers: parentHandlers, auth: parentAuth, signIn: parentSignIn,
 
         await prisma.parentAccount.update({ where: { id: account.id }, data: { lastLoginAt: new Date() } });
 
+        // "name" is never read back by any consumer of this session (the
+        // active child, shown everywhere, is always resolved fresh from the
+        // DB in getAuthedParent() — never from the JWT) — kept only because
+        // NextAuth's User type requires something here.
         return {
           id: account.id,
-          name: `${account.player.firstName} ${account.player.lastName}`,
+          name: account.username,
           username: account.username,
-          playerId: account.playerId,
         };
       },
     }),
   ],
   callbacks: {
-    // Only stable identity lives in the JWT. Mutable state (active,
-    // mustChangePassword) is always re-read from the database on every
-    // request in requireParent() — never trusted from a token that could be
-    // stale for as long as the session lives.
+    // Only stable identity lives in the JWT: parentAccountId/username never
+    // change for the life of the account. Everything else — which children
+    // are linked, which one is "active", mustChangePassword,
+    // onboardingCompletedAt — is mutable and always re-read from the
+    // database on every request in getAuthedParent(), never trusted from a
+    // token that could be stale for as long as the session lives. playerId
+    // used to live here too; it doesn't belong in stable identity now that
+    // an account can have several children and the active one can change
+    // request to request (see the parent-active-child cookie instead).
     jwt({ token, user }) {
       // Cast away the globally-merged staff JWT type (declared in
       // types/next-auth.d.ts) — TypeScript's module augmentation for
@@ -98,7 +106,6 @@ export const { handlers: parentHandlers, auth: parentAuth, signIn: parentSignIn,
       if (user) {
         t.parentAccountId = user.id;
         t.username = (user as { username: string }).username;
-        t.playerId = (user as { playerId: string }).playerId;
       }
       return token;
     },
@@ -108,7 +115,6 @@ export const { handlers: parentHandlers, auth: parentAuth, signIn: parentSignIn,
       if (u) {
         u.id = t.parentAccountId as string;
         u.username = t.username as string;
-        u.playerId = t.playerId as string;
       }
       return session;
     },

@@ -26,9 +26,9 @@ export async function submitPreFeedback(sessionId: string, formData: FormData) {
     preAnsweredAt: new Date(),
   };
   await prisma.sessionFeedback.upsert({
-    where: { sessionId_playerId: { sessionId, playerId: parent.playerId } },
+    where: { sessionId_playerId: { sessionId, playerId: parent.activePlayerId } },
     update: data,
-    create: { sessionId, playerId: parent.playerId, ...data },
+    create: { sessionId, playerId: parent.activePlayerId, ...data },
   });
   revalidatePath("/parent");
   revalidatePath(`/parent/questionnaire/${sessionId}/pre`);
@@ -55,9 +55,9 @@ export async function submitPostFeedback(sessionId: string, formData: FormData) 
     postAnsweredAt: new Date(),
   };
   await prisma.sessionFeedback.upsert({
-    where: { sessionId_playerId: { sessionId, playerId: parent.playerId } },
+    where: { sessionId_playerId: { sessionId, playerId: parent.activePlayerId } },
     update: data,
-    create: { sessionId, playerId: parent.playerId, ...data },
+    create: { sessionId, playerId: parent.activePlayerId, ...data },
   });
   revalidatePath("/parent");
   revalidatePath(`/parent/questionnaire/${sessionId}/post`);

@@ -224,6 +224,64 @@ export async function refuseUnavailability(playerId: string, unavailabilityId: s
   revalidatePath(`/joueurs/${playerId}`);
 }
 
+// Copie la déclaration famille (nom/prénom/date de naissance/licence) sur
+// la fiche joueur officielle — resynchronise birthYear depuis birthDate par
+// cohérence (birthYear reste la source de vérité utilisée partout
+// ailleurs, jamais remplacée). Même schéma que validateUnavailability :
+// jamais d'effet avant validation staff explicite.
+export async function validatePlayerFamilyInfo(playerId: string, submissionId: string) {
+  const user = await requireUser();
+  const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
+  if (!canAccessCategory(user, player.category)) return;
+  const submission = await prisma.playerFamilyInfoSubmission.findUniqueOrThrow({ where: { id: submissionId } });
+  if (submission.playerId !== playerId || submission.status !== "PENDING") return;
+
+  await prisma.$transaction([
+    prisma.player.update({
+      where: { id: playerId },
+      data: {
+        firstName: submission.firstName,
+        lastName: submission.lastName.toUpperCase(),
+        birthDate: submission.birthDate,
+        birthYear: submission.birthDate.getFullYear(),
+        licenseNumber: submission.licenseNumber,
+      },
+    }),
+    prisma.playerFamilyInfoSubmission.update({
+      where: { id: submissionId },
+      data: { status: "VALIDATED", reviewedById: user.id, reviewedAt: new Date() },
+    }),
+  ]);
+  await logActivity({
+    actorId: user.id,
+    summary: `a validé les informations famille déclarées pour ${player.firstName} ${player.lastName}`,
+    entityType: "Player",
+    entityId: playerId,
+  });
+  revalidatePath(`/joueurs/${playerId}`);
+  revalidatePath("/joueurs");
+}
+
+export async function refusePlayerFamilyInfo(playerId: string, submissionId: string) {
+  const user = await requireUser();
+  const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });
+  if (!canAccessCategory(user, player.category)) return;
+  const submission = await prisma.playerFamilyInfoSubmission.findUniqueOrThrow({ where: { id: submissionId } });
+  if (submission.playerId !== playerId || submission.status !== "PENDING") return;
+
+  await prisma.playerFamilyInfoSubmission.update({
+    where: { id: submissionId },
+    data: { status: "REFUSED", reviewedById: user.id, reviewedAt: new Date() },
+  });
+  await logActivity({
+    actorId: user.id,
+    summary: `a refusé les informations famille déclarées pour ${player.firstName} ${player.lastName}`,
+    entityType: "Player",
+    entityId: playerId,
+  });
+  revalidatePath(`/joueurs/${playerId}`);
+}
+
 export async function setArchived(playerId: string, archived: boolean) {
   const user = await requireUser();
   const player = await prisma.player.findUniqueOrThrow({ where: { id: playerId } });

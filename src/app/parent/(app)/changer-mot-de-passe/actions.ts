@@ -3,6 +3,7 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { requireParent } from "@/lib/parent-session";
+import { decideParentOnboardingRedirect } from "@/lib/redirect-policy";
 import { redirect } from "next/navigation";
 
 export async function changeParentPassword(formData: FormData) {
@@ -20,6 +21,10 @@ export async function changeParentPassword(formData: FormData) {
   });
   // Onboarding only fires once, right after the very first password change
   // (mustChangePassword true → false) — never for a later voluntary
-  // password change from /parent/profil, which reuses this same action.
-  redirect(isFirstLogin ? "/parent/bienvenue" : "/parent");
+  // password change from /parent/profil, which reuses this same action. In
+  // practice every account created via activateParentAccount already has
+  // mustChangePassword: false (the parent chose their password at
+  // activation) — this branch only matters for an account created some
+  // other way, kept correct rather than assumed dead.
+  redirect(isFirstLogin ? decideParentOnboardingRedirect(parent.onboardingCompletedAt) ?? "/parent/bienvenue" : "/parent");
 }

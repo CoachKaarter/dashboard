@@ -31,6 +31,7 @@ export function ParentAccountPanel({
   account,
   status,
   latestInvitation,
+  siblingNames,
 }: {
   playerId: string;
   playerName: string;
@@ -38,6 +39,9 @@ export function ParentAccountPanel({
   account: Account;
   status: FamilyAccessStatus;
   latestInvitation: LatestInvitation;
+  // Autres enfants liés au même compte famille — un compte peut désormais
+  // être partagé entre plusieurs enfants (liaison automatique par email).
+  siblingNames?: string[];
 }) {
   const [inviteResult, inviteFormAction, inviting] = useActionState<InviteActionResult | null, FormData>(sendInvitationAction, null);
   const tone = STATUS_TONE[status];
@@ -92,6 +96,11 @@ export function ParentAccountPanel({
           <div className="text-[12.5px] text-ink-soft">
             Identifiant : <span className="font-mono font-semibold">{account.username}</span>
           </div>
+          {!!siblingNames?.length && (
+            <div className="text-[12px] text-muted bg-[#FAFAF8] border border-line-soft-2 rounded-md px-2.5 py-1.5">
+              Compte partagé avec {siblingNames.join(", ")} — les actions ci-dessous affectent tout le compte, pas seulement {playerName}.
+            </div>
+          )}
           <div className="flex gap-2 flex-wrap">
             {status === "activated" && (
               <form action={sendPasswordResetAction.bind(null, account.id)}>
@@ -113,7 +122,8 @@ export function ParentAccountPanel({
             <form
               action={deleteParentAccountAction.bind(null, account.id)}
               onSubmit={(e) => {
-                if (!window.confirm(`Supprimer définitivement le compte famille de ${playerName} ?\n\nLe parent perdra l'accès immédiatement. Une nouvelle invitation pourra être envoyée plus tard si besoin.`)) {
+                const who = siblingNames?.length ? `${playerName} et ${siblingNames.join(", ")}` : playerName;
+                if (!window.confirm(`Supprimer définitivement le compte famille de ${who} ?\n\nLe parent perdra l'accès immédiatement pour tous les enfants liés. Une nouvelle invitation pourra être envoyée plus tard si besoin.`)) {
                   e.preventDefault();
                 }
               }}

@@ -25,35 +25,35 @@ export type ParentPlanItem = {
  * The one place that decides what a parent's calendar shows. A match is
  * visible in full (adversaire, horaire, lieu, équipe) only once
  * MatchConvocation exists for THEIR child — never via Match.teamId /
- * parent.player.teamId. Before that, a Saturday with football happening
+ * parent.activePlayer.teamId. Before that, a Saturday with football happening
  * shows only a generic placeholder. Every view (Semaine/Mois/Agenda on
  * /parent/planning, and /parent/matchs) renders from this same list, so the
  * security boundary lives in exactly one function.
  */
 export async function getParentPlanItems(parent: AuthedParent, from: Date, to: Date): Promise<ParentPlanItem[]> {
-  const myTeamId = parent.player.teamId; // CalendarEvent scoping only — see note below, never used to filter Match
+  const myTeamId = parent.activePlayer.teamId; // CalendarEvent scoping only — see note below, never used to filter Match
   const [sessions, myConvocations, myAvailability, cohesionDays] = await Promise.all([
     prisma.trainingSession.findMany({
       where: {
         date: { gte: from, lt: to },
         deletedAt: null,
-        OR: [{ scopeTeamId: parent.player.teamId }, { scopeTeamId: null, category: parent.player.teamCategory }],
+        OR: [{ scopeTeamId: parent.activePlayer.teamId }, { scopeTeamId: null, category: parent.activePlayer.teamCategory }],
       },
       orderBy: { date: "asc" },
     }),
     // Convocation OFFICIELLE du staff pour CE joueur uniquement — jamais la
     // liste des autres convoqués, jamais une lecture de Match par teamId.
     prisma.matchConvocation.findMany({
-      where: { playerId: parent.playerId, match: { date: { gte: from, lt: to } } },
+      where: { playerId: parent.activePlayerId, match: { date: { gte: from, lt: to } } },
       include: { match: true },
     }),
     prisma.playerAvailability.findMany({
-      where: { playerId: parent.playerId, eventDate: { gte: from, lt: to } },
+      where: { playerId: parent.activePlayerId, eventDate: { gte: from, lt: to } },
     }),
     // Seul kind de CalendarEvent exposé aux familles — réunion/tournoi/autre
     // restent des événements internes au staff (voir /planning côté cockpit).
     // "Toutes" (teamId null) ou l'équipe exacte du joueur, jamais les autres.
-    // (CalendarEvent, pas Match — parent.player.teamId ne filtre jamais un
+    // (CalendarEvent, pas Match — parent.activePlayer.teamId ne filtre jamais un
     // Match ici ; voir parent-match-visibility.test.ts.)
     prisma.calendarEvent.findMany({
       where: { kind: "cohesion", date: { gte: from, lt: to }, OR: [{ teamId: myTeamId }, { teamId: null }] },
@@ -66,7 +66,7 @@ export async function getParentPlanItems(parent: AuthedParent, from: Date, to: D
   await Promise.all(sessions.map((s) => ensureSessionExpectations(s.id)));
   const myExpectations = sessions.length
     ? await prisma.sessionExpectation.findMany({
-        where: { sessionId: { in: sessions.map((s) => s.id) }, playerId: parent.playerId },
+        where: { sessionId: { in: sessions.map((s) => s.id) }, playerId: parent.activePlayerId },
         select: { sessionId: true, expected: true },
       })
     : [];

@@ -28,9 +28,9 @@ const FEATURES = [
 export default async function ParentLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; linked?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, linked } = await searchParams;
 
   return (
     <div className="min-h-screen flex flex-col lg:grid lg:grid-cols-[1.2fr_1fr] lg:h-screen lg:min-h-0" style={{ fontFamily: "var(--font-parent-body)" }}>
@@ -109,6 +109,11 @@ export default async function ParentLoginPage({
 
           <div className="h-px bg-[#EFEFEC] my-5" />
 
+          {linked && !error && (
+            <div className="mb-4 rounded-xl border border-[#1f8a58]/30 bg-[#1f8a58]/10 px-3 py-2.5 text-[13px] text-[#1f8a58]">
+              Enfant ajouté à votre espace famille — connectez-vous avec vos identifiants habituels pour le retrouver.
+            </div>
+          )}
           {error && (
             <div className="mb-4 rounded-xl border border-red/30 bg-red-bg px-3 py-2.5 text-[13px] text-red">
               Identifiant ou mot de passe incorrect.

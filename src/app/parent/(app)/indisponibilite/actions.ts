@@ -21,7 +21,7 @@ export async function declareUnavailabilityByParent(formData: FormData) {
 
   await prisma.unavailability.create({
     data: {
-      playerId: parent.playerId,
+      playerId: parent.activePlayerId,
       type,
       description,
       startDate,
@@ -33,21 +33,21 @@ export async function declareUnavailabilityByParent(formData: FormData) {
 
   await logActivity({
     actorId: null,
-    summary: `La famille de ${parent.player.firstName} ${parent.player.lastName} a déclaré une indisponibilité (${type}) — en attente de validation`,
+    summary: `La famille de ${parent.activePlayer.firstName} ${parent.activePlayer.lastName} a déclaré une indisponibilité (${type}) — en attente de validation`,
     entityType: "Player",
-    entityId: parent.playerId,
+    entityId: parent.activePlayerId,
   });
 
   const notifyPayload = {
     type: "unavailability-declared",
-    title: `${parent.player.firstName} ${parent.player.lastName} — nouvelle indisponibilité déclarée`,
+    title: `${parent.activePlayer.firstName} ${parent.activePlayer.lastName} — nouvelle indisponibilité déclarée`,
     body: `${type} — à valider`,
-    href: `/joueurs/${parent.playerId}`,
+    href: `/joueurs/${parent.activePlayerId}`,
   };
-  if (parent.player.teamId) {
-    await notifyTeamStaff(parent.player.teamId, notifyPayload);
+  if (parent.activePlayer.teamId) {
+    await notifyTeamStaff(parent.activePlayer.teamId, notifyPayload);
   } else {
-    await notifyCategoryStaff(parent.player.teamCategory, notifyPayload);
+    await notifyCategoryStaff(parent.activePlayer.teamCategory, notifyPayload);
   }
 
   redirect("/parent/profil?declared=1");

@@ -16,7 +16,7 @@ import { revalidatePath } from "next/cache";
 export async function confirmMyConvocation(matchId: string, confirmed: boolean) {
   const parent = await requireParentReady();
   const convocation = await prisma.matchConvocation.findUnique({
-    where: { matchId_playerId: { matchId, playerId: parent.playerId } },
+    where: { matchId_playerId: { matchId, playerId: parent.activePlayerId } },
   });
   if (!convocation) return;
 
@@ -28,6 +28,7 @@ export async function confirmMyConvocation(matchId: string, confirmed: boolean) 
   // une confirmation au lieu de garder silencieusement une réponse obsolète.
   await recordResponseSnapshot(
     parent.parentAccountId,
+    parent.activePlayerId,
     { entityType: "CONVOCATION", entityId: match.date.toISOString() },
     convocationSnapshot({
       date: match.date,
@@ -48,7 +49,7 @@ export async function confirmMyConvocation(matchId: string, confirmed: boolean) 
   );
   await notifyTeamStaff(match.teamId, {
     type: "convocation-response",
-    title: `${parent.player.firstName} ${parent.player.lastName} a ${confirmed ? "confirmé" : "décliné"} sa convocation`,
+    title: `${parent.activePlayer.firstName} ${parent.activePlayer.lastName} a ${confirmed ? "confirmé" : "décliné"} sa convocation`,
     href: `/matchs/${matchId}`,
   });
   revalidatePath("/parent/planning");

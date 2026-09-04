@@ -21,7 +21,7 @@ export default async function PreQuestionnairePage({ params }: { params: Promise
   if (!session || !sessionInParentScope(session, parent)) notFound();
 
   const feedback = await prisma.sessionFeedback.findUnique({
-    where: { sessionId_playerId: { sessionId, playerId: parent.playerId } },
+    where: { sessionId_playerId: { sessionId, playerId: parent.activePlayerId } },
   });
   const done = !!feedback?.preAnsweredAt;
   const open = isPreOpen(session);
@@ -38,7 +38,7 @@ export default async function PreQuestionnairePage({ params }: { params: Promise
       {done ? (
         <ParentCard className="text-center py-8">
           <div className="text-[34px] animate-checkpop" aria-hidden>✓</div>
-          <div className="text-[18px] font-bold mt-2">Merci {parent.player.firstName} !</div>
+          <div className="text-[18px] font-bold mt-2">Merci {parent.activePlayer.firstName} !</div>
           <div className="text-[14px] text-[#6E7178] mt-1">Bonne séance 👊</div>
           <Link href="/parent" className="inline-block mt-5 h-11 px-5 rounded-xl bg-ink text-white text-[14px] font-bold leading-[44px]">
             Retour à l&apos;accueil

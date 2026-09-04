@@ -74,3 +74,16 @@ export function decidePasswordChangeRedirect(mustChangePassword: boolean): strin
 export function decideOnboardingRedirect(onboardingCompletedAt: Date | null): string | null {
   return onboardingCompletedAt ? null : "/onboarding";
 }
+
+/**
+ * Forced first-login onboarding for parents — collects the parent's own
+ * contact info and their child's official details (name, birth date,
+ * licence number) before any other parent screen. Same discipline as
+ * decideOnboardingRedirect above: existing accounts are backfilled with a
+ * non-null onboardingCompletedAt at migration time, so this only ever
+ * fires for accounts activated going forward — never applied at
+ * /parent/informations itself, or it would redirect to itself.
+ */
+export function decideParentOnboardingRedirect(onboardingCompletedAt: Date | null): string | null {
+  return onboardingCompletedAt ? null : "/parent/informations";
+}

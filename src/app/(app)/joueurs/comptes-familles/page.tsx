@@ -22,23 +22,39 @@ export default async function ComptesFamillesPage() {
     },
     include: {
       team: true,
-      parentAccount: { select: { id: true, active: true } },
+      parentAccounts: { include: { parentAccount: { select: { id: true, active: true } } } },
       parentInvitations: { where: { revokedAt: null }, orderBy: { createdAt: "desc" }, take: 1 },
     },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });
 
-  const rows = players.map((p) => ({
-    id: p.id,
-    name: `${p.firstName} ${p.lastName}`,
-    teamCode: p.team?.code ?? p.category,
-    email: p.parentEmail,
-    status: computeFamilyAccessStatus({
-      parentEmail: p.parentEmail,
-      account: p.parentAccount ? { active: p.parentAccount.active } : null,
-      latestInvitation: p.parentInvitations[0] ?? null,
-    }),
-  }));
+  // Regroupe par email normalisé pour signaler qu'un compte sera/est déjà
+  // partagé avec un autre enfant de la liste (liaison automatique par email
+  // à l'activation, voir src/lib/parent-activation.ts) — purement
+  // informatif pour le staff, aucune écriture ici.
+  const byEmail = new Map<string, string[]>();
+  for (const p of players) {
+    if (!p.parentEmail) continue;
+    const key = p.parentEmail.trim().toLowerCase();
+    byEmail.set(key, [...(byEmail.get(key) ?? []), `${p.firstName} ${p.lastName}`]);
+  }
+
+  const rows = players.map((p) => {
+    const account = p.parentAccounts[0]?.parentAccount ?? null;
+    const siblings = p.parentEmail ? (byEmail.get(p.parentEmail.trim().toLowerCase()) ?? []).filter((n) => n !== `${p.firstName} ${p.lastName}`) : [];
+    return {
+      id: p.id,
+      name: `${p.firstName} ${p.lastName}`,
+      teamCode: p.team?.code ?? p.category,
+      email: p.parentEmail,
+      status: computeFamilyAccessStatus({
+        parentEmail: p.parentEmail,
+        account: account ? { active: account.active } : null,
+        latestInvitation: p.parentInvitations[0] ?? null,
+      }),
+      siblingNames: siblings,
+    };
+  });
 
   const counts = rows.reduce(
     (acc, r) => {

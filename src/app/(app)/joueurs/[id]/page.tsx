@@ -28,6 +28,8 @@ import {
   endUnavailability,
   validateUnavailability,
   refuseUnavailability,
+  validatePlayerFamilyInfo,
+  refusePlayerFamilyInfo,
 } from "./actions";
 import { createInterview, updateObjectiveStatus, toggleObjectiveVisibility } from "./interview-actions";
 import { addPlayerMeasurement, deleteMeasurement } from "../../mesures/actions";
@@ -72,8 +74,9 @@ export default async function FichePage({
         history: { include: { fromTeam: true, toTeam: true, decidedBy: true }, orderBy: { date: "desc" } },
         notes: { include: { author: true }, orderBy: { createdAt: "desc" } },
         unavailabilities: { orderBy: { startDate: "desc" } },
-        parentAccount: true,
+        parentAccounts: { include: { parentAccount: { include: { players: { include: { player: true } } } } } },
         parentInvitations: { where: { revokedAt: null }, orderBy: { createdAt: "desc" }, take: 1 },
+        familyInfoSubmissions: { where: { status: "PENDING" }, orderBy: { createdAt: "desc" } },
         interviews: { include: { author: true, objectives: true }, orderBy: { date: "desc" } },
         objectives: { include: { updates: { orderBy: { createdAt: "desc" } } }, orderBy: { createdAt: "desc" } },
       },
@@ -751,10 +754,18 @@ export default async function FichePage({
               playerId={player.id}
               playerName={`${player.firstName} ${player.lastName}`}
               parentEmail={player.parentEmail}
-              account={player.parentAccount ? { id: player.parentAccount.id, username: player.parentAccount.username, active: player.parentAccount.active } : null}
+              account={
+                player.parentAccounts[0]
+                  ? {
+                      id: player.parentAccounts[0].parentAccount.id,
+                      username: player.parentAccounts[0].parentAccount.username,
+                      active: player.parentAccounts[0].parentAccount.active,
+                    }
+                  : null
+              }
               status={computeFamilyAccessStatus({
                 parentEmail: player.parentEmail,
-                account: player.parentAccount ? { active: player.parentAccount.active } : null,
+                account: player.parentAccounts[0] ? { active: player.parentAccounts[0].parentAccount.active } : null,
                 latestInvitation: player.parentInvitations[0] ?? null,
               })}
               latestInvitation={
@@ -762,7 +773,55 @@ export default async function FichePage({
                   ? { sentAt: player.parentInvitations[0].sentAt, expiresAt: player.parentInvitations[0].expiresAt }
                   : null
               }
+              siblingNames={player.parentAccounts[0]?.parentAccount.players
+                .filter((l) => l.playerId !== player.id)
+                .map((l) => `${l.player.firstName} ${l.player.lastName}`)}
             />
+          )}
+
+          {player.familyInfoSubmissions.length > 0 && (user.role === "ADMIN" || canManageCategory(user, player.category)) && (
+            <div className="bg-surface border border-line rounded-lg px-3.5 py-[13px]">
+              <div className="text-[11px] font-bold tracking-[0.11em] uppercase text-muted mb-[11px]">Informations famille</div>
+              <div className="flex flex-col gap-2.5">
+                {player.familyInfoSubmissions.map((s) => (
+                  <div key={s.id} className="border-l-2 pl-2.5" style={{ borderColor: "#C97A17" }}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[12.5px] font-semibold">Déclarée par la famille</span>
+                      <Badge tone="orange">À valider</Badge>
+                    </div>
+                    <div className="text-[11.5px] text-ink-soft mt-1 flex flex-col gap-0.5">
+                      <span>
+                        Nom : <span className="font-semibold">{s.firstName} {s.lastName.toUpperCase()}</span>
+                        {(s.firstName !== player.firstName || s.lastName.toUpperCase() !== player.lastName.toUpperCase()) && (
+                          <span className="text-muted"> (actuel : {player.firstName} {player.lastName.toUpperCase()})</span>
+                        )}
+                      </span>
+                      <span>
+                        Date de naissance : <span className="font-semibold">{formatDateShort(s.birthDate)}</span>
+                      </span>
+                      <span>
+                        N° de licence : <span className="font-semibold">{s.licenseNumber}</span>
+                        {player.licenseNumber && player.licenseNumber !== s.licenseNumber && (
+                          <span className="text-muted"> (actuel : {player.licenseNumber})</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex gap-1.5 mt-1.5">
+                      <form action={validatePlayerFamilyInfo.bind(null, id, s.id)}>
+                        <button type="submit" className="h-6 px-2 border border-line rounded-md text-[10.5px] font-semibold text-green hover:border-green">
+                          Valider
+                        </button>
+                      </form>
+                      <form action={refusePlayerFamilyInfo.bind(null, id, s.id)}>
+                        <button type="submit" className="h-6 px-2 border border-line rounded-md text-[10.5px] font-semibold text-red hover:border-red">
+                          Refuser
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           <div className="bg-surface border border-line rounded-lg px-3.5 py-[13px]">

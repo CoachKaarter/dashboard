@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 
 // Regression guard for the "Player.teamId leaks match visibility" bug: a
 // parent must only ever see a Match's details once MatchConvocation exists
-// for THEIR child, never by querying Match.teamId / parent.player.teamId
+// for THEIR child, never by querying Match.teamId / parent.activePlayer.teamId
 // directly (that leaks the adversaire/horaire/team of matches the child may
 // not even end up playing). This repo has no DB-integration test harness —
 // every other test here is a pure-function test — so this asserts the
@@ -20,13 +20,13 @@ function read(relative: string) {
   return readFileSync(join(repoSrc, relative), "utf8");
 }
 
-test("getParentPlanItems (the shared parent match/session fetcher) never queries Match by parent.player.teamId", () => {
+test("getParentPlanItems (the shared parent match/session fetcher) never queries Match by parent.activePlayer.teamId", () => {
   const src = read("parent-planning.ts");
   assert.match(src, /matchConvocation\.findMany/, "must still source visible matches via MatchConvocation");
   assert.doesNotMatch(src, /teamId:\s*parent\.player\.teamId/, "must never filter Match by the player's administrative team");
 });
 
-test("parent home page never queries Match by parent.player.teamId", () => {
+test("parent home page never queries Match by parent.activePlayer.teamId", () => {
   // Accueil Parent v2 : l'agrégation vit désormais dans getParentHomeState
   // (parent-home.ts), plus dans page.tsx lui-même — page.tsx ne fait plus
   // que consommer son résultat et ne doit donc plus contenir de requête

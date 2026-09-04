@@ -6,6 +6,7 @@ import {
   decideLoginPageRedirect,
   decidePasswordChangeRedirect,
   decideOnboardingRedirect,
+  decideParentOnboardingRedirect,
   sanitizeNextPath,
 } from "./redirect-policy";
 
@@ -122,4 +123,14 @@ test("decideOnboardingRedirect: a brand new account (never onboarded) is sent to
 
 test("decideOnboardingRedirect: an account that already completed onboarding passes through", () => {
   assert.equal(decideOnboardingRedirect(new Date("2026-01-01")), null);
+});
+
+// --- PARENT ONBOARDING ---
+
+test("decideParentOnboardingRedirect: a freshly activated account is sent to /parent/informations", () => {
+  assert.equal(decideParentOnboardingRedirect(null), "/parent/informations");
+});
+
+test("decideParentOnboardingRedirect: an account that already completed onboarding passes through", () => {
+  assert.equal(decideParentOnboardingRedirect(new Date("2026-01-01")), null);
 });

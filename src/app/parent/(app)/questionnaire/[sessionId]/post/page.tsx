@@ -21,7 +21,7 @@ export default async function PostQuestionnairePage({ params }: { params: Promis
   if (!session || !sessionInParentScope(session, parent)) notFound();
 
   const feedback = await prisma.sessionFeedback.findUnique({
-    where: { sessionId_playerId: { sessionId, playerId: parent.playerId } },
+    where: { sessionId_playerId: { sessionId, playerId: parent.activePlayerId } },
   });
   const done = !!feedback?.postAnsweredAt;
   const open = isPostOpen(session);

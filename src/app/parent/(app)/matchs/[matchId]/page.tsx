@@ -23,7 +23,7 @@ export default async function ParentMatchDetailPage({ params }: { params: Promis
   const { matchId } = await params;
 
   const convocation = await prisma.matchConvocation.findUnique({
-    where: { matchId_playerId: { matchId, playerId: parent.playerId } },
+    where: { matchId_playerId: { matchId, playerId: parent.activePlayerId } },
     include: { match: { include: { team: true } } },
   });
   if (!convocation) notFound();

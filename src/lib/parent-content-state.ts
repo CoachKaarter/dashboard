@@ -30,11 +30,17 @@ function key(ref: EntityRef) {
   return `${ref.entityType}:${ref.entityId}`;
 }
 
-/** Un seul aller-retour DB pour tous les refs d'un même parent (pas de N+1 par carte). */
-export async function loadContentStates(parentAccountId: string, refs: EntityRef[]): Promise<Map<string, ContentState>> {
+/**
+ * Un seul aller-retour DB pour tous les refs d'un même parent — mais
+ * toujours scopé à UN enfant (playerId) : depuis qu'un compte peut avoir
+ * plusieurs enfants, "vu" pour l'un ne doit jamais éteindre le signal NEW
+ * de l'autre (ex. AVAILABILITY_WEEK, dont entityId est une date de
+ * semaine partagée par tous les enfants du compte, pas un id joueur).
+ */
+export async function loadContentStates(parentAccountId: string, playerId: string, refs: EntityRef[]): Promise<Map<string, ContentState>> {
   if (refs.length === 0) return new Map();
   const rows = await prisma.parentContentState.findMany({
-    where: { parentAccountId, OR: refs.map((r) => ({ entityType: r.entityType, entityId: r.entityId })) },
+    where: { parentAccountId, playerId, OR: refs.map((r) => ({ entityType: r.entityType, entityId: r.entityId })) },
   });
   return new Map(rows.map((r) => [key(r), { seenAt: r.seenAt, completedAt: r.completedAt, lastSnapshot: r.lastSnapshot }]));
 }
@@ -43,27 +49,27 @@ export function getState(states: Map<string, ContentState>, ref: EntityRef): Con
   return states.get(key(ref)) ?? null;
 }
 
-async function upsert(parentAccountId: string, ref: EntityRef, data: { seenAt?: Date; completedAt?: Date; lastSnapshot?: Prisma.InputJsonValue }) {
+async function upsert(parentAccountId: string, playerId: string, ref: EntityRef, data: { seenAt?: Date; completedAt?: Date; lastSnapshot?: Prisma.InputJsonValue }) {
   await prisma.parentContentState.upsert({
-    where: { parentAccountId_entityType_entityId: { parentAccountId, entityType: ref.entityType, entityId: ref.entityId } },
+    where: { parentAccountId_playerId_entityType_entityId: { parentAccountId, playerId, entityType: ref.entityType, entityId: ref.entityId } },
     update: data,
-    create: { parentAccountId, entityType: ref.entityType, entityId: ref.entityId, ...data },
+    create: { parentAccountId, playerId, entityType: ref.entityType, entityId: ref.entityId, ...data },
   });
 }
 
 /** Consultation simple — éteint l'animation NEW, ne touche jamais lastSnapshot. */
-export function recordSeen(parentAccountId: string, ref: EntityRef) {
-  return upsert(parentAccountId, ref, { seenAt: new Date() });
+export function recordSeen(parentAccountId: string, playerId: string, ref: EntityRef) {
+  return upsert(parentAccountId, playerId, ref, { seenAt: new Date() });
 }
 
 /** Consultation qui vaut acquittement (séance, annonce, objectif, retour coach, retrait de convocation). */
-export function recordSeenSnapshot(parentAccountId: string, ref: EntityRef, snapshot: Prisma.InputJsonValue) {
-  return upsert(parentAccountId, ref, { seenAt: new Date(), lastSnapshot: snapshot });
+export function recordSeenSnapshot(parentAccountId: string, playerId: string, ref: EntityRef, snapshot: Prisma.InputJsonValue) {
+  return upsert(parentAccountId, playerId, ref, { seenAt: new Date(), lastSnapshot: snapshot });
 }
 
 /** Réponse effective du parent (confirme/décline sa présence, renseigne une disponibilité...). */
-export function recordResponseSnapshot(parentAccountId: string, ref: EntityRef, snapshot: Prisma.InputJsonValue) {
-  return upsert(parentAccountId, ref, { seenAt: new Date(), completedAt: new Date(), lastSnapshot: snapshot });
+export function recordResponseSnapshot(parentAccountId: string, playerId: string, ref: EntityRef, snapshot: Prisma.InputJsonValue) {
+  return upsert(parentAccountId, playerId, ref, { seenAt: new Date(), completedAt: new Date(), lastSnapshot: snapshot });
 }
 
 export type FieldChange = { field: string; from: string; to: string };

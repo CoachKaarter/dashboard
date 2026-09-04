@@ -16,8 +16,8 @@ const APP_URL = process.env.APP_URL ?? "https://onzevo.website";
  * que le compte existe) puisse aussi s'en servir directement.
  */
 export async function issuePasswordResetForAccount(accountId: string, actorUserId: string | null): Promise<{ ok: boolean }> {
-  const account = await prisma.parentAccount.findUnique({ where: { id: accountId }, include: { player: true } });
-  if (!account || !account.active || !account.player.parentEmail) return { ok: false };
+  const account = await prisma.parentAccount.findUnique({ where: { id: accountId } });
+  if (!account || !account.active) return { ok: false };
 
   // Un seul lien actif : les précédents (non utilisés) sont expirés
   // immédiatement plutôt qu'ajoutés à une colonne "revokedAt" séparée —
@@ -34,7 +34,7 @@ export async function issuePasswordResetForAccount(accountId: string, actorUserI
   const club = await getClub();
   const resetUrl = `${APP_URL}/parent/reinitialiser/${token}`;
   const result = await sendParentPasswordResetEmail({
-    to: account.player.parentEmail,
+    to: account.email,
     clubName: club.name,
     clubLogoUrl: club.hasLogo ? `${APP_URL}/api/club/logo?v=${club.logoVersion}` : null,
     resetUrl,
@@ -65,11 +65,10 @@ export async function requestPasswordReset(identifier: string): Promise<void> {
   const account = await prisma.parentAccount.findFirst({
     where: {
       active: true,
-      OR: [{ username: id }, { player: { is: { parentEmail: { equals: id, mode: "insensitive" } } } }],
+      OR: [{ username: id }, { email: { equals: id, mode: "insensitive" } }],
     },
-    include: { player: true },
   });
-  if (!account || !account.player.parentEmail) return;
+  if (!account) return;
 
   await issuePasswordResetForAccount(account.id, null);
 }

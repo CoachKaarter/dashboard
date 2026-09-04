@@ -8,7 +8,7 @@ import { parentSignOutAction } from "../actions";
 
 export default async function ParentProfilPage({ searchParams }: { searchParams: Promise<{ declared?: string }> }) {
   const parent = await requireParentReady();
-  const player = await prisma.player.findUniqueOrThrow({ where: { id: parent.playerId } });
+  const player = await prisma.player.findUniqueOrThrow({ where: { id: parent.activePlayerId } });
   const { declared } = await searchParams;
 
   return (

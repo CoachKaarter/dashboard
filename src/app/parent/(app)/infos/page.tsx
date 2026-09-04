@@ -15,7 +15,7 @@ export default async function ParentInfosPage() {
   const parent = await requireParentReady();
 
   const announcements = await prisma.staffAnnouncement.findMany({
-    where: { OR: [{ scopeTeamId: parent.player.teamId }, { scopeTeamId: null, targetCategory: parent.player.teamCategory }] },
+    where: { OR: [{ scopeTeamId: parent.activePlayer.teamId }, { scopeTeamId: null, targetCategory: parent.activePlayer.teamCategory }] },
     include: { author: true },
     orderBy: { createdAt: "desc" },
     take: 50,

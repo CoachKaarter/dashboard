@@ -10,7 +10,7 @@ export default async function ParentCartePage() {
 
   const [player, club] = await Promise.all([
     prisma.player.findUniqueOrThrow({
-      where: { id: parent.playerId },
+      where: { id: parent.activePlayerId },
       include: { team: true, evaluations: { orderBy: { createdAt: "desc" }, take: 1 } },
     }),
     getClub(),

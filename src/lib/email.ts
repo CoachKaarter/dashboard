@@ -82,18 +82,28 @@ export type ParentInvitationEmailInput = {
   playerFirstName: string;
   playerLastName: string;
   activationUrl: string;
+  // true quand cette adresse a déjà un espace famille actif (un aîné par
+  // exemple) — l'email annonce alors l'ajout d'un enfant plutôt que la
+  // création d'un nouvel espace, et le CTA n'implique plus de mot de passe.
+  existingAccount?: boolean;
 };
 
 export function buildParentInvitationEmail(input: ParentInvitationEmailInput) {
-  const subject = "Votre espace famille Onzevo est prêt";
   const childDisplay = `${input.playerFirstName} ${input.playerLastName.toUpperCase()}`;
+  const existingAccount = input.existingAccount ?? false;
+
+  const subject = existingAccount ? "Un enfant a été ajouté à votre espace famille Onzevo" : "Votre espace famille Onzevo est prêt";
+  const introText = existingAccount
+    ? `Le ${input.clubName} vient d'ajouter ${childDisplay} à votre espace famille Onzevo — vous le retrouverez avec vos identifiants habituels.`
+    : `Le ${input.clubName} met désormais à votre disposition Onzevo, son espace numérique dédié aux familles.`;
+  const ctaLabel = existingAccount ? "VOIR MON ESPACE FAMILLE" : "ACTIVER MON ESPACE FAMILLE";
 
   const text = [
     `Bonjour,`,
     ``,
-    `Le ${input.clubName} met désormais à votre disposition Onzevo, son espace numérique dédié aux familles.`,
+    introText,
     ``,
-    `Votre espace est prêt pour : ${childDisplay}`,
+    existingAccount ? `Nouvel enfant ajouté : ${childDisplay}` : `Votre espace est prêt pour : ${childDisplay}`,
     ``,
     `Depuis Onzevo, vous pourrez notamment retrouver :`,
     `- Planning de la semaine — Les entraînements et rendez-vous de votre enfant.`,
@@ -101,8 +111,8 @@ export function buildParentInvitationEmail(input: ParentInvitationEmailInput) {
     `- Convocations — Retrouvez automatiquement la convocation de votre enfant lorsqu'elle est publiée.`,
     `- Informations du club — Horaires, lieux, annonces et informations utiles.`,
     ``,
-    `VOTRE ESPACE EST PRÊT`,
-    `Pour activer votre compte et choisir votre mot de passe :`,
+    existingAccount ? `CONFIRMER L'AJOUT` : `VOTRE ESPACE EST PRÊT`,
+    existingAccount ? `Pour confirmer :` : `Pour activer votre compte et choisir votre mot de passe :`,
     input.activationUrl,
     ``,
     `Ce lien est personnel et valable pendant 72 heures.`,
@@ -122,11 +132,10 @@ export function buildParentInvitationEmail(input: ParentInvitationEmailInput) {
   const bodyHtml = `
       <p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#3F8F5B;">Bienvenue sur Onzevo</p>
       <p style="margin:0 0 16px;font-size:15px;color:#16181c;line-height:1.55;">
-        Le <strong>${escapeHtml(input.clubName)}</strong> met désormais à votre disposition Onzevo, son espace numérique dédié aux familles.
-        Votre espace famille est prêt.
+        ${escapeHtml(introText)}
       </p>
       <div style="background:#F6F6F4;border-radius:12px;padding:14px 16px;margin-bottom:20px;">
-        <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#9A9DA3;margin-bottom:2px;">Votre espace est prêt pour</div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#9A9DA3;margin-bottom:2px;">${existingAccount ? "Nouvel enfant ajouté" : "Votre espace est prêt pour"}</div>
         <div style="font-size:16px;font-weight:700;color:#16181c;">${escapeHtml(childDisplay)}</div>
       </div>
       <div style="margin-bottom:22px;">
@@ -140,7 +149,7 @@ export function buildParentInvitationEmail(input: ParentInvitationEmailInput) {
           )
           .join("")}
       </div>
-      ${ctaButton(input.activationUrl, "ACTIVER MON ESPACE FAMILLE")}
+      ${ctaButton(input.activationUrl, ctaLabel)}
       <p style="margin:18px 0 0;font-size:12px;color:#9A9DA3;line-height:1.5;">
         Ce lien est personnel et valable pendant 72 heures. Pour votre sécurité, ne transférez pas cet email.
       </p>`;

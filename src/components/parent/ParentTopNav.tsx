@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ClubIdentity } from "@/lib/club";
+import { ChildSwitcher, type SwitcherChild } from "./ChildSwitcher";
 
 const NAV = [
   { href: "/parent", label: "Accueil" },
@@ -16,7 +17,17 @@ const NAV = [
 // Desktop-only counterpart to ParentBottomNav — same 6 destinations, same
 // active-route logic, shown side-by-side with the club identity instead of
 // stacked at the bottom of a narrow viewport.
-export function ParentTopNav({ category, club }: { category: string; club: ClubIdentity }) {
+export function ParentTopNav({
+  category,
+  club,
+  familyChildren,
+  activePlayerId,
+}: {
+  category: string;
+  club: ClubIdentity;
+  familyChildren: SwitcherChild[];
+  activePlayerId: string;
+}) {
   const pathname = usePathname();
 
   return (
@@ -33,6 +44,7 @@ export function ParentTopNav({ category, club }: { category: string; club: ClubI
             <div className="text-white text-[14px] font-bold tracking-[0.01em]">{club.name}</div>
             <div className="text-[11.5px] text-sidebar-text">Catégorie {category} — Espace parents</div>
           </div>
+          <ChildSwitcher familyChildren={familyChildren} activePlayerId={activePlayerId} variant="dark" />
         </div>
         <nav className="flex items-center gap-1">
           {NAV.map((item) => {

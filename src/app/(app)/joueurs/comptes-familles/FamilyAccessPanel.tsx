@@ -6,7 +6,7 @@ import type { IssueInvitationResult } from "@/lib/parent-invitation";
 import type { FamilyAccessStatus } from "@/lib/parent-invitation-status";
 import { TeamChip } from "@/components/ui/TeamChip";
 
-type Row = { id: string; name: string; teamCode: string; email: string | null; status: FamilyAccessStatus };
+type Row = { id: string; name: string; teamCode: string; email: string | null; status: FamilyAccessStatus; siblingNames?: string[] };
 
 // Un joueur "sent" (invitation déjà envoyée et encore valide) n'est pas
 // sélectionnable ici — le renvoyer avant expiration révoquerait un lien que
@@ -86,7 +86,10 @@ export function FamilyAccessPanel({ rows }: { rows: Row[] }) {
               <label key={r.id} className="flex items-center gap-3 px-3.5 py-2.5 border-b border-line-soft-2 last:border-b-0 cursor-pointer">
                 <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id)} className="w-4 h-4 accent-ink" />
                 <TeamChip code={r.teamCode} />
-                <div className="flex-1 min-w-0 text-[12.5px] font-semibold truncate">{r.name}</div>
+                <div className="flex-1 min-w-0 text-[12.5px] font-semibold truncate">
+                  {r.name}
+                  {!!r.siblingNames?.length && <span className="ml-1.5 text-[10.5px] font-normal text-muted-2">même email que {r.siblingNames.join(", ")}</span>}
+                </div>
                 <span className="text-[11px] text-muted-2">{r.status === "expired" ? "expirée — sera renvoyée" : "prête"}</span>
               </label>
             ))}
