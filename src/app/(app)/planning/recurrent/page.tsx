@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireUser, scopedTeamIds } from "@/lib/authz";
+import { requireUser, scopedTeamIds, getAccessibleCategories } from "@/lib/authz";
 import { TeamChip } from "@/components/ui/TeamChip";
 import { Badge } from "@/components/ui/Badge";
 import { createSlot, toggleSlotActive, deleteSlot } from "./actions";
@@ -12,6 +12,7 @@ const inputClass =
 export default async function PlanningRecurrentPage() {
   const user = await requireUser();
   const isAdmin = user.role === "ADMIN";
+  const categories = getAccessibleCategories(user).sort();
   const scope = scopedTeamIds(user);
 
   const [slotsAll, allTeams] = await Promise.all([
@@ -66,8 +67,11 @@ export default async function PlanningRecurrentPage() {
           <form action={createSlot} className="grid grid-cols-3 gap-2.5">
             <select name="category" required defaultValue="" className={inputClass}>
               <option value="" disabled>Catégorie</option>
-              <option value="U12">U12</option>
-              <option value="U13">U13</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
             </select>
             <select name="scopeTeamId" defaultValue="" className={inputClass}>
               <option value="">Toute la catégorie</option>

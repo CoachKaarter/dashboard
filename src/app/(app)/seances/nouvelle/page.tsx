@@ -1,12 +1,18 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { requireUser, getAccessibleCategories } from "@/lib/authz";
 import { createSession } from "../actions";
 
 const inputClass =
   "h-9 border border-line rounded-md px-2.5 text-[12.5px] bg-surface outline-none w-full focus:border-blue focus:ring-[3px] focus:ring-blue-bg";
 
 export default async function NouvelleSeancePage() {
-  const teams = await prisma.team.findMany({ orderBy: { code: "asc" } });
+  const user = await requireUser();
+  const categories = getAccessibleCategories(user).sort();
+  const teams = await prisma.team.findMany({
+    where: { category: { in: categories } },
+    orderBy: { code: "asc" },
+  });
 
   return (
     <div className="max-w-[560px] mx-auto animate-fadein">
@@ -17,9 +23,12 @@ export default async function NouvelleSeancePage() {
         <div className="text-lg font-bold tracking-[-0.01em] mb-4">Nouvelle séance</div>
         <form action={createSession} className="flex flex-col gap-3.5">
           <Field label="Catégorie">
-            <select name="category" defaultValue="U13" className={inputClass}>
-              <option value="U13">U13</option>
-              <option value="U12">U12</option>
+            <select name="category" defaultValue={categories[0] ?? ""} className={inputClass}>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
             </select>
           </Field>
           <Field label="Équipe spécifique (optionnel)">
